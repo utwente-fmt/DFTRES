@@ -253,6 +253,7 @@ public class Simulator {
 		int percentage = 0;
 		long start = System.currentTimeMillis();
 		double[] stats = new double[4]; double[] Y;
+		double estMean = 0;
 		ModelGenerator generator = scheme.generator;
 		System.out.println("simulation running ...");
 		System.out.println("start size: "+generator.X.size());
@@ -282,6 +283,7 @@ public class Simulator {
 			}
 			msec -= (System.currentTimeMillis() - start);
 			newMaxN = 1000 * ((msec * 1000 * newMaxN) / (System.nanoTime() - startExact));
+			estMean = stats[0] / (2*newMaxN);
 			if (newMaxN < maxN)
 				maxN = (int)newMaxN;
 		}
@@ -298,6 +300,7 @@ public class Simulator {
 				stats[3] = Math.fma(Y[0], Y[0], stats[3]);
 			}
 			stats[0] += Y[0];
+			Y[0] -= estMean;
 			stats[1] = Math.fma(Y[0], Y[0], stats[1]);
 			N++;
 			if (maxN < Integer.MAX_VALUE) {
@@ -316,8 +319,16 @@ public class Simulator {
 		long endExact = System.nanoTime();
 		System.out.println("\nend size: "+generator.X.size());
 		SimulationResult result;
+		/*
 		if(generator.XUnderQ == null) result = new SimulationResult(stats, new double[] {generator.X.v[0], 0}, N, M);
 		else result = new SimulationResult(stats, new double[] {generator.X.v[0], generator.XUnderQ.v[0]}, N, M);
+		*/
+		double mean = stats[0] / N;
+		double var = Math.fma(-N, estMean, stats[0]);
+		var = Math.fma(-var, mean - estMean, stats[1]);
+		var /= N - 1;
+		result = new SimulationResult(mean, var, N);
+		result.M = M;
 
 		System.out.println(result);
 		System.out.println("run time: "+ (1e-9 * (endExact - startExact))+" seconds, N="+N+", M = "+M);
