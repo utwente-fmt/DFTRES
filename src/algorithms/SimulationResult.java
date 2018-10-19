@@ -3,6 +3,9 @@ package algorithms;
 import java.text.DecimalFormat;
 
 public class SimulationResult {
+	public String property;
+	public long simTimeNanos;
+	public long storedStates;
 	
 	public double sumX;
 	public double sumX2;

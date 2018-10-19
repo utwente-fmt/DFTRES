@@ -66,7 +66,6 @@ public class ReachabilitySolver
 
 	public double[][] solve(int maxIts)
 	{
-		System.err.format("Solving %dx%d matrix\n", T.length, T[0].length);
 		if (T.length <= 300) {
 			singleCoreSolve(maxIts);
 		} else {
@@ -101,7 +100,6 @@ public class ReachabilitySolver
 			iteration(0, T.length);
 			double[][] t1 = tmp; tmp = T; T = t1;
 			long endTime = System.nanoTime();
-			System.err.format("Iteration %d, maximal remaining %g (%g secs per iteration)\n", i, maxRem.get(), (endTime - startTime) / (1e9*(i+1)));
 		}
 		tmp = T;
 	}
@@ -138,7 +136,6 @@ public class ReachabilitySolver
 			}
 			double[][] t1 = tmp; tmp = T; T = t1;
 			long endTime = System.nanoTime();
-			System.err.format("Iteration %d, maximal remaining %g (%g secs per iteration)\n", i, maxRem.get(), (endTime - startTime) / (1e9*(i+1)));
 		}
 		tmp = T;
 		T = null;

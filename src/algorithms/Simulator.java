@@ -4,6 +4,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 
 public class Simulator {
+	public final static boolean VERBOSE = true;
+	public static boolean showProgress = false;
 	public String trace;
 	private static final boolean doTrace = false;
 	private static final double UNIF_BOUND = 1e-10;
@@ -220,8 +222,8 @@ public class Simulator {
 		long start = System.currentTimeMillis();
 		double[] stats = new double[4]; double[] Y;
 		ModelGenerator generator = scheme.generator;
-		System.out.println("simulation running ...");
-		System.out.println("start size: "+generator.X.size());
+		if (VERBOSE)
+			System.err.println("\nstart size: "+generator.X.size());
 		StateSpace resX = generator.X.clone();
 		int initSize = Math.max(generator.X.size(), MAX_CACHE);
 		while(System.currentTimeMillis()-start < msec) {
@@ -236,18 +238,19 @@ public class Simulator {
 			stats[1] = Math.fma(Y[0], Y[0], stats[1]);
 			N++;
 		}
-		System.out.println("end size: "+generator.X.size());
+		if (VERBOSE)
+			System.err.println("\nend size: "+generator.X.size());
 		SimulationResult result;
 		if(generator.XUnderQ == null) result = new SimulationResult(stats, new double[] {generator.X.v[0], 0}, N, M);
 		else result = new SimulationResult(stats, new double[] {generator.X.v[0], generator.XUnderQ.v[0]}, N, M);
 		
-		System.out.println(result);
-		System.out.println("run time: "+(System.currentTimeMillis() - start)+" milliseconds, N="+N+", M = "+M);
-		System.out.println("--------------------------------");
+		result.property = "Reach before taboo";
+		result.simTimeNanos = 1000 * (System.currentTimeMillis() - start);
+		result.storedStates = initSize;
 		return result;
 	}
 
-	public SimulationResult simReliability(int msec, Scheme scheme, int maxN, double timeBound) {
+	public SimulationResult simReliability(int msec, Scheme scheme, long maxN, double timeBound) {
 		long N=0;
 		long M=0;
 		int percentage = 0;
@@ -255,13 +258,13 @@ public class Simulator {
 		double[] stats = new double[4]; double[] Y;
 		double estMean = 0;
 		ModelGenerator generator = scheme.generator;
-		System.out.println("simulation running ...");
-		System.out.println("start size: "+generator.X.size());
+		if (VERBOSE)
+			System.err.println("\nstart size: "+generator.X.size());
 		StateSpace resX = generator.X.clone();
 		int initSize = Math.max(generator.X.size(), MAX_CACHE);
 		if (msec < Integer.MAX_VALUE) {
 			long newMaxN = 0;
-			int estN = 0;
+			long estN = 0;
 			int trialSimTime = msec / 100; /* Spend 1% of simulation time to estimate number of runs. */
 			while (System.currentTimeMillis() - start < trialSimTime) {
 				if(generator.X.size() > 2 * initSize)
@@ -285,10 +288,10 @@ public class Simulator {
 			newMaxN = 1000 * ((msec * 1000 * newMaxN) / (System.nanoTime() - startExact));
 			estMean = stats[0] / (2*newMaxN);
 			if (newMaxN < maxN)
-				maxN = (int)newMaxN;
+				maxN = newMaxN;
 		}
-		System.out.format("Will run %d simulations.\n", maxN);
-		System.out.flush();
+		if (VERBOSE)
+			System.err.format("Will run %d simulations.\n", maxN);
 		stats[0] = 0;
 		long startExact = System.nanoTime();
 		while(N < maxN) {
@@ -303,21 +306,21 @@ public class Simulator {
 			Y[0] -= estMean;
 			stats[1] = Math.fma(Y[0], Y[0], stats[1]);
 			N++;
-			if (maxN < Integer.MAX_VALUE) {
+			if (showProgress && maxN < Integer.MAX_VALUE) {
 				int newPerc = (int)(N * 50 / maxN);
 				if (newPerc != percentage) {
 					percentage = newPerc;
 					if (newPerc % 5 == 0)
-						System.out.print(newPerc * 2 + "%");
+						System.err.print(newPerc * 2 + "%");
 					else
-						System.out.print(".");
-					System.out.flush();
+						System.err.print(".");
 					percentage = newPerc;
 				}
 			}
 		}
 		long endExact = System.nanoTime();
-		System.out.println("\nend size: "+generator.X.size());
+		if (VERBOSE)
+			System.err.println("\nend size: "+generator.X.size());
 		SimulationResult result;
 		/*
 		if(generator.XUnderQ == null) result = new SimulationResult(stats, new double[] {generator.X.v[0], 0}, N, M);
@@ -329,20 +332,18 @@ public class Simulator {
 		var /= N - 1;
 		result = new SimulationResult(mean, var, N);
 		result.M = M;
+		result.property = "Unreliability before " + timeBound;
+		result.simTimeNanos = endExact - startExact;
+		result.storedStates = initSize;
 
-		System.out.println(result);
-		System.out.println("run time: "+ (1e-9 * (endExact - startExact))+" seconds, N="+N+", M = "+M);
-		System.out.println("Simulations per second: " + 1e9 * N / (endExact - startExact));
-		System.out.println("--------------------------------");
 		return result;
 	}
 
 	public SimulationResult simFixN(long Nm, Scheme scheme) {
-		long start = System.currentTimeMillis();
+		long start = System.nanoTime();
 		double[] stats = new double[4]; double[] Y;
 		long N=0;
 		long M=0;
-		System.out.println("simulation running ...");
 		ModelGenerator generator = scheme.generator;
 		StateSpace resX = generator.X.clone();
 		int initSize = Math.max(generator.X.size(), MAX_CACHE);
@@ -363,9 +364,9 @@ public class Simulator {
 		if(generator.XUnderQ == null) result = new SimulationResult(stats, new double[] {generator.X.v[0], 0}, N, M);
 		else result = new SimulationResult(stats, new double[] {generator.X.v[0], generator.XUnderQ.v[0]}, N, M);
 		
-		System.out.println(result);
-		System.out.println("run time: "+(System.currentTimeMillis() - start)+" milliseconds, N="+N+", M = "+M);
-		System.out.println("--------------------------------");
+		result.property = "Reach before taboo";
+		result.simTimeNanos = System.nanoTime() - start;
+		result.storedStates = initSize;
 		return result;
 	}
 	
@@ -374,7 +375,8 @@ public class Simulator {
 		long start = System.currentTimeMillis();
 		double[] Z; 
 		double estMeans[] = new double[2];
-		System.out.println("Estimating simulation rate...");
+		if (VERBOSE)
+			System.err.println("Estimating simulation rate...");
 		int initSize = Math.max(scheme1.generator.X.size(), MAX_CACHE);
 		initSize = Math.max(scheme2.generator.X.size(), initSize);
 		StateSpace resX1 = scheme1.generator.X.clone();
@@ -417,10 +419,17 @@ public class Simulator {
 		estMeans[0] /= newMaxN * 2;
 		estMeans[1] /= newMaxN * 2;
 
+		long time = System.nanoTime() - startExact;
 		msec -= System.currentTimeMillis() - start;
-		newMaxN = 1000 * ((msec * 1000) * newMaxN / (System.nanoTime() - startExact));
-		System.out.format("Will run %d simulations.\n", newMaxN);
-		System.out.flush();
+		if (VERBOSE) {
+			System.err.format("Performed %d simulations in %d nanoseconds.\n", newMaxN, time);
+			System.err.format("Estimating %f simulations per second.\n", 1000000000.0 * newMaxN / time);
+		}
+		newMaxN = Math.round((msec * 1000000.0 * newMaxN) / time);
+		if (VERBOSE) {
+			System.err.format("%d msec left\n", msec);
+			System.err.format("Will run %d simulations.\n", newMaxN);
+		}
 		return simUnavailabilityFixN((int)newMaxN, scheme1, scheme2, estMeans);
 	}
 	
@@ -433,7 +442,6 @@ public class Simulator {
 		double[] zStats = new double[2]; 
 		double[] dStats = new double[2];
 		double[] Z; 
-		System.out.println("simulation running ...");
 		long start = System.nanoTime();
 		int initSize = Math.max(scheme1.generator.X.size(), MAX_CACHE);
 		initSize = Math.max(scheme2.generator.X.size(), initSize);
@@ -460,8 +468,10 @@ public class Simulator {
 			N++;
 		}
 		
-		System.out.println("estimator for Z (unavail. time during renewal cycle): "+(zStats[0]/N));
-		System.out.println("estimator for D (total time during renewal cycle): "+dStats[0]/N);
+		if (VERBOSE) {
+			System.err.println("estimator for Z (unavail. time during renewal cycle): "+(zStats[0]/N));
+			System.err.println("estimator for D (total time during renewal cycle): "+dStats[0]/N);
+		}
 		
 		double meanZ = zStats[0]/N; 
 		double meanT = dStats[0]/N;
@@ -475,10 +485,10 @@ public class Simulator {
 		varV /= (N-1)*dStats[0]*dStats[0];
 		
 		SimulationResult res = new SimulationResult(meanV, varV, N);
-		System.out.println(res);
-		System.out.println("run time: "+(System.nanoTime() - start)/1e9+" seconds, N="+N + ", M="+M);
-//		System.out.println("run time: "+(System.currentTimeMillis() - start)+" milliseconds, N="+N);
-//		System.out.println("--------------------------------");
+		res.simTimeNanos = System.nanoTime() - start;
+		res.M = M;
+		res.property = "Unavailability";
+		res.storedStates = initSize;
 
 		return res;
 	}

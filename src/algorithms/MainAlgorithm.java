@@ -101,8 +101,8 @@ public class MainAlgorithm {
 		Ls.retainAll(B); B = null;
 		if(trace) System.out.println("L: "+Ls);
 		if(Ls.size() == 1) return false; // false alarm: HPC consists of one state only
-		if(Ls.size() > 5) System.out.println("HPC starting in state "+s+", size "+Ls.size());
-		else {System.out.println("HPC in states "+Ls);}
+		if(Ls.size() > 5 && trace) System.out.println("HPC starting in state "+s+", size "+Ls.size());
+		else if (trace) {System.out.println("HPC in states "+Ls);}
 		for(Integer x : Ls) {
 			for(Integer z : X.successors.get(x)) {
 				if(!Ls.contains(z) && z > -1) {
@@ -183,7 +183,8 @@ public class MainAlgorithm {
 			if (o < minOrder)
 				minOrder = o;
 		}
-		System.err.println("Minimal order: " + minOrder);
+		if (trace)
+			System.err.println("Minimal order: " + minOrder);
 		for(i=0;i<orders.length;i++)
 			orders[i] -= minOrder;
 
@@ -318,7 +319,6 @@ public class MainAlgorithm {
 			final int wNum = i;
 			Runnable worker = new Runnable () {
 				public void run() {
-					System.err.format("Searching %d to %d of %d\n", lBound, uBound, generator.X.size());
 					HashMap<Integer, ArrayList<Integer>> r;
 					r = new HashMap<>();
 					for(int s = lBound; s < uBound; s++) {
