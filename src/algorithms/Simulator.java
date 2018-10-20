@@ -7,10 +7,16 @@ public class Simulator {
 	public final static boolean VERBOSE = true;
 	public static boolean showProgress = false;
 	public String trace;
+	private final double forceBound;
 	private static final boolean doTrace = false;
 	private static final double UNIF_BOUND = 1e-10;
 	
 	public static final int MAX_CACHE = 1000;
+
+	public Simulator(double forcingBound)
+	{
+		forceBound = forcingBound;
+	}
 	
 	public double[] run(Scheme scheme) {
 		ModelGenerator generator = scheme.generator;
@@ -30,7 +36,7 @@ public class Simulator {
 			scheme.computeNewProbs();
 			z = scheme.drawNextState();
 			d += generator.X.getOrder(generator.currentState, z); 
-			delta = scheme.drawDelta(Double.POSITIVE_INFINITY, false);
+			delta = scheme.drawDelta(Double.POSITIVE_INFINITY, -1);
 			likelihood *= scheme.likelihood();
 			generator.time += delta;
 			generator.currentState = z;
@@ -104,8 +110,10 @@ public class Simulator {
 		scheme.reset();
 		generator.time = 0;
 		int z = 0;
-		//int path[] = new int[generator.X.d.length];
-		double delta;
+		int path[] = null;
+		if (forceBound < 0)
+			path = new int[generator.X.d.length];
+		double delta = 0;
 		double likelihood = 1;
 
 		int d = 0;
@@ -117,10 +125,14 @@ public class Simulator {
 			scheme.computeNewProbs();
 			z = scheme.drawNextState();
 			d += generator.X.getOrder(generator.currentState, z);
-			delta = scheme.drawDelta(timeBound - generator.time, likelihood > 1e-50);
-			//path = scheme.extendPath(path);
-			likelihood *= scheme.likelihood() * scheme.deltaLikelihood();
-			generator.time += delta;
+			if (path == null) {
+				delta = scheme.drawDelta(timeBound - generator.time, likelihood > forceBound ? forceBound : -1);
+				likelihood *= scheme.deltaLikelihood();
+				generator.time += delta;
+			} else {
+				path = scheme.extendPath(path);
+			}
+			likelihood *= scheme.likelihood();
 			generator.currentState = z;
 			if (doTrace)
 				trace += generator.currentState+"/n";
@@ -128,8 +140,10 @@ public class Simulator {
 		double[] result = new double[2];
 		result[1] = d;
 		if(generator.time < timeBound) {
-			result[0] = likelihood;
-			//result[0] = computeProb(scheme, path, timeBound) * likelihood;
+			if (path == null)
+				result[0] = likelihood;
+			else
+				result[0] = computeProb(scheme, path, timeBound) * likelihood;
 			if (doTrace)
 				trace += "HIT/n";
 		}
@@ -161,7 +175,7 @@ public class Simulator {
 			scheme.computeNewProbs();
 			z = scheme.drawNextState();
 			d += generator.X.getOrder(generator.currentState, z); 
-			delta = scheme.drawDelta(Double.POSITIVE_INFINITY, false);
+			delta = scheme.drawDelta(Double.POSITIVE_INFINITY, -1);
 			likelihood *= scheme.likelihood();
 			generator.time += delta;
 			generator.currentState = z;
@@ -179,7 +193,7 @@ public class Simulator {
 				schemeMC.computeNewProbs();
 				z = schemeMC.drawNextState();
 				d += generator.X.getOrder(generator.currentState, z); 
-				delta = schemeMC.drawDelta(Double.POSITIVE_INFINITY, false);
+				delta = schemeMC.drawDelta(Double.POSITIVE_INFINITY, -1);
 				if(generator.isRed(generator.currentState)) timeInRed += delta;
 				generator.time += delta;
 				generator.currentState = z;
@@ -209,7 +223,7 @@ public class Simulator {
 		while(!generator.isBlue(generator.currentState)) {
 			scheme.computeNewProbs();
 			z = scheme.drawNextState();
-			delta = scheme.drawDelta(Double.POSITIVE_INFINITY, false);
+			delta = scheme.drawDelta(Double.POSITIVE_INFINITY, -1);
 			generator.time += delta;
 			generator.currentState = z;
 		}

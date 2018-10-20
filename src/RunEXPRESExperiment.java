@@ -25,6 +25,7 @@ class RunEXPRESExperiment {
 	static Random rng;
 	static int maxTime = Integer.MAX_VALUE, maxSims = Integer.MAX_VALUE;
 	static double epsilon = 0.01;
+	static double forceBound = Double.POSITIVE_INFINITY;
 	static boolean mc = false, zvad = false, zvav = false;
 	static String model;
 
@@ -96,7 +97,7 @@ class RunEXPRESExperiment {
 			schemeMC2 = new SchemeMC(rng, gen2);
 		}
 
-		Simulator simulator = new Simulator();
+		Simulator simulator = new Simulator(forceBound);
 
 		if (mc) {
 			SimulationResult res;
@@ -250,8 +251,12 @@ class RunEXPRESExperiment {
 				maxSims = Integer.parseInt(args[++i]);
 			else if (args[i].equals("-e"))
 				epsilon = Double.parseDouble(args[++i]);
+			else if (args[i].equals("-f"))
+				forceBound = Double.parseDouble(args[++i]);
 			else if (args[i].equals("-r"))
 				reliabilityTime = Double.parseDouble(args[++i]);
+			else if (args[i].equals("--acc"))
+				Scheme.gamma = Double.parseDouble(args[++i]);
 			else if (args[i].equals("--mc"))
 				mc = true;
 			else if (args[i].equals("--zvad"))

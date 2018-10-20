@@ -29,6 +29,8 @@ public class Scheme{
 	public int[] orders;
 	public double[] probs;
 
+	public static double gamma = 1;
+
 	public Scheme(Random rng, ModelGenerator gen) {
 		this.rng = rng;
 		generator = gen;
@@ -186,16 +188,15 @@ public class Scheme{
 		return lastDeltaLikelihood;
 	}
 
-	private static final double FORCE_BOUND = 1e-50;
-	public double drawDelta(double timeLimit, boolean force) {
+	public double drawDelta(double timeLimit, double force) {
 		int k = generator.currentState;
 		if(!generator.X.inHPC.get(k)) {
 			double rate = generator.X.exitRates[k];
-			if (force) {
+			if (force >= 0) {
 				double compLikelihood = Math.exp(-rate * timeLimit);
 				double likelihood = 1 - compLikelihood;
 				double rand;
-				if (lastDeltaLikelihood > FORCE_BOUND) {
+				if (lastDeltaLikelihood > force) {
 					lastDeltaLikelihood = likelihood;
 					rand = rng.nextDouble() * likelihood + compLikelihood;
 				} else {
@@ -204,8 +205,11 @@ public class Scheme{
 				}
 				delta = -Math.log(rand) / rate;
 			} else {
-				delta = -Math.log(rng.nextDouble()) / rate;
-				lastDeltaLikelihood = 1;
+				delta = -Math.log(rng.nextDouble()) / (rate * gamma);
+				if (gamma == 1)
+					lastDeltaLikelihood = 1;
+				else
+					lastDeltaLikelihood = Math.exp(rate * delta * (gamma - 1)) / gamma;
 			}
 			return delta;
 		}
@@ -221,11 +225,11 @@ public class Scheme{
 		while(k != sink) {
 			double currentDelta;
 			double rate = X.exitRates[k];
-			if (force) {
+			if (force >= 0) {
 				double compLikelihood = Math.exp(-rate * timeLimit);
 				double likelihood = 1 - compLikelihood;
 				double rand;
-				if (lastDeltaLikelihood > FORCE_BOUND) {
+				if (lastDeltaLikelihood > force) {
 					lastDeltaLikelihood *= likelihood;
 					rand = rng.nextDouble() * likelihood + compLikelihood;
 				} else {
