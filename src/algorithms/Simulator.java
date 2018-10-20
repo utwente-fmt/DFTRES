@@ -38,7 +38,7 @@ public class Simulator {
 		if (doTrace)
 			trace = "init:/n"+generator.currentStateString()+"/n";
 		
-		while(!generator.isRed(generator.currentState) && !generator.isBlue(generator.currentState)) {
+		do {
 			scheme.computeNewProbs();
 			z = scheme.drawNextState();
 			d += generator.X.getOrder(generator.currentState, z); 
@@ -48,7 +48,7 @@ public class Simulator {
 			generator.currentState = z;
 			if (doTrace)
 				trace += generator.currentState+"/n";
-		}
+		} while(!generator.isRed(generator.currentState) && !generator.isBlue(generator.currentState));
 		result[1] = d;
 		result[0] = 0.;
 		if(generator.isRed(generator.currentState)) {
@@ -127,7 +127,7 @@ public class Simulator {
 		if (doTrace)
 			trace = "initRel:/n"+generator.currentStateString()+"/n";
 
-		while(!generator.isRed(generator.currentState) && generator.time < timeBound && likelihood > 0) {
+		do {
 			scheme.computeNewProbs();
 			z = scheme.drawNextState();
 			d += generator.X.getOrder(generator.currentState, z);
@@ -142,7 +142,7 @@ public class Simulator {
 			generator.currentState = z;
 			if (doTrace)
 				trace += generator.currentState+"/n";
-		}
+		} while(!generator.isRed(generator.currentState) && generator.time < timeBound && likelihood > 0);
 		double[] result = new double[2];
 		result[1] = d;
 		if(generator.time < timeBound) {
@@ -177,7 +177,7 @@ public class Simulator {
 			trace = "init:/n"+generator.currentStateString()+"/n";
 		// leave the regenerative state
 		
-		while((!generator.isRed(generator.currentState) && !generator.isBlue(generator.currentState))) {
+		do {
 			scheme.computeNewProbs();
 			z = scheme.drawNextState();
 			d += generator.X.getOrder(generator.currentState, z); 
@@ -188,7 +188,8 @@ public class Simulator {
 			if (doTrace)
 				trace += generator.currentState+"/n";
 			//System.err.println("State " + generator.currentStateString());
-		}
+		} while((!generator.isRed(generator.currentState) && !generator.isBlue(generator.currentState)));
+
 		if(generator.isRed(generator.currentState)) {
 			if (doTrace)
 				trace += "switch to standard MC/n";
@@ -226,13 +227,13 @@ public class Simulator {
 		generator.time = 0;
 		int z = 0;
 		double delta;
-		while(!generator.isBlue(generator.currentState)) {
+		do {
 			scheme.computeNewProbs();
 			z = scheme.drawNextState();
 			delta = scheme.drawDelta(Double.POSITIVE_INFINITY, -1);
 			generator.time += delta;
 			generator.currentState = z;
-		}
+		} while(!generator.isBlue(generator.currentState));
 		return generator.time;
 	}
 	

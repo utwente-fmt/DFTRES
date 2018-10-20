@@ -55,11 +55,14 @@ public class ExpModel extends ModelGenerator
 		return initialState.length;
 	}
 
+	public void initialise() {
+		super.initialise();
+		X.init(initialState);
+	}
+
 	public boolean isRed(int s)
        	{
 		int[] state = X.states.get(s);
-		if (state[0] == -1)
-			return false;
 		if (prop == null || prop.variable == null)
 			return state[initialState.length - 1] == 1;
 		else
@@ -84,8 +87,6 @@ public class ExpModel extends ModelGenerator
 		int[] temp = new int[initialState.length];
 
 		Composition.statesExplored = 0;
-		if (state[0] == -1)
-			state = initialState.clone();
 		//System.err.format("Neighbours from state %d (%s)\n", s, java.util.Arrays.toString(state));
 		for (LTS.Transition t : comp.getTransitions(state)) {
 			String rlabel = t.label.substring(5);
