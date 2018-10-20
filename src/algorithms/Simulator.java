@@ -4,7 +4,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 
 public class Simulator {
-	public final static boolean VERBOSE = true;
+	public final static boolean VERBOSE = false;
 	public static boolean showProgress = false;
 	public String trace;
 	private final double forceBound;

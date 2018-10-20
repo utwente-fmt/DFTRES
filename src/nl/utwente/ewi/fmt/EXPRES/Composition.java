@@ -5,6 +5,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -708,9 +709,17 @@ public class Composition implements MarkableLTS
 		System.out.println("\t{\"name\":\"unmark\"}");
 		System.out.println("\t],");
 		System.out.println("\"automata\":[");
+		HashMap<Automaton, Integer> outputAutomata = new HashMap<>();
+		String autNames[] = new String[automata.length];
 		for (int i = 0; i < automata.length; i++) {
-			automata[i].printJaniAutomaton("aut"+i);
-			System.out.println(",");
+			Integer num = outputAutomata.get(automata[i]);
+			if (num == null) {
+				num = outputAutomata.size();
+				outputAutomata.put(automata[i], num);
+				automata[i].printJaniAutomaton("aut"+num);
+				System.out.println(",");
+			}
+			autNames[i] = "aut" + num;
 		}
 		/* Monitor automaton */
 		System.out.println("\t{\"name\":\"monitor\",");
@@ -736,7 +745,7 @@ public class Composition implements MarkableLTS
 		System.out.println("],");
 		System.out.println("\"system\":{\"elements\":[");
 		for (int i = 0; i < automata.length; i++) {
-			System.out.println("\t{\"automaton\":\"aut"+i+"\"},");
+			System.out.println("\t{\"automaton\":\"" + autNames[i] + "\"},");
 		}
 		System.out.println("\t{\"automaton\":\"monitor\"}");
 		System.out.println("\t],");
@@ -898,7 +907,6 @@ public class Composition implements MarkableLTS
 					throw new IllegalArgumentException("Unexpected initial value (actual expressions currently unsupported): " + io);
 				}
 				int[] vals = new int[]{0,0,initial, lowerBound};
-				System.err.println("Found global variable " + name);
 				globalVars.put(name, vals);
 			}
 		}

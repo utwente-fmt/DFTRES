@@ -188,6 +188,45 @@ public class Automaton implements LTS {
 		return new Automaton(janiData);
 	}	
 
+	public int hashCode()
+	{
+		int ret = initState;
+		for (int ts[] : targets) {
+			for (int t : ts) {
+				ret = (ret * 31) + t;
+			}
+		}
+		for (String ls[] : labels) {
+			for (String l : ls) {
+				ret = (ret * 5) + l.hashCode();
+			}
+		}
+		if (assignments == null)
+			return ret;
+		for (HashMap<String, Integer> assignss[] : assignments) {
+			for (HashMap<String, Integer> assigns : assignss) {
+				ret = (ret * 3) + assigns.hashCode();
+			}
+		}
+		return ret;
+	}
+
+	public boolean equals(Object otherO)
+	{
+		if (!(otherO instanceof Automaton))
+			return false;
+		Automaton other = (Automaton)otherO;
+		if (other.initState != initState)
+			return false;
+		if (!Arrays.deepEquals(other.targets, targets))
+			return false;
+		if (!Arrays.deepEquals(other.labels, labels))
+			return false;
+		if (!Arrays.deepEquals(other.assignments, assignments))
+			return false;
+		return true;
+	}
+
 	@SuppressWarnings("unchecked")
 	private HashMap<String, Integer>[] createTransitionArray()
 	{
