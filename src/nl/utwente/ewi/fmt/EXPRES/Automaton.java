@@ -412,6 +412,11 @@ public class Automaton implements LTS {
 		return new HashMap<String, Integer>();
 	}
 
+	public int getVarValue(String var, int[] state)
+	{
+		throw new IllegalArgumentException("Attempt to read variable '" + var + "' of automaton without variables.");
+	}
+
 	/** @return The number of states in this automaton */
 	public int getNumStates()
 	{

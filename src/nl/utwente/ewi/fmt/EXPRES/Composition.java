@@ -5,6 +5,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -116,15 +117,18 @@ public class Composition implements MarkableLTS
 	 * @param type The type of the given file, currently supported:
 	 * exp
 	 */
-	public Composition(String filename, String type) throws IOException
+	public Composition(String filename, String type, Map<String, Property> propertiesOut) throws IOException
 	{
 		markLabels = new TreeMap<String, Integer>();
+		TreeMap<String, Property> props = new TreeMap<>();
 		switch (type) {
 			case "exp":
 				readExpFile(filename);
 				break;
 			case "jani":
-				readJaniFile(filename);
+				props = readJaniFile(filename);
+				if (propertiesOut != null)
+					propertiesOut.putAll(props);
 				break;
 			default:
 				throw new IllegalArgumentException("Unsupported composition type");
@@ -137,6 +141,11 @@ public class Composition implements MarkableLTS
 			}
 		};
 		initForcedTransitions();
+	}
+
+	public Composition(String filename, String type) throws IOException
+	{
+		this(filename, type, null);
 	}
 
 	Composition()
@@ -416,6 +425,22 @@ public class Composition implements MarkableLTS
 			ret.put(e.getKey(), val);
 		}
 		return ret;
+	}
+
+	public int getVarValue(String var, int[] state)
+	{
+		int vals = state[state.length - 1];
+		TreeMap<String, Integer> ret = new TreeMap<>();
+		if (var.equals("marked") && globalVars.isEmpty()) {
+			return vals;
+		}
+		int[] vData = globalVars.get(var);
+		if (vData == null)
+			throw new IllegalArgumentException("Attempt to read value of undeclared variable '" + var + "'");
+		int val = vals >> vData[0];
+		val &= ((-1) >>> (32 - vData[1]));
+		val += vData[3];
+		return val;
 	}
 
 	private void doAssigns(int[] state, Map<String, Integer> assigns)
@@ -864,7 +889,74 @@ public class Composition implements MarkableLTS
 		throw new IllegalArgumentException("Type " + t.toString() + " is not supported.");
 	}
 
-	private void readJaniFile(String filename) throws IOException
+	private static Property parseJaniProperty(Map prop, String[] nameOut)
+	{
+		Object nameO = prop.get("name");
+		if (!(nameO instanceof String))
+			throw new IllegalArgumentException("Property name should be string, not: " + nameO);
+		nameOut[0] = (String) nameO;
+		Object expO = prop.get("expression");
+		if (!(expO instanceof Map))
+			throw new IllegalArgumentException("Property expression should be object, not: " + expO);
+		Map expr = (Map)expO;
+		if (!"filter".equals(expr.get("op")))
+			throw new UnsupportedOperationException("I don't know what to do property operation '" + expr.get("op") + "'");
+		Object fun = expr.get("fun");
+		if (!("max".equals(fun) || "min".equals(fun) || "avg".equals("fun")))
+			throw new UnsupportedOperationException("Unsupported property function: " + fun);
+		if (!Collections.singletonMap("op", "initial").equals(expr.get("states")))
+			throw new UnsupportedOperationException("Only properties over initial states currently supported.");
+		Object valO = expr.get("values");
+		if (!(valO instanceof Map))
+			throw new IllegalArgumentException("Property values should be object, not: " + valO);
+		Map values = (Map)valO;
+		Object op = values.get("op");
+		Property.Type propType = null;
+		if ("Smax".equals(op) || "Smin".equals(op))
+			propType = Property.Type.STEADY_STATE;
+		else if ("Pmax".equals(op) || "Pmin".equals(op))
+			propType = Property.Type.REACHABILITY;
+		else
+			throw new UnsupportedOperationException("Unsupported property operation: " + op);
+		double timeBound = 0;
+		String variable = null;
+		expO = values.get("exp");
+		if (expO instanceof String) {
+			variable = (String)expO;
+		} else if (expO instanceof Map) {
+			expr = (Map)expO;
+			if (!"U".equals(expr.get("op")))
+				throw new UnsupportedOperationException("The only currently supported formulae are variables and 'true U variable' (with time bound)");
+			if (!Boolean.TRUE.equals(expr.get("left")))
+				throw new UnsupportedOperationException("Until formulae currently only supported with 'true' left operand.");
+			expO = expr.get("right");
+			if (!(expO instanceof String))
+				throw new UnsupportedOperationException("Until formulae currently only supported with atomic (variable) right operand");
+			variable = (String)expO;
+			Object boundO = expr.get("time-bounds");
+			if (boundO == null) {
+				timeBound = Double.POSITIVE_INFINITY;
+			} else if (boundO instanceof Map) {
+				Map bound = (Map)boundO;
+				for (Object o : bound.keySet()) {
+					if ("upper".equals(o)) {
+						o = bound.get("upper");
+						if (o instanceof Number)
+							timeBound = ((Number)o).doubleValue();
+						else
+							throw new UnsupportedOperationException("Only constant-valued upper bounds currently supported.");
+					} else if (!"upper-exclusive".equals(o)) {
+						throw new UnsupportedOperationException("Only constant-valued upper bounds currently supported.");
+					}
+				}
+			}
+		} else {
+			throw new IllegalArgumentException("Property expression should be identifier or expression.");
+		}
+		return new Property(propType, timeBound, variable);
+	}
+
+	private TreeMap<String, Property> readJaniFile(String filename) throws IOException
 	{
 		globalVars = new TreeMap<>();
 		Object jani = JSONParser.readJsonFromFile(filename);
@@ -992,5 +1084,25 @@ public class Composition implements MarkableLTS
 					synchronizedLabels[i] = resultAction.toString();
 			}
 		}
+		TreeMap<String, Property> ret = new TreeMap<>();
+		Object propO = root.get("properties");
+		if (propO == null)
+			return ret;
+		if (!(propO instanceof Object[]))
+			throw new IllegalArgumentException("Properties should be array, not: " + propO);
+		Object[] props = (Object[])propO;
+		String name[] = new String[1];
+		for (Object propO2 : props) {
+			if (!(propO2 instanceof Map))
+				throw new IllegalArgumentException("Property should be object, not: " + propO2);
+			Map prop = (Map)propO2;
+			try {
+				Property p = parseJaniProperty(prop, name);
+				ret.put(name[0], p);
+			} catch (UnsupportedOperationException e) {
+				System.err.println(e.getMessage());
+			}
+		}
+		return ret;
 	}
 }

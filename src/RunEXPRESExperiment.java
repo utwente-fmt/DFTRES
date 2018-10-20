@@ -6,7 +6,9 @@ import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.Random;
+import java.util.TreeMap;
 import schemes.SchemeMC;
 import schemes.SchemeZVAd;
 import schemes.SchemeZVAv;
@@ -18,6 +20,8 @@ import algorithms.Simulator;
 
 import ec.util.MersenneTwisterFast;
 import nl.ennoruijters.interval.XoroShiro128RandomSource;
+import nl.utwente.ewi.fmt.EXPRES.Composition;
+import nl.utwente.ewi.fmt.EXPRES.Property;
 
 import models.ExpModel;
 
@@ -27,7 +31,7 @@ class RunEXPRESExperiment {
 	static double epsilon = 0.01;
 	static double forceBound = Double.POSITIVE_INFINITY;
 	static boolean mc = false, zvad = false, zvav = false;
-	static String model;
+	static Composition model;
 
 	private static Long getMaximalMemory()
 	{
@@ -80,37 +84,43 @@ class RunEXPRESExperiment {
 		return "CPU";
 	}
 
+	private static SimulationResult runSim(String name, Property prop,
+	                                       Scheme s, Scheme s2)
+	{
+		System.err.println("Running simulation: " + name + " (" + prop.type + ")");
+		Simulator simulator = new Simulator(forceBound);
+		SimulationResult res;
+		if (prop.type == Property.Type.STEADY_STATE) {
+			if (maxSims < Integer.MAX_VALUE)
+				res = simulator.simUnavailabilityFixN(maxSims, s, s2);
+			else
+				res = simulator.simUnavailability(maxTime, s, s2);
+		} else
+			res = simulator.simReliability(maxTime, s, maxSims, prop.timeBound);
+		res.property = name;
+		return res;
+	}
+
 	/* Call with reliabilityTime == -1 for availability. */
-	private static ArrayList<SimulationResult> runSimulations(double reliabilityTime) throws IOException
+	private static ArrayList<SimulationResult> runSimulations(String name, Property prop) throws IOException
 	{
 		boolean multiple = false;
 		ArrayList<SimulationResult> ret = new ArrayList<>();
-		ModelGenerator generator = new ExpModel(epsilon, model, reliabilityTime > -1);
+		ModelGenerator generator = new ExpModel(epsilon, model, prop);
 		generator.initialise();
 		if ((mc ? 1 : 0) + (zvav ? 1 : 0) + (zvad ? 1 : 0) > 1)
 			multiple = true;
 
-		SchemeMC schemeMC2 = null;
-		if (reliabilityTime == -1) {
-			ModelGenerator gen2 = new ExpModel(epsilon, model, false);
-			gen2.initialise();
-			schemeMC2 = new SchemeMC(rng, gen2);
+		SchemeMC smc = null;
+		if (prop.type == Property.Type.STEADY_STATE) {
+			smc = new SchemeMC(rng, generator);
 		}
 
-		Simulator simulator = new Simulator(forceBound);
-
 		if (mc) {
-			SimulationResult res;
-			SchemeMC schemeMC = new SchemeMC(rng,generator);
-			if (reliabilityTime == -1) {
-				if (maxSims < Integer.MAX_VALUE)
-					res = simulator.simUnavailabilityFixN(maxSims, schemeMC, schemeMC2);
-				else
-					res = simulator.simUnavailability(maxTime, schemeMC, schemeMC2);
-			} else
-				res = simulator.simReliability(maxTime, schemeMC, maxSims, reliabilityTime);
+			SchemeMC mc2 = new SchemeMC(rng,generator);
+			SimulationResult res = runSim(name, prop, mc2, smc);
 			if (multiple)
-				res.property += "MC";
+				res.property += "-MC";
 			ret.add(res);
 		}
 
@@ -122,32 +132,16 @@ class RunEXPRESExperiment {
 		}
 
 		if (zvad) {
-			SimulationResult res;
-			SchemeZVAd schemeZVAd = new SchemeZVAd(rng,generator);
-			if (reliabilityTime == -1) {
-				if (maxSims < Integer.MAX_VALUE)
-					res = simulator.simUnavailabilityFixN(maxSims, schemeZVAd, schemeMC2);
-				else
-					res = simulator.simUnavailability(maxTime, schemeZVAd, schemeMC2);
-			} else {
-				res = simulator.simReliability(maxTime, schemeZVAd, maxSims, reliabilityTime);
-			}
+			SchemeZVAd sc = new SchemeZVAd(rng,generator);
+			SimulationResult res = runSim(name, prop, sc, smc);
 			if (multiple)
 				res.property += "-ZVAd";
 			ret.add(res);
 		}
 
 		if (zvav) {
-			SimulationResult res;
-			SchemeZVAv schemeZVAv = new SchemeZVAv(rng,generator);
-			if (reliabilityTime == -1) {
-				if (maxSims < Integer.MAX_VALUE)
-					res = simulator.simUnavailabilityFixN(maxSims, schemeZVAv, schemeMC2);
-				else
-					res = simulator.simUnavailability(maxTime, schemeZVAv, schemeMC2);
-			} else {
-				res = simulator.simReliability(maxTime, schemeZVAv, maxSims, reliabilityTime);
-			}
+			SchemeZVAv sc = new SchemeZVAv(rng,generator);
+			SimulationResult res = runSim(name, prop, sc, smc);
 			if (multiple)
 				res.property += "-ZVAv";
 			ret.add(res);
@@ -228,19 +222,23 @@ class RunEXPRESExperiment {
 	public static void main(String args[]) throws java.io.IOException
 	{
 		long startTime = System.nanoTime();
-		double reliabilityTime = -1;
-		boolean availability = false;
 		long seed = 0;
 		boolean haveSeed = false;
 		ArrayList<SimulationResult> results = new ArrayList<>();
 		String useRng = "XS128";
-		model = args[args.length - 1];
-		benchmarkHeader(args, model);
+		String filename = args[args.length - 1];
+		benchmarkHeader(args, filename);
+		TreeMap<String, Property> properties = new TreeMap<>();
 
 		for (int i = 0; i < args.length - 1; i++) {
-			if (args[i].equals("-a"))
-				availability = true;
-			else if (args[i].equals("-s")) {
+			if (args[i].equals("-a")) {
+				Property av = new Property(Property.Type.STEADY_STATE, null);
+				properties.put("Availability", av);
+			} else if (args[i].equals("-r")) {
+				double time = Double.parseDouble(args[++i]);
+				Property rel = new Property(Property.Type.REACHABILITY, time, null);
+				properties.put("Reliability", rel);
+			} else if (args[i].equals("-s")) {
 				seed = Long.parseLong(args[++i]);
 				haveSeed = true;
 			} else if (args[i].equals("--rng")) {
@@ -253,8 +251,6 @@ class RunEXPRESExperiment {
 				epsilon = Double.parseDouble(args[++i]);
 			else if (args[i].equals("-f"))
 				forceBound = Double.parseDouble(args[++i]);
-			else if (args[i].equals("-r"))
-				reliabilityTime = Double.parseDouble(args[++i]);
 			else if (args[i].equals("--acc"))
 				Scheme.gamma = Double.parseDouble(args[++i]);
 			else if (args[i].equals("--mc"))
@@ -277,11 +273,19 @@ class RunEXPRESExperiment {
 			else
 				rng = new MersenneTwisterFast();
 		}
-		if (availability) {
-			results.addAll(runSimulations(-1));
+
+		if (filename.endsWith(".exp")) {
+			model = new Composition(filename, "exp", properties);
+			model.markStatesAfter("FAIL", 1);
+			model.markStatesAfter("REPAIR", 0);
+			model.markStatesAfter("ONLINE", 0);
+		} else {
+			model = new Composition(filename, "jani", properties);
 		}
-		if (reliabilityTime > -1) {
-			results.addAll(runSimulations(reliabilityTime));
+		for (Map.Entry<String, Property> e : properties.entrySet()) {
+			String name = e.getKey();
+			Property prop = e.getValue();
+			results.addAll(runSimulations(name, prop));
 		}
 		long time = System.nanoTime() - startTime;
 		benchmarkPostSim(time, results);

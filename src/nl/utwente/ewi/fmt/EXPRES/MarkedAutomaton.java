@@ -32,6 +32,14 @@ public class MarkedAutomaton implements MarkableLTS
 		return Collections.singletonMap("marked", state[state.length - 1]);
 	}
 
+	public int getVarValue(String var, int[] state)
+	{
+		if (var.equals("marked"))
+			return state[state.length - 1];
+		else
+			throw new IllegalArgumentException("Attempt to read variable '" + var + "' of marked automaton without variables.");
+	}
+
 	public Set<LTS.Transition> getTransitions(int[] from)
 	{
 		TreeSet<LTS.Transition> ret = new TreeSet<LTS.Transition>();

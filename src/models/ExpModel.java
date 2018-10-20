@@ -4,53 +4,51 @@ import algorithms.ModelGenerator;
 import nl.utwente.ewi.fmt.EXPRES.Composition;
 import nl.utwente.ewi.fmt.EXPRES.LTS;
 import nl.utwente.ewi.fmt.EXPRES.MarkovReducedLTS;
+import nl.utwente.ewi.fmt.EXPRES.Property;
 
 public class ExpModel extends ModelGenerator
 {
 	private final LTS comp;
 	private final int initialState[];
-	private final boolean noBlueStates;
 	private final static boolean VERBOSE = false;
 	private final double logEpsilon;
 
-	public ExpModel(ExpModel other)
+	private Property prop;
+
+	public ExpModel(ExpModel other, Property newProp)
 	{
 		super(other);
 		comp = other.comp;
 		initialState = other.initialState;
-		noBlueStates = other.noBlueStates;
+		prop = newProp;
 		logEpsilon = other.logEpsilon;
 	}
 
 	public Object clone()
 	{
-		return new ExpModel(this);
+		return new ExpModel(this, prop);
 	}
 
-	public ExpModel (double epsilon, String filename, boolean noBlueStates)
+	public ExpModel (double epsilon, LTS model)
 			throws IOException
 	{
+		super();
 		this.epsilon = epsilon;
 		logEpsilon = Math.log(epsilon);
-		this.noBlueStates = noBlueStates;
 
-		int[] state;
-		Composition c;
-		if (filename.endsWith(".exp")) {
-			c = new Composition(filename, "exp");
-			c.markStatesAfter("FAIL", 1);
-			c.markStatesAfter("REPAIR", 0);
-			c.markStatesAfter("ONLINE", 0);
-		} else {
-			c = new Composition(filename, "jani");
-		}
-		LTS model = new MarkovReducedLTS(c);
-		initialState = model.getInitialState();
+		comp = new MarkovReducedLTS(model);
+		initialState = comp.getInitialState();
 		if (VERBOSE)
 			System.err.format("Initial state: %s\n", java.util.Arrays.toString(initialState));
-		comp = model;
+		prop = null;
 	}
 
+	public ExpModel (double epsilon, LTS model, Property prop)
+			throws IOException
+	{
+		this(epsilon, model);
+		this.prop = prop;
+	}
 
 	public int getDimension()
 	{
@@ -59,12 +57,18 @@ public class ExpModel extends ModelGenerator
 
 	public boolean isRed(int s)
        	{
-		return X.states.get(s)[initialState.length - 1] == 1;
+		int[] state = X.states.get(s);
+		if (state[0] == -1)
+			return false;
+		if (prop == null || prop.variable == null)
+			return state[initialState.length - 1] == 1;
+		else
+			return comp.getVarValue(prop.variable, state) != 0;
 	}
 	
 	public boolean isBlue(int s)
 	{
-		if (noBlueStates)
+		if (prop.type == Property.Type.REACHABILITY)
 			return false;
 		int[] state = X.states.get(s);
 		for (int i = 0; i < initialState.length; i++)

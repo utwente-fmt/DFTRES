@@ -101,5 +101,6 @@ public interface LTS
 	public int[] getInitialState();
 	public Set<Transition> getTransitions(int[] from);
 	public Map<String, Integer> getVarValues(int[] state);
+	public int getVarValue(String var, int[] state);
 	public int stateSize();
 }

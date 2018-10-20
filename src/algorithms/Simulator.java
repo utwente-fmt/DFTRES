@@ -3,6 +3,12 @@ package algorithms;
 import java.util.Arrays;
 import java.util.HashMap;
 
+/* Optimal stopping criterion, see pg. 555 of
+ * http://www.ism.ac.jp/editsec/aism/pdf/s10463-015-0504-2.pdf
+ * (A general sequential fixed-accuracy confidence interval estimation
+ * methodology for a positive parameter).
+ */
+
 public class Simulator {
 	public final static boolean VERBOSE = false;
 	public static boolean showProgress = false;
@@ -309,7 +315,12 @@ public class Simulator {
 		stats[0] = 0;
 		long startExact = System.nanoTime();
 		while(N < maxN) {
-			if(generator.X.size() > 2 * initSize) {generator.X = resX.clone();} // keeps the cache from exploding
+			if(generator.X.size() > 2 * initSize) {
+				// keeps the cache from exploding
+				if (VERBOSE)
+					System.err.println("Resetting cache");
+				generator.X = resX.clone();
+			}
 			Y = this.runReliability(scheme, timeBound);
 			if (((int) Y[1] > scheme.generator.X.d[0])) {
 				M++;

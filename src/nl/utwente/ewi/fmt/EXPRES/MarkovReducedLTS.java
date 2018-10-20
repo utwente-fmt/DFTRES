@@ -27,6 +27,11 @@ public class MarkovReducedLTS implements LTS
 		return original.getVarValues(state);
 	}
 
+	public int getVarValue(String var, int[] state)
+	{
+		return original.getVarValue(var, state);
+	}
+
 	public int[] getInitialState()
 	{
 		return markovTerminal(initialState);
