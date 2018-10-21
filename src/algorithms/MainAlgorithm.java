@@ -595,7 +595,7 @@ public class MainAlgorithm {
 				generator.currentState = k;
 				scheme.computeNewProbs();
 				for(int i=0;i<probs.length;i++) {
-					probsQ[i] = scheme.stateProbsIS[i];///= totProbQ;
+					probsQ[i] = scheme.stateWeightsIS[i] / scheme.totalStateWeightIS;///= totProbQ;
 				}
 				generator.XUnderQ.probs.set(k, probsQ);
 			}

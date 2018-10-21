@@ -16,11 +16,7 @@ public class SchemeMC extends Scheme {
 	public void computeNewProbs() {
 		// transition probabilities depend solely on their respective rates
 		initGlobalVariables();
-		for(int i=0;i<probs.length;i++) {
-			stateWeights[i] = probs[i];
-			stateProbs[i] = probs[i];
-			stateWeightsIS[i] = probs[i];
-			stateProbsIS[i] = probs[i];
-		}
+		System.arraycopy(probs, 0, stateWeightsIS, 0, probs.length);
+		totalStateWeightIS = 1;
 	}
 }

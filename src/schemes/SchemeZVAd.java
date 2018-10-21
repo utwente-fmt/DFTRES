@@ -7,7 +7,7 @@ import java.util.Random;
 
 public class SchemeZVAd extends Scheme {
 	
-	boolean haveLeftLambda;
+	private boolean haveLeftLambda;
 	
 	public SchemeZVAd(Random rng, ModelGenerator gen) {
 		super(rng, gen);
@@ -23,10 +23,9 @@ public class SchemeZVAd extends Scheme {
 		if(generator.X.v[generator.currentState] == 1) haveLeftLambda = true; // this seems to be an easy way to check whether gamma has been reached (or whether it doesn't matter anymore, because the probability of ending up in the goal state is 1 anyway).
 		if (generator.currentState == 0)
 			haveLeftLambda = false;
+		totalStateWeightIS = 0;
 		for(int i=0;i<probs.length;i++) {
 			if(neighbours[i]> -1) {
-				stateWeights[i] = probs[i];
-				stateProbs[i] = probs[i];
 				if(haveLeftLambda) {
 					stateWeightsIS[i] = probs[i];
 					totalStateWeightIS += stateWeightsIS[i];
@@ -35,9 +34,6 @@ public class SchemeZVAd extends Scheme {
 					totalStateWeightIS += stateWeightsIS[i];
 				}
 			}
-		}
-		for(int i=0;i<probs.length;i++) {
-			stateProbsIS[i] = stateWeightsIS[i]/totalStateWeightIS;
 		}
 	}
 }

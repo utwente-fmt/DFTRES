@@ -6,15 +6,10 @@ import java.util.Random;
 // general outlay of a general importance sampling scheme - extensions of this class are to be used
 // by actual simulators.
 
-public class Scheme{
-
-	public double[] stateWeights = new double[1];
-	public double totalStateWeight;
-	public double[] stateProbs = new double[1];
-	
+public class Scheme
+{
 	public double[] stateWeightsIS = new double[1];
 	public double totalStateWeightIS;
-	public double[] stateProbsIS = new double[1];
 
 	public String name;
 
@@ -41,8 +36,6 @@ public class Scheme{
 	 */
 	
 	public void initGlobalVariables() {
-		totalStateWeight = 0;
-		totalStateWeightIS = 0;
 		neighbours = generator.X.successors.get(generator.currentState);
 		if(neighbours == null) {
 			generator.findNeighbours(generator.currentState);
@@ -51,12 +44,8 @@ public class Scheme{
 		orders = generator.X.orders.get(generator.currentState);
 		probs = generator.X.probs.get(generator.currentState);
 		
-		if (stateWeights.length < neighbours.length) {
-			stateWeights = new double[neighbours.length];
-			stateProbs = new double[neighbours.length];
+		if (stateWeightsIS.length < neighbours.length)
 			stateWeightsIS = new double[neighbours.length];
-			stateProbsIS = new double[neighbours.length];
-		}
 	}
 	
 	public void reset() {}
@@ -79,15 +68,15 @@ public class Scheme{
 	 */
 	
 	public int drawNextState() {
-		if (stateProbsIS.length == 1) {
+		if (stateWeightsIS.length == 1) {
 			chosen = 0;
 			return generator.X.successors.get(generator.currentState)[0];
 		}
 		chosen = -1;
 		double sumProb = 0; 
-		double u = rng.nextDouble();
-		for(int i=0;i<stateProbsIS.length;i++) {
-			sumProb += stateProbsIS[i];
+		double u = rng.nextDouble() * totalStateWeightIS;
+		for(int i=0;i<stateWeightsIS.length;i++) {
+			sumProb += stateWeightsIS[i];
 			if(u<sumProb) {
 				chosen = i;
 				return generator.X.successors.get(generator.currentState)[i];
@@ -106,10 +95,11 @@ public class Scheme{
 			totProb += generator.X.probs.get(generator.currentState)[i];
 		}
 		System.out.println("Probs: "+Arrays.toString(generator.X.probs.get(generator.currentState)));
-		System.out.println("IS Probs: "+Arrays.toString(stateProbsIS));
-		System.out.println("Total prob.: "+totProb);
+		System.out.println("IS Weight: "+Arrays.toString(stateWeightsIS));
+		System.out.println("IS total weight: "+totalStateWeightIS);
+		System.out.println("Real total weight.: "+totProb);
 		System.out.println("Chosen: " + u);
-		chosen = stateProbsIS.length-1; // possible error due to floating point precision (?)! 10/3/2015: seems so, although it seems to happen less often if tracing is on for some odd reason  
+		chosen = stateWeightsIS.length-1; // possible error due to floating point precision (?)! 10/3/2015: seems so, although it seems to happen less often if tracing is on for some odd reason
 		return generator.X.successors.get(generator.currentState)[chosen];
 	}
 
@@ -174,7 +164,8 @@ public class Scheme{
 	 */
 	
 	public double likelihood() { 
-		return stateProbs[chosen]/stateProbsIS[chosen];
+		//return probs[chosen]/(stateWeightsIS[chosen] / totalStateWeightIS);
+		return probs[chosen] * totalStateWeightIS / stateWeightsIS[chosen];
 	}
 
 	/**
@@ -188,24 +179,36 @@ public class Scheme{
 		return lastDeltaLikelihood;
 	}
 
+	private double drawExponential()
+	{
+		/* Somewhat complicated method to draw more accurate
+		 * values close to 0.
+		 */
+		long l = rng.nextLong();
+		if (l < 0)
+			return -Math.log1p(l * (-0.5 / Long.MIN_VALUE));
+		else
+			return -Math.log((~l) * (0.5 / Long.MIN_VALUE));
+	}
+
 	public double drawDelta(double timeLimit, double force) {
 		int k = generator.currentState;
 		if(!generator.X.inHPC.get(k)) {
 			double rate = generator.X.exitRates[k];
 			if (force >= 0) {
 				double compLikelihood = Math.exp(-rate * timeLimit);
-				double likelihood = 1 - compLikelihood;
+				double likelihood = -Math.expm1(-rate * timeLimit);
 				double rand;
 				if (lastDeltaLikelihood > force) {
 					lastDeltaLikelihood = likelihood;
-					rand = rng.nextDouble() * likelihood + compLikelihood;
+					rand = Math.fma(rng.nextDouble(), likelihood, compLikelihood);
+					delta = -Math.log(rand) / rate;
 				} else {
 					lastDeltaLikelihood = 1;
-					rand = rng.nextDouble();
+					rand = drawExponential() / rate;
 				}
-				delta = -Math.log(rand) / rate;
 			} else {
-				delta = -Math.log(rng.nextDouble()) / (rate * gamma);
+				delta = drawExponential() / (rate * gamma);
 				if (gamma == 1)
 					lastDeltaLikelihood = 1;
 				else
@@ -227,23 +230,17 @@ public class Scheme{
 			double rate = X.exitRates[k];
 			if (force >= 0) {
 				double compLikelihood = Math.exp(-rate * timeLimit);
-				double likelihood = 1 - compLikelihood;
+				double likelihood = -Math.expm1(-rate * timeLimit);
 				double rand;
 				if (lastDeltaLikelihood > force) {
 					lastDeltaLikelihood *= likelihood;
-					rand = rng.nextDouble() * likelihood + compLikelihood;
+					rand = Math.fma(rng.nextDouble(), likelihood, compLikelihood);
+					currentDelta = -Math.log(rand) / rate;
 				} else {
-					rand = rng.nextDouble();
+					currentDelta = drawExponential() / rate;
 				}
-				/*
-				if (likelihood < 1e-6)
-					force = false;
-				else
-					lastDeltaLikelihood *= likelihood;
-					*/
-				currentDelta = -Math.log(rand) / rate;
 			} else {
-				currentDelta = -Math.log(rng.nextDouble())/rate;
+				currentDelta = drawExponential() / rate;
 			}
 			delta += currentDelta;
 			timeLimit -= currentDelta;

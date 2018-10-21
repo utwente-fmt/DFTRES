@@ -38,6 +38,16 @@ public class XoroShiro128RandomSource extends Random implements RandomSource
 		return iret;
 	}
 
+	public long randLong()
+	{
+		long ret = state[0] + state[1];
+		state[1] ^= state[0];
+		state[0] = ((state[0] << 55) | (state[0] >>> 9));
+		state[0] ^= state[1] ^ (state[1] << 14);
+		state[1] = (state[1] << 36) | (state[1] >>> 28);
+		return ret;
+	}
+
 	protected int next(int bits)
 	{
 		return randInt() >>> (32 - bits);
