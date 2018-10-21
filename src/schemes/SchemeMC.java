@@ -12,11 +12,4 @@ public class SchemeMC extends Scheme {
 		super(rng, gen);
 		name = "standard Monte Carlo";
 	}
-	
-	public void computeNewProbs() {
-		// transition probabilities depend solely on their respective rates
-		initGlobalVariables();
-		System.arraycopy(probs, 0, stateWeightsIS, 0, probs.length);
-		totalStateWeightIS = 1;
-	}
 }

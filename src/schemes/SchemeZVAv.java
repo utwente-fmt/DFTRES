@@ -7,43 +7,43 @@ import java.util.Random;
 // path-IS, assuming the generator contains a list of generated states with correct values for w
 
 public class SchemeZVAv extends Scheme {
-	
-	private boolean haveLeftLambda;
+	private double[][] cachedWeightsIS;
+	private double[] cachedWeightSums;
 	
 	public SchemeZVAv(Random rng, ModelGenerator gen) {
 		super(rng, gen);
 		this.name = "Path-ZVA-Delta";
-	}
-	
-	public void reset() {
-		haveLeftLambda = false;
+		cachedWeightsIS = new double[gen.X.v.length][];
+		cachedWeightSums = new double[gen.X.v.length];
+		for (int state = 0; state < gen.X.successors.size(); state++) {
+			int neighbours[] = gen.X.successors.get(state);
+			boolean outOfLambda = false;
+			if (neighbours == null)
+				continue;
+			if (generator.X.v[state] == 1)
+				outOfLambda = true;
+			if (outOfLambda)
+				continue;
+			double probs[] = gen.X.probs.get(state);
+			double sum = 0;
+			cachedWeightsIS[state] = new double[probs.length];
+			for(int i = 0; i < probs.length; i++) {
+				double v = generator.X.v[neighbours[i]];
+				cachedWeightsIS[state][i] = probs[i] * v;
+				sum = Math.fma(probs[i], v, sum);
+			}
+			cachedWeightSums[state] = sum;
+		}
 	}
 
 	public void computeNewProbs() {
 		initGlobalVariables();
-		totalStateWeightIS = 0;
-		if(generator.X.v[generator.currentState] == 1)
-			haveLeftLambda = true; // this seems to be an easy way to check whether gamma has been reached (or whether it doesn't matter anymore, because the probability of ending up in the goal state is 1 anyway).
-		else if (haveLeftLambda) {
-			haveLeftLambda = false;
-			for (int neighbour : neighbours) {
-				if (generator.X.v[neighbour] == 0) {
-					haveLeftLambda = true;
-					break;
-				}
+		int state = generator.currentState;
+		if (state < cachedWeightsIS.length) {
+			if (cachedWeightsIS[state] != null) {
+				stateWeightsIS = cachedWeightsIS[state];
+				totalStateWeightIS = cachedWeightSums[state];
 			}
-		}
-		if (generator.currentState == 0)
-			haveLeftLambda = false;
-		if (haveLeftLambda) {
-			System.arraycopy(probs, 0, stateWeightsIS, 0, probs.length);
-			totalStateWeightIS = 1;
-			return;
-		}
-		for(int i=0;i<probs.length;i++) {
-			double v = generator.X.v[neighbours[i]];
-			stateWeightsIS[i] = probs[i] * v;
-			totalStateWeightIS = Math.fma(probs[i], v, totalStateWeightIS);
 		}
 	}
 }

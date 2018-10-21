@@ -8,7 +8,7 @@ import java.util.Random;
 
 public class Scheme
 {
-	public double[] stateWeightsIS = new double[1];
+	public double[] stateWeightsIS;
 	public double totalStateWeightIS;
 
 	public String name;
@@ -44,8 +44,8 @@ public class Scheme
 		orders = generator.X.orders.get(generator.currentState);
 		probs = generator.X.probs.get(generator.currentState);
 		
-		if (stateWeightsIS.length < neighbours.length)
-			stateWeightsIS = new double[neighbours.length];
+		stateWeightsIS = probs;
+		totalStateWeightIS = 1;
 	}
 	
 	public void reset() {}
@@ -58,7 +58,7 @@ public class Scheme
 	 */
 	
 	public void computeNewProbs() {
-
+		initGlobalVariables();
 	}
 	
 	/**
