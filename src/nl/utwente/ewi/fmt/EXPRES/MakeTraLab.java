@@ -6,6 +6,7 @@ import java.io.PrintWriter;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -18,7 +19,7 @@ public class MakeTraLab {
 	static TreeMap<String, Integer> stateNums = new TreeMap<>();
 	static ArrayList<TreeMap<Integer, String>> transitions = new ArrayList<>();
 	static ArrayList<String> markings = new ArrayList<>();
-	static TreeSet<Integer> ergodic = new TreeSet<>();
+	static BitSet notErgodic;
 	static int transitionCount = 0;
 
 	public static void main(String[] args) throws IOException
@@ -52,10 +53,11 @@ public class MakeTraLab {
 		stateNums = null;
 		numStates = markings.size();
 		System.out.format("%d states before removing duplicates\n", numStates);
-		while (removeDuplicateStates()) {
-			numStates = markings.size();
-			System.out.format("%d states left\n", numStates);
-		}
+		while (removeDuplicateStates())
+			;
+
+		numStates = markings.size();
+		System.out.format("%d states left after removing duplicates\n", numStates);
 
 		traFile = new FileOutputStream(args[1] + ".tra");
 		traWriter = new PrintWriter(traFile);
@@ -74,17 +76,15 @@ public class MakeTraLab {
 		printStates(traWriter, labWriter);
 		labWriter.close();
 		traWriter.close();
-		ergodic.add(0);
-		for (int i = 1; i < numStates; i++) {
-			if (ergodic.contains(i))
-				continue;
-			System.err.format("\rChecking ergodicity for %d", i);
-			System.err.flush();
-			TreeSet<Integer> ergodics = checkErgodic(i);
-			if (ergodics == null)
-				System.err.format(" -- CANNOT RETURN TO INITIAL STATE\n");
-			else
-				ergodic.addAll(ergodics);
+		notErgodic = new BitSet(numStates);
+		notErgodic.set(1, numStates);
+		checkErgodic();
+		if (!notErgodic.isEmpty()) {
+			int s = notErgodic.nextSetBit(0);
+			while (s != -1) {
+				System.err.format("%d Cannot return to initial state.\n", s);
+				s = notErgodic.nextSetBit(s + 1);
+			}
 		}
 	}
 
@@ -94,16 +94,12 @@ public class MakeTraLab {
 		Integer stateNum = stateNums.get(sState);
 		if (stateNum != null)
 			return stateNum;
-		if ((stateNums.size() & 32767) == 0) {
+		if (stateNums.size() > 0 && (stateNums.size() & 32767) == 0) {
 			System.err.format("Processed %d states\n",
 					stateNums.size());
 		}
 		stateNum = stateNums.size();
 		stateNums.put(sState, stateNum);
-		if (state[state.length - 1] != 0) {
-			System.err.format("Marked state: %d\n",
-					  stateNums.size() - 1);
-		}
 
 		Map<String, Integer> vals = l.getVarValues(state);
 		String marking = "";
@@ -175,10 +171,8 @@ public class MakeTraLab {
 			Integer existing = states.get(stateInfo);
 			if (existing == null)
 				states.put(stateInfo, i);
-			else {
+			else
 				dups.put(i, existing);
-				System.err.format("Equal: %d for %d\n", i, existing);
-			}
 		}
 		if (dups.isEmpty())
 			return false;
@@ -195,26 +189,23 @@ public class MakeTraLab {
 					dup--;
 			}
 			removed.add(origDup);
-			if (1==1) {
-				HashSet<Object> dupInfo = new HashSet<>();
-				TreeMap<Integer, String> ts = transitions.get(dup);
-				String marking = markings.get(dup);
-				dupInfo.add(ts);
-				dupInfo.add(marking);
+			HashSet<Object> dupInfo = new HashSet<>();
+			TreeMap<Integer, String> ts = transitions.get(dup);
+			String marking = markings.get(dup);
+			dupInfo.add(ts);
+			dupInfo.add(marking);
 
-				HashSet<Object> mergedInfo = new HashSet<>();
-				ts = transitions.get(merged);
-				marking = markings.get(merged);
-				mergedInfo.add(ts);
-				mergedInfo.add(marking);
+			HashSet<Object> mergedInfo = new HashSet<>();
+			ts = transitions.get(merged);
+			marking = markings.get(merged);
+			mergedInfo.add(ts);
+			mergedInfo.add(marking);
 
-				if (!mergedInfo.equals(dupInfo)) {
-					//throw new IllegalArgumentException("Not merging " + merged + " and " + dup);
-					continue;
-				}
-
+			if (!mergedInfo.equals(dupInfo)) {
+				//throw new IllegalArgumentException("Not merging " + merged + " and " + dup);
+				continue;
 			}
-			System.err.format("Removing %d for %d\n", dup, merged);
+
 			for (int i = markings.size() - 1; i >= 0; i--) {
 				TreeMap<Integer, String> n = new TreeMap<>();
 				TreeMap<Integer, String> t = transitions.get(i);
@@ -236,39 +227,23 @@ public class MakeTraLab {
 		return true;
 	}
 
-	public static TreeSet<Integer> checkErgodic(int state)
+	public static void checkErgodic()
 	{
-		ArrayList<Integer> path = new ArrayList<>();
-		TreeSet<Integer> inPath = new TreeSet<>();
-		int idx = 1;
-
-		path.add(state);
-		path.add(-1);
-		inPath.add(path.get(0));
-		while (idx != 0) {
-			//System.err.format("\nPath: %s (%d)", path, idx);
-			//System.err.flush();
-			Integer last = path.remove(idx--);
-			inPath.remove(last);
-			if (ergodic.contains(last)) {
-				System.err.println(path);
-				return inPath;
+		boolean changed;
+		do {
+			changed = false;
+			int state = notErgodic.nextSetBit(0);
+			while (state != -1) {
+				for (int tgt : transitions.get(state).keySet())
+				{
+					if (!notErgodic.get(tgt)) {
+						notErgodic.clear(state);
+						changed = true;
+						break;
+					}
+				}
+				state = notErgodic.nextSetBit(state + 1);
 			}
-			int cur = path.get(idx);
-			Set<Integer> outs = transitions.get(cur).keySet();
-			TreeSet<Integer> outgoing = new TreeSet<>(outs);
-			Integer next = last;
-			do {
-				next = outgoing.higher(next);
-			} while (next != null && inPath.contains(next));
-			if (next != null) {
-				path.add(next);
-				idx++;
-				inPath.add(next);
-				path.add(-1);
-				idx++;
-			}
-		}
-		return null;
+		} while (changed);
 	}
 }
