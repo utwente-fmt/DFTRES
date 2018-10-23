@@ -20,18 +20,24 @@ import algorithms.Simulator;
 
 import ec.util.MersenneTwisterFast;
 import nl.ennoruijters.interval.XoroShiro128RandomSource;
+import nl.utwente.ewi.fmt.EXPRES.Automaton;
+import nl.utwente.ewi.fmt.EXPRES.MarkedAutomaton;
 import nl.utwente.ewi.fmt.EXPRES.Composition;
+import nl.utwente.ewi.fmt.EXPRES.LTS;
+import nl.utwente.ewi.fmt.EXPRES.MakeJani;
+import nl.utwente.ewi.fmt.EXPRES.MakeTraLab;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 
 import models.ExpModel;
 
-class RunEXPRESExperiment {
+class Main {
 	static Random rng;
 	static int maxTime = Integer.MAX_VALUE, maxSims = Integer.MAX_VALUE;
 	static double epsilon = 0.01;
 	static double forceBound = Double.POSITIVE_INFINITY;
 	static boolean mc = false, zvad = false, zvav = false;
-	static Composition model;
+	static LTS model;
+	static TreeMap<String, Property> properties = new TreeMap<>();
 
 	private static Long getMaximalMemory()
 	{
@@ -219,6 +225,34 @@ class RunEXPRESExperiment {
 		System.out.println("}");
 	}
 
+	private static LTS loadModel(String filename) throws java.io.IOException
+	{
+		LTS ret;
+		if (filename.endsWith(".exp")) {
+			Composition c;
+			c = new Composition(filename, "exp", properties);
+			c.markStatesAfter("FAIL", 1);
+			c.markStatesAfter("REPAIR", 0);
+			c.markStatesAfter("ONLINE", 0);
+			ret = c;
+		} else if (filename.endsWith(".aut")
+		           || filename.endsWith(".bcg"))
+		{
+			String type = filename.substring(filename.length() - 3);
+			Automaton a = new Automaton(filename, type);
+			MarkedAutomaton m = new MarkedAutomaton(a);
+			m.markStatesAfter("FAIL", 1);
+			m.markStatesAfter("REPAIR", 0);
+			m.markStatesAfter("ONLINE", 0);
+			ret = m;
+		} else if (filename.endsWith(".jani")) {
+			ret = new Composition(filename, "jani", properties);
+		} else {
+			throw new IllegalArgumentException("Type of file " + filename + " unknown");
+		}
+		return ret;
+	}
+
 	public static void main(String args[]) throws java.io.IOException
 	{
 		long startTime = System.nanoTime();
@@ -227,8 +261,8 @@ class RunEXPRESExperiment {
 		ArrayList<SimulationResult> results = new ArrayList<>();
 		String useRng = "XS128";
 		String filename = args[args.length - 1];
+		String janiOutputFile = null, traLabOutputFile = null;
 		benchmarkHeader(args, filename);
-		TreeMap<String, Property> properties = new TreeMap<>();
 
 		for (int i = 0; i < args.length - 1; i++) {
 			if (args[i].equals("-a")) {
@@ -259,6 +293,10 @@ class RunEXPRESExperiment {
 				zvad = true;
 			else if (args[i].equals("--zvav"))
 				zvav = true;
+			else if (args[i].equals("--export-jani"))
+				janiOutputFile = args[++i];
+			else if (args[i].equals("--export-tralab"))
+				traLabOutputFile = args[++i];
 			else
 				System.err.format("Unknown option '%s', ignoring\n", args[i]);
 		}
@@ -274,13 +312,12 @@ class RunEXPRESExperiment {
 				rng = new MersenneTwisterFast();
 		}
 
-		if (filename.endsWith(".exp")) {
-			model = new Composition(filename, "exp", properties);
-			model.markStatesAfter("FAIL", 1);
-			model.markStatesAfter("REPAIR", 0);
-			model.markStatesAfter("ONLINE", 0);
-		} else {
-			model = new Composition(filename, "jani", properties);
+		model = loadModel(filename);
+		if (janiOutputFile != null)
+			MakeJani.makeJani(model, janiOutputFile);
+		if (traLabOutputFile != null) {
+			MakeTraLab mtl = new MakeTraLab(model);
+			mtl.convert(traLabOutputFile);
 		}
 		for (Map.Entry<String, Property> e : properties.entrySet()) {
 			String name = e.getKey();

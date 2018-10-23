@@ -5,6 +5,7 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -73,7 +74,7 @@ public class Automaton implements LTS {
 		}
 		labels = new String[locations.size()][0];
 		targets = new int[locations.size()][0];
-		assignments = (HashMap<String, Integer>[][])new HashMap[locations.size()][0];
+		assignments = createAssignmentArray(locations.size());
 		Object inito = janiData.get("initial-locations");
 		if (!(inito instanceof Object[]))
 			throw new IllegalArgumentException("Initial locations should be array of size 1, not: " + inito);
@@ -231,6 +232,12 @@ public class Automaton implements LTS {
 	private HashMap<String, Integer>[] createTransitionArray()
 	{
 		return (HashMap<String, Integer>[]) new HashMap[labels.length];
+	}
+
+	@SuppressWarnings("unchecked")
+	private HashMap<String, Integer>[][] createAssignmentArray(int len)
+	{
+		return (HashMap<String, Integer>[][]) new HashMap[len][0];
 	}
 
 	/** Create a new automaton by renaming some transitions from an
@@ -461,34 +468,33 @@ public class Automaton implements LTS {
 		return ret.toString();
 	}
 
-	public void printJaniAutomaton(String name)
+	public void printJaniAutomaton(String name, PrintStream out)
 	{
-		boolean first = true;
-		System.out.println("\t{\"name\":\""+name+"\",");
-		System.out.print  ("\t \"locations\":[");
+		out.println("\t{\"name\":\""+name+"\",");
+		out.print  ("\t \"locations\":[");
 		for (int i = 0; i < targets.length; i++) {
 			if (i > 0)
-				System.out.print(",");
-			System.out.print("{\"name\":\"l"+i+"\"}");
+				out.print(",");
+			out.print("{\"name\":\"l"+i+"\"}");
 		}
-		System.out.println("],"); /* End of locations */
-		System.out.println("\t \"initial-locations\":[\"l"+initState+"\"],");
-		System.out.println("\t \"edges\":[");
+		out.println("],"); /* End of locations */
+		out.println("\t \"initial-locations\":[\"l"+initState+"\"],");
+		out.println("\t \"edges\":[");
 		for (int i = 0; i < targets.length; i++) {
 			for (int j = 0; j < targets[i].length; j++) {
-				if (!first)
-					System.out.println("\t\t,");
-				first = false;
-				System.out.println("\t\t{\"location\":\"l"+i+"\",");
-				System.out.println("\t\t \"destinations\":[{\"location\":\"l"+targets[i][j]+"\"}],");
+				out.println("\t\t{\"location\":\"l"+i+"\",");
+				out.println("\t\t \"destinations\":[{\"location\":\"l"+targets[i][j]+"\"}],");
 				if (labels[i][j].startsWith("rate ")) {
-					System.out.println("\t\t \"rate\":{\"exp\":"+labels[i][j].substring(5)+"}");
+					out.println("\t\t \"rate\":{\"exp\":"+labels[i][j].substring(5)+"}");
 				} else {
-					System.out.println("\t\t \"action\":\""+labels[i][j]+"\"");
+					out.println("\t\t \"action\":\""+labels[i][j]+"\"");
 				}
-				System.out.println("\t\t}");
+				if (i != targets.length - 1 || j != targets[i].length - 1)
+					out.println("\t\t},");
+				else
+					out.println("\t\t}");
 			}
 		}
-		System.out.println("\t]}");
+		out.print("\t]}");
 	}
 }

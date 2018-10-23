@@ -16,52 +16,41 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 public class MakeTraLab {
-	static TreeMap<String, Integer> stateNums = new TreeMap<>();
-	static ArrayList<TreeMap<Integer, String>> transitions = new ArrayList<>();
-	static ArrayList<String> markings = new ArrayList<>();
-	static BitSet notErgodic;
-	static int transitionCount = 0;
+	private final TreeMap<String, Integer> stateNums = new TreeMap<>();
+	private final ArrayList<TreeMap<Integer, String>> transitions = new ArrayList<>();
+	private final ArrayList<String> markings = new ArrayList<>();
+	private final MarkovReducedLTS l;
+	private BitSet notErgodic;
+	private int transitionCount = 0;
 
-	public static void main(String[] args) throws IOException
+	public MakeTraLab(LTS lts)
+	{
+		if (lts instanceof MarkovReducedLTS)
+			l = (MarkovReducedLTS)lts;
+		else
+			l = new MarkovReducedLTS(lts);
+	}
+
+	public void convert(String out) throws IOException
 	{
 		int[] state;
 		int numStates;
 		
-		MarkableLTS c;
-		if (args[0].endsWith(".aut") || args[0].endsWith(".bcg")) {
-			Automaton a = new Automaton(args[0],
-			                      args[0].substring(args[0].length() - 3));
-			c = new MarkedAutomaton(a);
-			c.markStatesAfter("FAIL", 1);
-			c.markStatesAfter("REPAIR", 0);
-			c.markStatesAfter("ONLINE", 0);
-		} else if (args[0].endsWith(".exp")) {
-			c = new Composition(args[0], "exp");
-			c.markStatesAfter("FAIL", 1);
-			c.markStatesAfter("REPAIR", 0);
-			c.markStatesAfter("ONLINE", 0);
-		} else if (args[0].endsWith(".jani")) {
-			c = new Composition(args[0], "jani");
-		} else {
-			throw new IllegalArgumentException("Type of file " + args[0] + " unknown");
-		}
 		FileOutputStream traFile, labFile;
 		PrintWriter traWriter, labWriter;
-		MarkovReducedLTS l = new MarkovReducedLTS(c);
 		state = l.getInitialState();
 		exploreStates(l, state);
-		stateNums = null;
 		numStates = markings.size();
-		System.out.format("%d states before removing duplicates\n", numStates);
+		System.err.format("%d states before removing duplicates\n", numStates);
 		while (removeDuplicateStates())
 			;
 
 		numStates = markings.size();
-		System.out.format("%d states left after removing duplicates\n", numStates);
+		System.err.format("%d states left after removing duplicates\n", numStates);
 
-		traFile = new FileOutputStream(args[1] + ".tra");
+		traFile = new FileOutputStream(out + ".tra");
 		traWriter = new PrintWriter(traFile);
-		labFile = new FileOutputStream(args[1] + ".lab");
+		labFile = new FileOutputStream(out + ".lab");
 		labWriter = new PrintWriter(labFile);
 		traWriter.format("STATES %d\nTRANSITIONS %s\n",
 		                 numStates,
@@ -88,7 +77,7 @@ public class MakeTraLab {
 		}
 	}
 
-	public static Integer exploreStates(LTS l, int[] state)
+	private Integer exploreStates(LTS l, int[] state)
 	{
 		String sState = Composition.stateString(state);
 		Integer stateNum = stateNums.get(sState);
@@ -125,7 +114,7 @@ public class MakeTraLab {
 		return stateNum;
 	}
 
-	public static void printStates(PrintWriter traWriter,
+	private void printStates(PrintWriter traWriter,
 	                               PrintWriter labWriter)
 	{
 		int maxState = markings.size();
@@ -140,11 +129,11 @@ public class MakeTraLab {
 			}
 			String marking = markings.get(i);
 			if (marking != null)
-				labWriter.format("%d %s\n", i + 1, marking);
+				labWriter.format("%d%s\n", i + 1, marking);
 		}
 	}
 
-	private static String addLabels(String l1, String l2)
+	private String addLabels(String l1, String l2)
 	{
 		if (!l1.startsWith("rate "))
 			throw new UnsupportedOperationException("Tried to merge non-rate transitions.");
@@ -156,7 +145,7 @@ public class MakeTraLab {
 		return "rate " + rret.toString();
 	}
 
-	private static boolean removeDuplicateStates()
+	private boolean removeDuplicateStates()
 	{
 		HashMap<HashSet<Object>, Integer> states = new HashMap<>();
 		HashMap<Integer, Integer> dups = new HashMap<>();
@@ -227,7 +216,7 @@ public class MakeTraLab {
 		return true;
 	}
 
-	public static void checkErgodic()
+	private void checkErgodic()
 	{
 		boolean changed;
 		do {

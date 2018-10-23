@@ -12,6 +12,7 @@ import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
@@ -78,7 +79,7 @@ public class JSONParser {
 	}
 
 	private static Object[] parseArray(String bigData, int[] pos) {
-		java.util.ArrayList ret = new java.util.ArrayList();
+		ArrayList<Object> ret = new ArrayList<Object>();
 		pos[0]++; /* Skip the opening brace */
 		while (isWhiteSpace(bigData.charAt(pos[0])))
 			pos[0]++;
@@ -287,15 +288,4 @@ public class JSONParser {
 			is.close();
 		}
 	}
-
-	public static void main(String[] args) throws IOException {
-		Object json = readJsonFromUrl("http://graph.facebook.com/267946979927816/");
-		System.out.println(json.toString());
-		
-		if(json instanceof Map){
-			Map<String, ?> map = (Map<String, ?>) json;
-			System.out.println(map.get("likes"));
-		}
-	}
-
 }

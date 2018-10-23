@@ -3,6 +3,7 @@ package nl.utwente.ewi.fmt.EXPRES;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -700,17 +701,17 @@ public class Composition implements MarkableLTS
 		return ret;
 	}
 
-	public void printJani(String name)
+	public void printJani(String name, PrintStream out)
 	{
 		TreeSet<String> localHides = new TreeSet<>(hideLabels);
-		System.out.println("{\"jani-version\":1,");
-		System.out.println("\"name\":\""+name+"\",");
-		System.out.println("\"type\":\"ma\",");
-		System.out.println("\"variables\":["+
+		out.println("{\"jani-version\":1,");
+		out.println("\"name\":\""+name+"\",");
+		out.println("\"type\":\"ma\",");
+		out.println("\"variables\":["+
 				"{\"name\":\"marked\",\"type\":\"bool\","+
 				"\"initial-value\":false}],");
 		/* List of all actions */
-		System.out.println("\"actions\":[");
+		out.println("\"actions\":[");
 		TreeSet<String> actions = new TreeSet<String>();
 		for (String l : synchronizedLabels)
 			actions.add(l);
@@ -729,11 +730,11 @@ public class Composition implements MarkableLTS
 		}
 		actions.addAll(getAllTransitionLabels());
 		for (String l : actions)
-			System.out.println("\t{\"name\":\""+l+"\"},");
-		System.out.println("\t{\"name\":\"mark\"},");
-		System.out.println("\t{\"name\":\"unmark\"}");
-		System.out.println("\t],");
-		System.out.println("\"automata\":[");
+			out.println("\t{\"name\":\""+l+"\"},");
+		out.println("\t{\"name\":\"mark\"},");
+		out.println("\t{\"name\":\"unmark\"}");
+		out.println("\t],");
+		out.println("\"automata\":[");
 		HashMap<Automaton, Integer> outputAutomata = new HashMap<>();
 		String autNames[] = new String[automata.length];
 		for (int i = 0; i < automata.length; i++) {
@@ -741,40 +742,40 @@ public class Composition implements MarkableLTS
 			if (num == null) {
 				num = outputAutomata.size();
 				outputAutomata.put(automata[i], num);
-				automata[i].printJaniAutomaton("aut"+num);
-				System.out.println(",");
+				automata[i].printJaniAutomaton("aut"+num, out);
+				out.println(",");
 			}
 			autNames[i] = "aut" + num;
 		}
 		/* Monitor automaton */
-		System.out.println("\t{\"name\":\"monitor\",");
-		System.out.println("\t \"locations\":[{\"name\":\"l\"}],");
-		System.out.println("\t \"initial-locations\":[\"l\"],");
-		System.out.println("\t \"edges\":[");
-		System.out.println("\t\t{\"location\":\"l\",");
-		System.out.println("\t\t \"action\":\"mark\",");
-		System.out.println("\t\t \"destinations\":[{");
-		System.out.println("\t\t\t\"location\":\"l\",");
-		System.out.println("\t\t\t\"assignments\":[{\"ref\":\"marked\", \"value\":true}]");
-		System.out.println("\t\t\t}]},");
-		System.out.println("\t\t{\"location\":\"l\",");
-		System.out.println("\t\t \"action\":\"unmark\",");
-		System.out.println("\t\t \"destinations\":[{");
-		System.out.println("\t\t\t\"location\":\"l\",");
-		System.out.println("\t\t\t\"assignments\":[{\"ref\":\"marked\", \"value\":false}]");
-		System.out.println("\t\t\t}]");
-		System.out.println("\t\t}]");
-		System.out.println("\t}");
+		out.println("\t{\"name\":\"monitor\",");
+		out.println("\t \"locations\":[{\"name\":\"l\"}],");
+		out.println("\t \"initial-locations\":[\"l\"],");
+		out.println("\t \"edges\":[");
+		out.println("\t\t{\"location\":\"l\",");
+		out.println("\t\t \"action\":\"mark\",");
+		out.println("\t\t \"destinations\":[{");
+		out.println("\t\t\t\"location\":\"l\",");
+		out.println("\t\t\t\"assignments\":[{\"ref\":\"marked\", \"value\":true}]");
+		out.println("\t\t\t}]},");
+		out.println("\t\t{\"location\":\"l\",");
+		out.println("\t\t \"action\":\"unmark\",");
+		out.println("\t\t \"destinations\":[{");
+		out.println("\t\t\t\"location\":\"l\",");
+		out.println("\t\t\t\"assignments\":[{\"ref\":\"marked\", \"value\":false}]");
+		out.println("\t\t\t}]");
+		out.println("\t\t}]");
+		out.println("\t}");
 
 		/* Continuing with rest of JANI */
-		System.out.println("],");
-		System.out.println("\"system\":{\"elements\":[");
+		out.println("],");
+		out.println("\"system\":{\"elements\":[");
 		for (int i = 0; i < automata.length; i++) {
-			System.out.println("\t{\"automaton\":\"" + autNames[i] + "\"},");
+			out.println("\t{\"automaton\":\"" + autNames[i] + "\"},");
 		}
-		System.out.println("\t{\"automaton\":\"monitor\"}");
-		System.out.println("\t],");
-		System.out.println("\t\"syncs\":[");
+		out.println("\t{\"automaton\":\"monitor\"}");
+		out.println("\t],");
+		out.println("\t\"syncs\":[");
 		for (int i = 0; i < vectorLabels.length; i++) {
 			String labels[] = new String[automata.length];
 			for (int j = 0; j < vectorLabels[i].length; j++) {
@@ -782,87 +783,87 @@ public class Composition implements MarkableLTS
 				String label = vectorLabels[i][j];
 				labels[aut] = label;
 			}
-			System.out.print("\t\t{\"synchronise\":[");
+			out.print("\t\t{\"synchronise\":[");
 			for (int j = 0; j < automata.length; j++) {
 				if (j > 0)
-					System.out.print(",");
+					out.print(",");
 				if (labels[j] == null)
-					System.out.print("null");
+					out.print("null");
 				else
-					System.out.print("\""+labels[j]+"\"");
+					out.print("\""+labels[j]+"\"");
 			}
 			Integer markResult = markLabels.get(synchronizedLabels[i]);
 			if (markResult != null && markResult == 0) {
-				System.out.print(", \"unmark\"]");
+				out.print(", \"unmark\"]");
 			} else if (markResult != null) {
-				System.out.print(", \"mark\"]");
+				out.print(", \"mark\"]");
 			} else {
-				System.out.print(", null]");
+				out.print(", null]");
 			}
 			if (!localHides.contains(synchronizedLabels[i])) {
-				System.out.println(",");
-				System.out.print("\t\t \"result\":\"");
-				System.out.print(synchronizedLabels[i]);
-				System.out.print("\"");
+				out.println(",");
+				out.print("\t\t \"result\":\"");
+				out.print(synchronizedLabels[i]);
+				out.print("\"");
 			} else {
 				/* Officially the empty string should
 				 * work, but Storm does not accept
 				 * this.
 				System.out.println("");
 				 */
-				System.out.println(",");
-				System.out.print("\t\t \"result\":\"τ\"");
+				out.println(",");
+				out.print("\t\t \"result\":\"τ\"");
 			}
 			if (i != vectorLabels.length - 1)
-				System.out.println("},");
+				out.println("},");
 			else
-				System.out.println("}");
+				out.println("}");
 		}
-		System.out.println("\t]},");
-		System.out.println("\"properties\": [");
+		out.println("\t]},");
+		out.println("\"properties\": [");
 		/* Steady state property */
-		System.out.println("\t{\"name\":\"steadystate\",");
-		System.out.println("\t \"expression\":{");
-		System.out.println("\t\t\"fun\":\"max\",");
-		System.out.println("\t\t\"op\":\"filter\",");
-		System.out.println("\t\t\"states\":{\"op\":\"initial\"},");
-		System.out.println("\t\t\"values\":{");
+		out.println("\t{\"name\":\"steadystate\",");
+		out.println("\t \"expression\":{");
+		out.println("\t\t\"fun\":\"max\",");
+		out.println("\t\t\"op\":\"filter\",");
+		out.println("\t\t\"states\":{\"op\":\"initial\"},");
+		out.println("\t\t\"values\":{");
 
-		System.out.println("\t\t\t\"op\":\"Smax\",");
-		System.out.println("\t\t\t\"exp\":\"marked\"");
-		System.out.println("\t\t\t}");
-		System.out.println("\t\t}");
-		System.out.println("\t},");
+		out.println("\t\t\t\"op\":\"Smax\",");
+		out.println("\t\t\t\"exp\":\"marked\"");
+		out.println("\t\t\t}");
+		out.println("\t\t}");
+		out.println("\t},");
 		/* Bounded reachability */
-		System.out.println("\t{\"name\":\"boundedreach\",");
-		System.out.println("\t \"expression\":{");
-		System.out.println("\t\t\"fun\":\"max\",");
-		System.out.println("\t\t\"op\":\"filter\",");
-		System.out.println("\t\t\"states\":{\"op\":\"initial\"},");
-		System.out.println("\t\t\"values\":{");
+		out.println("\t{\"name\":\"boundedreach\",");
+		out.println("\t \"expression\":{");
+		out.println("\t\t\"fun\":\"max\",");
+		out.println("\t\t\"op\":\"filter\",");
+		out.println("\t\t\"states\":{\"op\":\"initial\"},");
+		out.println("\t\t\"values\":{");
 
-		System.out.println("\t\t\t\"op\":\"Pmax\",");
-		System.out.println("\t\t\t\"exp\":{\"op\":\"U\", \"left\":true, \"right\":\"marked\", \"time-bounds\":{\"upper\":1}}");
-		System.out.println("\t\t\t}");
-		System.out.println("\t\t}");
-		System.out.println("\t},");
+		out.println("\t\t\t\"op\":\"Pmax\",");
+		out.println("\t\t\t\"exp\":{\"op\":\"U\", \"left\":true, \"right\":\"marked\", \"time-bounds\":{\"upper\":1}}");
+		out.println("\t\t\t}");
+		out.println("\t\t}");
+		out.println("\t},");
 		/* Unbounded reachability */
-		System.out.println("\t{\"name\":\"unboundedreach\",");
-		System.out.println("\t \"comment\":\"Should always be 1\",");
-		System.out.println("\t \"expression\":{");
-		System.out.println("\t\t\"fun\":\"max\",");
-		System.out.println("\t\t\"op\":\"filter\",");
-		System.out.println("\t\t\"states\":{\"op\":\"initial\"},");
-		System.out.println("\t\t\"values\":{");
+		out.println("\t{\"name\":\"unboundedreach\",");
+		out.println("\t \"comment\":\"Should always be 1\",");
+		out.println("\t \"expression\":{");
+		out.println("\t\t\"fun\":\"max\",");
+		out.println("\t\t\"op\":\"filter\",");
+		out.println("\t\t\"states\":{\"op\":\"initial\"},");
+		out.println("\t\t\"values\":{");
 
-		System.out.println("\t\t\t\"op\":\"Pmax\",");
-		System.out.println("\t\t\t\"exp\":{\"op\":\"U\", \"left\":true, \"right\":\"marked\"}");
-		System.out.println("\t\t\t}");
-		System.out.println("\t\t}");
-		System.out.println("\t}");
+		out.println("\t\t\t\"op\":\"Pmax\",");
+		out.println("\t\t\t\"exp\":{\"op\":\"U\", \"left\":true, \"right\":\"marked\"}");
+		out.println("\t\t\t}");
+		out.println("\t\t}");
+		out.println("\t}");
 		/* End of properties */
-		System.out.println("]");
-		System.out.println("}");
+		out.println("]");
+		out.println("}");
 	}
 
 	private static int typeLowerBound(Object t)
