@@ -287,7 +287,6 @@ public class Automaton implements LTS {
 
 	private int readBcg(String filename) throws IOException
 	{
-		System.err.println(filename);
 		String[] cmd = new String[] {"bcg_io", filename, "-aldebaran", "-"};
 		Process p = Runtime.getRuntime().exec(cmd);
 		InputStream i = p.getInputStream();

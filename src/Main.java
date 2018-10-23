@@ -225,7 +225,7 @@ class Main {
 		System.out.println("}");
 	}
 
-	private static LTS loadModel(String filename) throws java.io.IOException
+	private static LTS loadModel(String filename) throws IOException
 	{
 		LTS ret;
 		if (filename.endsWith(".exp")) {
@@ -247,13 +247,32 @@ class Main {
 			ret = m;
 		} else if (filename.endsWith(".jani")) {
 			ret = new Composition(filename, "jani", properties);
+		} else if (filename.endsWith(".dft")) {
+			String[] cmd = new String[]{"dftcalc", "-x", filename};
+			Process dftc = Runtime.getRuntime().exec(cmd);
+			int dret = 0;
+			boolean done = false;
+			while (!done) {
+				try {
+					dret = dftc.waitFor();
+					done = true;
+				} catch (InterruptedException e) {
+				}
+			}
+			if (dret != 0)
+				throw new IOException("Error executing DFTCalc.");
+			String basename = filename;
+			if (basename.lastIndexOf('/') != -1)
+				basename = basename.substring(basename.lastIndexOf('/') + 1, basename.length());
+			basename = basename.substring(0, basename.length() - 4);
+			return loadModel("output/" + basename + ".exp");
 		} else {
 			throw new IllegalArgumentException("Type of file " + filename + " unknown");
 		}
 		return ret;
 	}
 
-	public static void main(String args[]) throws java.io.IOException
+	public static void main(String args[]) throws IOException
 	{
 		long startTime = System.nanoTime();
 		long seed = 0;
