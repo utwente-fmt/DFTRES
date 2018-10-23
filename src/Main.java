@@ -35,6 +35,7 @@ class Main {
 	static Random rng;
 	static int maxTime = Integer.MAX_VALUE, maxSims = Integer.MAX_VALUE;
 	static double epsilon = 0.01;
+	static double relErr = Double.NaN;
 	static double forceBound = Double.POSITIVE_INFINITY;
 	static boolean mc = false, zvad = false, zvav = false;
 	static boolean jsonOutput = false;
@@ -99,12 +100,25 @@ class Main {
 		Simulator simulator = new Simulator(forceBound);
 		SimulationResult res;
 		if (prop.type == Property.Type.STEADY_STATE) {
+			if (!Double.isNaN(relErr))
+				throw new UnsupportedOperationException("Simulating up to relative error currently not implemented for steady-state properties.");
 			if (maxSims < Integer.MAX_VALUE)
 				res = simulator.simUnavailabilityFixN(maxSims, s, s2);
 			else
 				res = simulator.simUnavailability(maxTime, s, s2);
-		} else
-			res = simulator.simReliability(maxTime, s, maxSims, prop.timeBound);
+		} else if (prop.timeBound < Double.POSITIVE_INFINITY) {
+			if (!Double.isNaN(relErr)) {
+				if (maxSims < Integer.MAX_VALUE)
+					System.err.println("Warning: Simulating up to relative error, ignoring simulation bound.");
+				if (maxTime < Integer.MAX_VALUE)
+					System.err.println("Warning: Simulating up to relative error, ignoring time limit.");
+				res = simulator.simReliabilityRelErr(s, prop.timeBound, relErr);
+			} else {
+				res = simulator.simReliability(maxTime, s, maxSims, prop.timeBound);
+			}
+		} else {
+			throw new UnsupportedOperationException("Time-unbounded reachability currently not supported.");
+		}
 		res.property = name;
 		return res;
 	}
@@ -216,7 +230,7 @@ class Main {
 			System.out.println("\t\t\t\t{ \"name\": \"Time\", \"value\": " + Math.round(res.simTimeNanos / 1000000.0) / 1000.0 + ", \"unit\": \"s\" },");
 			System.out.println("\t\t\t\t{ \"name\": \"Number of simulation traces\", \"value\": " + res.N + "},");
 			System.out.println("\t\t\t\t{ \"name\": \"Number of traces that hit goal states\", \"value\": " + res.M + "},");
-			System.out.println("\t\t\t\t{ \"name\": \"95% Confidence interval\", \"value\": \"" + res.getExplicitCI() + "\" }");
+			System.out.println("\t\t\t\t{ \"name\": \"95% Confidence interval\", \"value\": \"[" + res.getCI() + "]\" }");
 			System.out.println("\t\t\t]");
 			if (i < results.size() - 1)
 				System.out.println("\t\t},");
@@ -317,6 +331,8 @@ class Main {
 				forceBound = Double.parseDouble(args[++i]);
 			else if (args[i].equals("--acc"))
 				Scheme.gamma = Double.parseDouble(args[++i]);
+			else if (args[i].equals("--relErr"))
+				relErr = Double.parseDouble(args[++i]);
 			else if (args[i].equals("--mc"))
 				mc = true;
 			else if (args[i].equals("--zvad"))
@@ -358,7 +374,11 @@ class Main {
 		for (Map.Entry<String, Property> e : properties.entrySet()) {
 			String name = e.getKey();
 			Property prop = e.getValue();
-			results.addAll(runSimulations(name, prop));
+			try {
+				results.addAll(runSimulations(name, prop));
+			} catch (UnsupportedOperationException e2) {
+				System.err.println(name + ": " + e2.getMessage());
+			}
 		}
 		long time = System.nanoTime() - startTime;
 		if (jsonOutput && !properties.isEmpty())

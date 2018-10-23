@@ -23,6 +23,27 @@ public class Simulator {
 	{
 		forceBound = forcingBound;
 	}
+
+	public static double CIwidth(double alpha)
+	{
+		/* Approximation of the inverse error function:
+		 * By Sergei Winitzki
+		 * https://1e47a410-a-62cb3a1a-s-sites.googlegroups.com/site/winitzki/sergei-winitzkis-files/erf-approx.pdf
+		 */
+		/* x = 2*confidence - 1; */
+		if (alpha > 0.5)
+			alpha = 1-alpha;
+		double a = 0.147;
+		double f = 2 / (Math.PI * a);
+		double y = 4*Math.fma(alpha, -alpha, alpha);
+		/* y == 1 - x*x */
+		double s = f + 0.5 * Math.log(y);
+		double t = Math.fma(s, s, -Math.log(y)/a);
+		double r = Math.sqrt(t);
+		double e = Math.sqrt(2*(r-s));
+		/* Widen to include maximal relative error */
+		return e / 0.9995;
+	}
 	
 	public double[] run(Scheme scheme) {
 		ModelGenerator generator = scheme.generator;
@@ -106,7 +127,6 @@ public class Simulator {
 			}
 			reachProb = Math.fma(probs[i - 1], prob, reachProb);
 		} while (undecProb > UNIF_BOUND);
-		//} while ((undecProb / reachProb) > UNIF_BOUND);
 		return reachProb;
 	}
 
@@ -131,11 +151,11 @@ public class Simulator {
 			scheme.computeNewProbs();
 			z = scheme.drawNextState();
 			d += generator.X.getOrder(generator.currentState, z);
-			if (path == null) {
+			if (timeBound < Double.POSITIVE_INFINITY && path == null) {
 				delta = scheme.drawDelta(timeBound - generator.time, likelihood > forceBound ? forceBound : -1);
 				likelihood *= scheme.deltaLikelihood();
 				generator.time += delta;
-			} else {
+			} else if (timeBound < Double.POSITIVE_INFINITY) {
 				path = scheme.extendPath(path);
 			}
 			likelihood *= scheme.likelihood();
@@ -238,9 +258,9 @@ public class Simulator {
 	}
 	
 	public SimulationResult sim(int msec, Scheme scheme) {
-		long N=0;
-		long M=0;
+		long hits[] = new long[2];
 		long start = System.currentTimeMillis();
+		long startExact = System.nanoTime();
 		double[] stats = new double[4]; double[] Y;
 		ModelGenerator generator = scheme.generator;
 		if (VERBOSE)
@@ -251,23 +271,20 @@ public class Simulator {
 			if(generator.X.size() > 2 * initSize) {generator.X = resX.clone();} // keeps the cache from exploding
 			Y = this.run(scheme);
 			if(((int) Y[1] > scheme.generator.X.d[0])) {
-				M++; 
+				hits[1]++;
 				stats[2] += Y[0]; 
 				stats[3] += Math.fma(Y[0], Y[0], stats[3]);
 			}
 			stats[0] += Y[0];
 			stats[1] = Math.fma(Y[0], Y[0], stats[1]);
-			N++;
+			hits[0]++;
 		}
+		long endTime = System.nanoTime();
 		if (VERBOSE)
 			System.err.println("\nend size: "+generator.X.size());
 		SimulationResult result;
-		if(generator.XUnderQ == null) result = new SimulationResult(stats, new double[] {generator.X.v[0], 0}, N, M);
-		else result = new SimulationResult(stats, new double[] {generator.X.v[0], generator.XUnderQ.v[0]}, N, M);
-		
+		result = new SimulationResult(stats, hits, endTime - startExact, initSize);
 		result.property = "Reach before taboo";
-		result.simTimeNanos = 1000 * (System.currentTimeMillis() - start);
-		result.storedStates = initSize;
 		return result;
 	}
 
@@ -276,7 +293,7 @@ public class Simulator {
 		long M=0;
 		int percentage = 0;
 		long start = System.currentTimeMillis();
-		double[] stats = new double[4]; double[] Y;
+		double[] stats = new double[2]; double[] Y;
 		double estMean = 0;
 		ModelGenerator generator = scheme.generator;
 		if (VERBOSE)
@@ -323,11 +340,8 @@ public class Simulator {
 				generator.X = resX.clone();
 			}
 			Y = this.runReliability(scheme, timeBound);
-			if (((int) Y[1] > scheme.generator.X.d[0])) {
+			if (Y[0] > 0)
 				M++;
-				stats[2] += Y[0];
-				stats[3] = Math.fma(Y[0], Y[0], stats[3]);
-			}
 			stats[0] += Y[0];
 			Y[0] -= estMean;
 			stats[1] = Math.fma(Y[0], Y[0], stats[1]);
@@ -356,12 +370,71 @@ public class Simulator {
 		double var = Math.fma(-N, estMean, stats[0]);
 		var = Math.fma(-var, mean - estMean, stats[1]);
 		var /= N - 1;
-		result = new SimulationResult(mean, var, N);
-		result.M = M;
+		long hits[] = new long[]{N, M};
+		result = new SimulationResult(mean, var, hits, endExact - startExact, initSize);
 		result.property = "Unreliability before " + timeBound;
-		result.simTimeNanos = endExact - startExact;
-		result.storedStates = initSize;
 
+		return result;
+	}
+
+	public SimulationResult simReliabilityRelErr(Scheme scheme, double timeBound, double err)
+	{
+		long maxN = 1000;
+		long totalHits[] = new long[2];
+		long startTime = System.nanoTime();
+		double alpha = 0.025; /* Start of with a 97.5% confidence window, gradually tighten over time. */
+		double lbound = 0, ubound = 1, mean;
+		double sum = 0;
+		double curRelErr;
+		int initSize = scheme.generator.X.size();
+		SimulationResult result;
+		/* First try to hit the target at all, to get a rough
+		 * estimate (without spoiling the confidence level).
+		 */
+		do {
+			result = simReliability(Integer.MAX_VALUE, scheme, maxN, timeBound);
+			if (result.ubound == 0)
+				maxN *= 10;
+			mean = result.mean;
+		} while (result.ubound == 0);
+
+		do {
+			/* Estimate number of samples still needed to
+			 * reach desired error */
+			double Z = CIwidth(alpha / 2);
+			long newN = (long)(result.var * Z * Z / (err * err * mean * mean));
+			System.err.println("Estimating " + newN + " new simulations required");
+			if (newN > maxN)
+				maxN = newN;
+
+			result = simReliability(Integer.MAX_VALUE, scheme, maxN, timeBound);
+			if (result.ubound > 0) {
+				double newLBound = Math.fma(Z, -Math.sqrt(result.var/result.N), result.mean);
+				double newUBound = Math.fma(Z, Math.sqrt(result.var/result.N), result.mean);
+				if (newLBound > lbound)
+					lbound = newLBound;
+				if (newUBound < ubound)
+					ubound = newUBound;
+			}
+			sum = Math.fma(result.N, result.mean, sum);
+			mean = (ubound + lbound) / 2;
+			double halfWidth = (ubound - lbound) / 2;
+			curRelErr = halfWidth / mean;
+			totalHits[0] += result.N;
+			totalHits[1] += result.M;
+			System.err.format("Relative error %g after %d simulations\n", curRelErr, totalHits[0]);
+			alpha /= 2;
+
+			if (lbound == 0) { /* Unlikely, but apparantly we
+					      haven't hit anything at all */
+				maxN *= 10;
+				continue;
+			}
+		} while (curRelErr > err);
+		long endTime = System.nanoTime();
+		result = new SimulationResult(sum / totalHits[0], lbound,
+				ubound, totalHits, endTime - startTime,
+				initSize);
 		return result;
 	}
 
@@ -387,12 +460,9 @@ public class Simulator {
 		}
 
 		SimulationResult result;
-		if(generator.XUnderQ == null) result = new SimulationResult(stats, new double[] {generator.X.v[0], 0}, N, M);
-		else result = new SimulationResult(stats, new double[] {generator.X.v[0], generator.XUnderQ.v[0]}, N, M);
+		result = new SimulationResult(stats, new long[] {N, M}, System.nanoTime(), initSize);
 		
 		result.property = "Reach before taboo";
-		result.simTimeNanos = System.nanoTime() - start;
-		result.storedStates = initSize;
 		return result;
 	}
 	
@@ -510,11 +580,8 @@ public class Simulator {
 		double varV = N*Math.fma(meanV, meanV*varT, varZ)*N;
 		varV /= (N-1)*dStats[0]*dStats[0];
 		
-		SimulationResult res = new SimulationResult(meanV, varV, N);
-		res.simTimeNanos = System.nanoTime() - start;
-		res.M = M;
+		SimulationResult res = new SimulationResult(meanV, varV, new long[]{N, M}, System.nanoTime() - start, initSize);
 		res.property = "Unavailability";
-		res.storedStates = initSize;
 
 		return res;
 	}
