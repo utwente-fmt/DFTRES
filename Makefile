@@ -1,7 +1,14 @@
 SOURCE_DIR = src/
 CLASS_DIR = bin/
 SOURCES = $(subst $(SOURCE_DIR),,$(shell find $(SOURCE_DIR) -type f -name '*.java' -print ))
+SOURCES += nl/utwente/ewi/fmt/EXPRES/Version.java
 OBJECTS = $(addprefix $(CLASS_DIR), $(addsuffix .class, $(basename $(SOURCES))))
+COMMIT = $(shell git rev-parse HEAD)
+ifeq ($(shell git status --porcelain),)
+	DIRTY=""
+else
+	DIRTY="-dirty"
+endif
 MAIN_CLASS = Main
 JFLAGS = -Xlint:deprecation -g
 
@@ -17,8 +24,14 @@ DFTRES.jar: dir $(OBJECTS)
 
 all: dir $(OBJECTS)
 
-dir:
+dir: $(SOURCE_DIR)/nl/utwente/ewi/fmt/EXPRES/Version.java
 	@mkdir -p $(CLASS_DIR)
+
+$(SOURCE_DIR)/nl/utwente/ewi/fmt/EXPRES/Version.java: FORCE
+	@echo "package nl.utwente.ewi.fmt.EXPRES;" > $@
+	@echo "public class Version {" >> $@
+	@echo '	public static final String version = "$(COMMIT)".substring(0,8) + $(DIRTY);' >> $@
+	@echo "}" >> $@
 
 $(CLASS_DIR)%.class: $(SOURCE_DIR)%.java
 	@javac -Xlint:unchecked -sourcepath $(SOURCE_DIR) $(JFLAGS) -d $(CLASS_DIR) $(patsubst $(SOURCE_DIR)/%.java,%.java , $<)
@@ -29,3 +42,5 @@ clean:
 	@echo 'RM    $(CLASS_DIR)'
 	@$(RM) -r DFTRES.jar
 	@echo 'RM    DFTRES.jar'
+
+FORCE:

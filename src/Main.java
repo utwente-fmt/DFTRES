@@ -27,6 +27,7 @@ import nl.utwente.ewi.fmt.EXPRES.LTS;
 import nl.utwente.ewi.fmt.EXPRES.MakeJani;
 import nl.utwente.ewi.fmt.EXPRES.MakeTraLab;
 import nl.utwente.ewi.fmt.EXPRES.Property;
+import nl.utwente.ewi.fmt.EXPRES.Version;
 
 import models.ExpModel;
 
@@ -36,6 +37,7 @@ class Main {
 	static double epsilon = 0.01;
 	static double forceBound = Double.POSITIVE_INFINITY;
 	static boolean mc = false, zvad = false, zvav = false;
+	static boolean jsonOutput = false;
 	static LTS model;
 	static TreeMap<String, Property> properties = new TreeMap<>();
 
@@ -77,9 +79,10 @@ class Main {
 			while ((line = r.readLine()) != null) {
 				if (line.matches("model name.*")) {
 					String tmp = line.split("\\s+", 4)[3];
-					tmp = tmp.split(" CPU ")[0];
+					tmp = tmp.replace("CPU ", "");
 					tmp = tmp.replace("(R)", "");
 					tmp = tmp.replace("(TM)", "");
+					tmp = tmp.replaceAll(" @.*", "");
 					return tmp;
 				}
 			}
@@ -93,7 +96,6 @@ class Main {
 	private static SimulationResult runSim(String name, Property prop,
 	                                       Scheme s, Scheme s2)
 	{
-		System.err.println("Running simulation: " + name + " (" + prop.type + ")");
 		Simulator simulator = new Simulator(forceBound);
 		SimulationResult res;
 		if (prop.type == Property.Type.STEADY_STATE) {
@@ -225,6 +227,16 @@ class Main {
 		System.out.println("}");
 	}
 
+	private static void showResults(long timeNanos, ArrayList<SimulationResult> results)
+	{
+		System.out.println("Total time: " + Double.toString(Math.round(timeNanos / 1000000.0) / 1000.0) + " s.");
+		for (int i = 0; i < results.size(); i++) {
+			SimulationResult res = results.get(i);
+			System.out.println("Property " + res.property + ":");
+			System.out.println(res.toString());
+		}
+	}
+
 	private static LTS loadModel(String filename) throws IOException
 	{
 		LTS ret;
@@ -281,7 +293,6 @@ class Main {
 		String useRng = "XS128";
 		String filename = args[args.length - 1];
 		String janiOutputFile = null, traLabOutputFile = null;
-		benchmarkHeader(args, filename);
 
 		for (int i = 0; i < args.length - 1; i++) {
 			if (args[i].equals("-a")) {
@@ -312,6 +323,8 @@ class Main {
 				zvad = true;
 			else if (args[i].equals("--zvav"))
 				zvav = true;
+			else if (args[i].equals("--json"))
+				jsonOutput = true;
 			else if (args[i].equals("--export-jani"))
 				janiOutputFile = args[++i];
 			else if (args[i].equals("--export-tralab"))
@@ -319,6 +332,8 @@ class Main {
 			else
 				System.err.format("Unknown option '%s', ignoring\n", args[i]);
 		}
+		if (!(mc || zvav || zvad))
+			zvav = true;
 		if (useRng.equalsIgnoreCase("xs128")) {
 			if (haveSeed)
 				rng = new XoroShiro128RandomSource(seed);
@@ -332,8 +347,10 @@ class Main {
 		}
 
 		model = loadModel(filename);
+		if (jsonOutput && !properties.isEmpty())
+			benchmarkHeader(args, filename);
 		if (janiOutputFile != null)
-			MakeJani.makeJani(model, janiOutputFile);
+			MakeJani.makeJani(model, janiOutputFile, jsonOutput ? filename : null, args);
 		if (traLabOutputFile != null) {
 			MakeTraLab mtl = new MakeTraLab(model);
 			mtl.convert(traLabOutputFile);
@@ -344,6 +361,9 @@ class Main {
 			results.addAll(runSimulations(name, prop));
 		}
 		long time = System.nanoTime() - startTime;
-		benchmarkPostSim(time, results);
+		if (jsonOutput && !properties.isEmpty())
+			benchmarkPostSim(time, results);
+		else
+			showResults(time, results);
 	}
 }

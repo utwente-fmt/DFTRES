@@ -37,3 +37,4 @@ Supported options are:
                            	file.
 --export-tralab <output>	Export the model to <output>.tra and
                         	<output>.lab explicit-state files.
+--json		Output data in JSON format.
