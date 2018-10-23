@@ -8,61 +8,32 @@ Monte Carlo simulations of (repairable) dynamic fault trees.
 Compilation
 -----------
 
-Running 'make jar' should create two .jar files: DFTRES.jar contains the
-main simulator, while CONVERT.jar performs conversion to JANI and
-.tra/.lab explicit-state models.
-
+Running 'make jar' should create the DFTRES.jar program.
 
 Use
 ---
 
-Despite the name, DFTRES does not directly accept DFT files, rather it
-expects the intermediate output of the DFTCalc program (compositional
-specification of the interactive Markov chain).
-
-To obtain a suitable input, the 'convert.sh' script is provided. If you
-have a working DFTCalc installation
-(https://github.com/utwente-fmt/dftcalc, the 'next' branch is strongly
-recommended), use './convert.sh <input>.dft' to convert the DFT file
-into an <input>.exp file with associated .aut automata files. This can
-now be analyzed using DFTRES, e.g.:
-
-java -jar DFTRES.jar -a --mc -N 1000 <input.exp>
-
-This performs a standard Monte Carlo simulation analysis of 1000 runs
-of the availability of the DFT.
-
 The standard syntax is:
 
-java -jar DFTRES.jar [options] [<input>.exp | <input>.jani]
+java -jar DFTRES.jar [options] [<input>.exp | <input>.jani | <input.dft>]
+
+NOTE: input from .dft files requires a working DFTCalc version (the
+'next' branch is required at the time this README is written).
 
 Supported options are:
--s <N>		Seed for the random number generator
+-s <N>		Seed for the random number generator.
 -n <N>		Perform at most N simulations (exactly N unless a time
-		bound is also provided)
--t <T>		Perform simulations for at most approximately T seconds
+		bound is also provided).
+-t <T>		Perform simulations for at most approximately T seconds.
 -a		Analyze system availability (i.e., fraction of time the
-		system is in unfailed states)
+		system is in unfailed states).
 -r <B>		Perform reliability analysis with time bound B units
 		(i.e., estimate the probability that no system failure
-		occurs within B units time)
+		occurs within B units time).
 --mc		Use the standard Monte Carlo simulator without
-		importance sampling		
---zvav		Use the Path-ZVA importance sampling technique
-
-
-Model conversion
-----------------
-
-For interoperability with other tools, conversions are provided to JANI
-(https://jani-spec.org) and .tra/.lab explicit state models.
-
-Conversion to JANI can be performed using:
-
-java -jar CONVERT.jar --jani <input>.exp > <output>.jani
-
-Convertsion to .tra/.lab can be performed using:
-
-java -jar CONVERT.jar --tralab [<input>.exp | <input>.jani] <output>
-
-Which produces <output>.tra and <output>.lab files.
+		importance sampling.
+--zvav		Use the Path-ZVA importance sampling technique.
+--export-jani <output.jani>	Export the model the specified jani
+                           	file.
+--export-tralab <output>	Export the model to <output>.tra and
+                        	<output>.lab explicit-state files.
