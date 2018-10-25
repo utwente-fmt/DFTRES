@@ -283,6 +283,53 @@ public class Scheme
 		return delta;
 	}
 
+	public double drawMeanTransitionTime() {
+		int k = prevState;
+		if(!generator.X.inHPC.get(k))
+			return 1 / generator.X.exitRates[k];
+
+		double[] pReachSink = new double[1];
+		long count = 0;
+		StateSpace X = generator.X;
+		int[] initialSucc = X.successors.get(k);
+		int sink = X.successors.get(prevState)[chosen];
+		double sinkProb = X.getProb(k, sink);
+		double ret = 0;
+
+		while(k != sink) {
+			ret += 1 / X.exitRates[k];
+
+			count++;
+			if (count % 1048576 == 0)
+				System.err.format("%d Tries.\n", count);
+
+			StateSpace.HPCState s = X.hpcs.get(k);
+			int[] succ = s.successors;
+			if (pReachSink.length < succ.length)
+				pReachSink = new double[succ.length];
+			double[] probs = s.probs;
+			double sumP = 0;
+			for (int i = 0; i < succ.length; i++) {
+				double p;
+				k = succ[i];
+				if (k == sink)
+					p = 1;
+				else if (!X.inHPC.get(k))
+					p = 0;
+				else if (X.successors.get(k) == initialSucc)
+					p = X.probs.get(k)[chosen];
+				else
+					p = X.getProb(k, sink);
+				sumP = Math.fma(p, probs[i], sumP);
+				pReachSink[i] = sumP;
+			}
+			double u = rng.nextDouble() * sumP;
+			for (k = 0; u > pReachSink[k]; k++)
+				;
+			k = succ[k];
+		}
+		return ret;
+	}
 	/**
 	 * Returns the name of the scheme.
 	 * @return scheme name

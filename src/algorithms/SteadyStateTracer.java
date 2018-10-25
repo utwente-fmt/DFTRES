@@ -62,7 +62,7 @@ public class SteadyStateTracer extends TraceGenerator
 			mcScheme.computeNewProbs(state);
 			int newState = mcScheme.drawNextState();
 			if(generator.isRed(state))
-				timeInRed += mcScheme.drawDelta(Double.POSITIVE_INFINITY, -1);
+				timeInRed += mcScheme.drawMeanTransitionTime();
 			state = newState;
 		}
 		N++;
@@ -78,11 +78,11 @@ public class SteadyStateTracer extends TraceGenerator
 		state = 0;
 		double totalTime = 0;
 		do {
-                        double delta;
-                        mcScheme.computeNewProbs(state);
-                        state = mcScheme.drawNextState();
-                        totalTime += mcScheme.drawDelta(Double.POSITIVE_INFINITY, -1);
-                } while(!generator.isBlue(state));
+			double delta;
+			mcScheme.computeNewProbs(state);
+			totalTime += mcScheme.drawMeanTransitionTime();
+			state = mcScheme.drawNextState();
+		} while(!generator.isBlue(state));
 		sumTime += totalTime;
 		totalTime -= estMeanTime;
 		sumTimesSquared = Math.fma(totalTime, totalTime, sumTimesSquared);
