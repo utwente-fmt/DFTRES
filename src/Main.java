@@ -15,7 +15,7 @@ import algorithms.Scheme;
 import algorithms.SimulationResult;
 import algorithms.Simulator;
 
-import algorithms.ReachabilityTracer;
+import algorithms.TraceGenerator;
 
 import ec.util.MersenneTwisterFast;
 import nl.ennoruijters.interval.XoroShiro128RandomSource;
@@ -96,7 +96,7 @@ class Main {
 
 	private static SimulationResult runSim(Property prop, Scheme s)
 	{
-		Simulator simulator = new Simulator(prop, s, forceBound);
+		Simulator simulator = new Simulator(rng, prop, s, forceBound);
 		SimulationResult res;
 		if (!Double.isNaN(relErr)) {
 			if (maxSims < Integer.MAX_VALUE)
@@ -120,7 +120,7 @@ class Main {
 			multiple = true;
 
 		if (mc) {
-			Scheme mc = new Scheme(rng, statespace);
+			Scheme mc = new Scheme(statespace);
 			Property nProp = prop;
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-MC");
@@ -129,7 +129,7 @@ class Main {
 		}
 
 		if (zvad) {
-			SchemeZVAd sc = SchemeZVAd.instantiate(rng, statespace);
+			SchemeZVAd sc = SchemeZVAd.instantiate(statespace);
 			Property nProp = prop;
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-ZVAd");
@@ -138,7 +138,7 @@ class Main {
 		}
 
 		if (zvav) {
-			SchemeZVAv sc = SchemeZVAv.instantiate(rng, statespace);
+			SchemeZVAv sc = SchemeZVAv.instantiate(statespace);
 			Property nProp = prop;
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-ZVAv");
@@ -328,7 +328,7 @@ class Main {
 			else if (args[i].equals("-f"))
 				forceBound = Double.parseDouble(args[++i]);
 			else if (args[i].equals("--acc"))
-				Scheme.gamma = Double.parseDouble(args[++i]);
+				TraceGenerator.acceleration = Double.parseDouble(args[++i]);
 			else if (args[i].equals("--relErr"))
 				relErr = Double.parseDouble(args[++i]);
 			else if (args[i].equals("--mc"))

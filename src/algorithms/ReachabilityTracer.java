@@ -1,7 +1,9 @@
 package algorithms;
 
 import models.StateSpace;
+import java.util.Random;
 import nl.utwente.ewi.fmt.EXPRES.Property;
+
 /** Tracer to estimate the probability of hitting a red state before
  * hitting either a blue state of the time bound.
  */
@@ -15,9 +17,10 @@ public class ReachabilityTracer extends TraceGenerator
 	private final double forceBound;
 	private final double UNIF_BOUND = 1e-10;
 
-	public ReachabilityTracer(Scheme s, Property prop, double forceBound)
+	public ReachabilityTracer(Random rng, Scheme s, Property prop,
+	                          double forceBound)
 	{
-		super(s, prop);
+		super(rng, s, prop);
 		this.forceBound = forceBound;
 	}
 
@@ -95,18 +98,13 @@ public class ReachabilityTracer extends TraceGenerator
 			path = new int[model.exitRates.length];
 
 		do {
-			scheme.computeNewProbs(state);
-			state = scheme.drawNextState();
+			state = drawNextState(state);
 			if (path != null) {
-				path = scheme.extendPath(path);
+				path = extendPath(path);
 			} else if (prop.timeBound < Double.POSITIVE_INFINITY) {
-				time += scheme.drawDelta(prop.timeBound - time,
-						likelihood > forceBound
-							? forceBound
-							: -1);
-				likelihood *= scheme.deltaLikelihood();
+				time += drawDelta(prop.timeBound - time);
 			}
-			likelihood *= scheme.likelihood();
+			likelihood *= likelihood();
 		} while(!model.isRed(state) && !model.isBlue(state)
 		        && time < prop.timeBound
 		        && likelihood > 0);

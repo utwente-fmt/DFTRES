@@ -11,15 +11,14 @@ public class SchemeZVAv extends Scheme {
 	private final double[][] cachedWeightsIS;
 	private final double[] cachedWeightSums;
 	
-	private SchemeZVAv(Random rng, StateSpace model,
-	                   double weights[][], double sums[])
+	private SchemeZVAv(StateSpace model, double weights[][], double sums[])
 	{
-		super(rng, model, "Path-ZVA-Delta");
+		super(model, "Path-ZVA-Delta");
 		cachedWeightsIS = weights;
 		cachedWeightSums = sums;
 	}
 
-	public static SchemeZVAv instantiate(Random rng, StateSpace model)
+	public static SchemeZVAv instantiate(StateSpace model)
 	{
 		double v[] = new SearchAlgorithm(model).runAlgorithm();
 		double weights[][] = new double[v.length][];
@@ -43,15 +42,15 @@ public class SchemeZVAv extends Scheme {
 			}
 			sums[state] = sum;
 		}
-		return new SchemeZVAv(rng, model, weights, sums);
+		return new SchemeZVAv(model, weights, sums);
 	}
 
 	public boolean isBinomial() {
 		return false;
 	}
 
-	public void computeNewProbs(int state) {
-		super.computeNewProbs(state);
+	public void prepareState(int state) {
+		super.prepareState(state);
 		if (state < cachedWeightsIS.length) {
 			if (cachedWeightsIS[state] != null) {
 				stateWeightsIS = cachedWeightsIS[state];

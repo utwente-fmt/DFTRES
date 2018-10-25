@@ -3,6 +3,7 @@ package algorithms;
 import models.StateSpace;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Random;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 
 /* Optimal stopping criterion, see pg. 555 of
@@ -12,19 +13,20 @@ import nl.utwente.ewi.fmt.EXPRES.Property;
  */
 
 public class Simulator {
+	private final static int MIN_MAX_CACHE_SIZE = 100000;
 	public final static boolean VERBOSE = false;
 	public static boolean showProgress = false;
 	private final TraceGenerator gen;
 
-	public Simulator(Property prop, Scheme scheme, double forcingBound)
+	public Simulator(Random rng, Property prop, Scheme scheme, double forcingBound)
 	{
 		switch (prop.type) {
 			case REACHABILITY:
-				gen = new ReachabilityTracer(scheme, prop,
+				gen = new ReachabilityTracer(rng, scheme, prop,
 				                             forcingBound);
 				break;
 			case STEADY_STATE:
-				gen = new SteadyStateTracer(scheme, prop);
+				gen = new SteadyStateTracer(rng, scheme, prop);
 				break;
 			default:
 				gen = null;
@@ -43,9 +45,9 @@ public class Simulator {
 		int percentage = 0;
 		long N = 0;
 		long start = System.currentTimeMillis();
-		int initSize = gen.scheme.model.size();
-		if (VERBOSE)
-			System.err.println("Start size: " + initSize);
+		int maxCacheSize = gen.scheme.model.size() * 2;
+		if (maxCacheSize < MIN_MAX_CACHE_SIZE)
+			maxCacheSize = MIN_MAX_CACHE_SIZE;
 
 		/* For time bounds, start by estimating the number of
 		 * simulations we can run.
@@ -57,7 +59,7 @@ public class Simulator {
 			long trialSimTime = start + msec / 100;
 			while (System.currentTimeMillis() < trialSimTime) {
 				// keep the cache from exploding
-				if(gen.scheme.model.size() > 2 * initSize)
+				if(gen.scheme.model.size() > maxCacheSize)
 					gen.scheme.resetModelCache();
 				gen.sample();
 				N++;
@@ -69,7 +71,7 @@ public class Simulator {
 			long startExact = System.nanoTime();
 			while (estN < N) {
 				// keep the cache from exploding
-				if(gen.scheme.model.size() > 2 * initSize)
+				if(gen.scheme.model.size() > maxCacheSize)
 					gen.scheme.resetModelCache();
 				gen.sample();
 				estN++;
@@ -87,7 +89,7 @@ public class Simulator {
 
 		while(N < maxN) {
 			// keep the cache from exploding
-			if(gen.scheme.model.size() > 2 * initSize)
+			if(gen.scheme.model.size() > maxCacheSize)
 				gen.scheme.resetModelCache();
 			gen.sample();
 			if (showProgress && maxN < Integer.MAX_VALUE) {
@@ -117,6 +119,9 @@ public class Simulator {
 		double sum = 0;
 		double curRelErr;
 		int initSize = gen.scheme.model.size();
+		int maxCacheSize = initSize * 2;
+		if (maxCacheSize < MIN_MAX_CACHE_SIZE)
+			maxCacheSize = MIN_MAX_CACHE_SIZE;
 		SimulationResult result;
 		alpha /= 2; /* Start with a window 1/2 as big, then 1/4,
 		             * 1/8, ... */

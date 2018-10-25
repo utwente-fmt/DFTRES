@@ -2,6 +2,7 @@ package algorithms;
 
 import models.StateSpace;
 import nl.utwente.ewi.fmt.EXPRES.Property;
+import java.util.Random;
 
 /**
  * Estimate the steady-state probability of being in a red state.
@@ -16,12 +17,17 @@ public class SteadyStateTracer extends TraceGenerator
 	private double sumTimesSquared;
 	private double estMeanTime;
 	private double estMeanRedTime;
-	private final Scheme mcScheme;
+	private final SteadyStateTracer mcTracer;
 
-	public SteadyStateTracer(Scheme s, Property p)
+	public SteadyStateTracer(Random rng, Scheme s, Property p)
 	{
-		super(s, p);
-		mcScheme = new Scheme(s.rng, s.model);
+		super(rng, s, p);
+		if (s.getClass() == Scheme.class) {
+			mcTracer = this;
+		} else {
+			mcTracer = new SteadyStateTracer(rng, new Scheme(s.model), p);
+			mcTracer.scheme.model = scheme.model;
+		}
 	}
 
 	public void reset()
@@ -44,6 +50,12 @@ public class SteadyStateTracer extends TraceGenerator
 		estMeanRedTime = emrt;
 	}
 
+	public void resetModelCache()
+	{
+		super.resetModelCache();
+		mcTracer.scheme.model = scheme.model;
+	}
+
 	public void sample()
 	{
                 int state = 0;
@@ -53,16 +65,14 @@ public class SteadyStateTracer extends TraceGenerator
 
 		/* Do a cycle with IS to measure red time */
                 do {
-                        scheme.computeNewProbs(state);
-                        state = scheme.drawNextState();
-                        likelihood *= scheme.likelihood();
+                        state = drawNextState(state);
+                        likelihood *= likelihood();
                 } while(!model.isRed(state) && !model.isBlue(state));
 		while(!model.isBlue(state)) {
                         double delta;
-			mcScheme.computeNewProbs(state);
-			int newState = mcScheme.drawNextState();
+			int newState = mcTracer.drawNextState(state);
 			if(model.isRed(state))
-				timeInRed += mcScheme.drawMeanTransitionTime();
+				timeInRed += mcTracer.drawMeanTransitionTime();
 			state = newState;
 		}
 		N++;
@@ -78,9 +88,8 @@ public class SteadyStateTracer extends TraceGenerator
 		double totalTime = 0;
 		do {
 			double delta;
-			mcScheme.computeNewProbs(state);
-			totalTime += mcScheme.drawMeanTransitionTime();
-			state = mcScheme.drawNextState();
+			state = mcTracer.drawNextState(state);
+			totalTime += mcTracer.drawMeanTransitionTime();
 		} while(!model.isBlue(state));
 		sumTime += totalTime;
 		totalTime -= estMeanTime;

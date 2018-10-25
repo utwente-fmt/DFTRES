@@ -12,17 +12,17 @@ public class SchemeZVAd extends Scheme {
 	private final double v[];
 	private final int d[];
 	
-	private SchemeZVAd(Random rng, StateSpace model, double v[], int d[]) {
-		super(rng, model, "Path-ZVA-d");
+	private SchemeZVAd(StateSpace model, double v[], int d[]) {
+		super(model, "Path-ZVA-d");
 		this.v = v;
 		this.d = d;
 	}
 
-	public static SchemeZVAd instantiate(Random rng, StateSpace model) {
+	public static SchemeZVAd instantiate(StateSpace model) {
 		SearchAlgorithm s = new SearchAlgorithm(model);
 		double v[] = s.runAlgorithm();
 		int[] d = s.d;
-		return new SchemeZVAd(rng, model, v, d);
+		return new SchemeZVAd(model, v, d);
 	}
 
 	public boolean isBinomial() {
@@ -33,8 +33,8 @@ public class SchemeZVAd extends Scheme {
 		haveLeftLambda = false;
 	}
 	
-	public void computeNewProbs(int state) {
-		super.computeNewProbs(state);
+	public void prepareState(int state) {
+		super.prepareState(state);
 		if(state >= v.length || v[state] == 1) haveLeftLambda = true; // this seems to be an easy way to check whether gamma has been reached (or whether it doesn't matter anymore, because the probability of ending up in the goal state is 1 anyway).
 		if (state == 0)
 			haveLeftLambda = false;
