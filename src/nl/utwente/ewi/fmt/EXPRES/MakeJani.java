@@ -3,10 +3,11 @@ package nl.utwente.ewi.fmt.EXPRES;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Arrays;
+import java.util.Set;
 
 public class MakeJani {
 	/* JSON is output iff orig != null. */
-	public static void makeJani(LTS l, String filename, String orig, String[] cmdline)
+	public static void makeJani(LTS l, String filename, String orig, String[] cmdline, Set<Property> properties)
 			throws IOException
 	{
 		int[] state;
@@ -20,7 +21,7 @@ public class MakeJani {
 		if (lastSlash != -1)
 			name = name.substring(lastSlash + 1, name.length());
 		try (PrintStream out = new PrintStream(filename)) {
-			c.printJani(name, out);
+			c.printJani(name, out, properties);
 		}
 		if (orig == null)
 			return;

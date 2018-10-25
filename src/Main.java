@@ -296,11 +296,11 @@ class Main {
 
 		for (int i = 0; i < args.length - 1; i++) {
 			if (args[i].equals("-a")) {
-				Property av = new Property(Property.Type.STEADY_STATE, null, "Unavailability");
+				Property av = new Property(Property.Type.STEADY_STATE, "marked", "Unavailability");
 				properties.add(av);
 			} else if (args[i].equals("-r")) {
 				double time = Double.parseDouble(args[++i]);
-				Property rel = new Property(Property.Type.REACHABILITY, time, null, "Unreliability");
+				Property rel = new Property(Property.Type.REACHABILITY, time, "marked", "Unreliability");
 				properties.add(rel);
 			} else if (args[i].equals("-s")) {
 				seed = Long.parseLong(args[++i]);
@@ -349,14 +349,21 @@ class Main {
 		}
 
 		model = loadModel(filename);
-		if (jsonOutput && !properties.isEmpty())
-			benchmarkHeader(args, filename);
 		if (janiOutputFile != null)
-			MakeJani.makeJani(model, janiOutputFile, jsonOutput ? filename : null, args);
+			MakeJani.makeJani(model, janiOutputFile, jsonOutput ? filename : null, args, properties);
 		if (traLabOutputFile != null) {
 			MakeTraLab mtl = new MakeTraLab(model);
 			mtl.convert(traLabOutputFile);
 		}
+		if (Double.isNaN(relErr)
+		    && maxTime == Integer.MAX_VALUE
+		    && maxSims == Integer.MAX_VALUE)
+		{
+			System.err.println("No bounds on simulation specified, not performing simulations.");
+			return;
+		}
+		if (jsonOutput && !properties.isEmpty())
+			benchmarkHeader(args, filename);
 		for (Property prop : properties) {
 			try {
 				results.addAll(runSimulations(prop));

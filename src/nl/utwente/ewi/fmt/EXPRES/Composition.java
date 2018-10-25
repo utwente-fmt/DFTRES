@@ -702,7 +702,7 @@ public class Composition implements MarkableLTS
 		return ret;
 	}
 
-	public void printJani(String name, PrintStream out)
+	public void printJani(String name, PrintStream out, Set<Property> props)
 	{
 		TreeSet<String> localHides = new TreeSet<>(hideLabels);
 		out.println("{\"jani-version\":1,");
@@ -822,46 +822,36 @@ public class Composition implements MarkableLTS
 		}
 		out.println("\t]},");
 		out.println("\"properties\": [");
-		/* Steady state property */
-		out.println("\t{\"name\":\"steadystate\",");
-		out.println("\t \"expression\":{");
-		out.println("\t\t\"fun\":\"max\",");
-		out.println("\t\t\"op\":\"filter\",");
-		out.println("\t\t\"states\":{\"op\":\"initial\"},");
-		out.println("\t\t\"values\":{");
-
-		out.println("\t\t\t\"op\":\"Smax\",");
-		out.println("\t\t\t\"exp\":\"marked\"");
-		out.println("\t\t\t}");
-		out.println("\t\t}");
-		out.println("\t},");
-		/* Bounded reachability */
-		out.println("\t{\"name\":\"boundedreach\",");
-		out.println("\t \"expression\":{");
-		out.println("\t\t\"fun\":\"max\",");
-		out.println("\t\t\"op\":\"filter\",");
-		out.println("\t\t\"states\":{\"op\":\"initial\"},");
-		out.println("\t\t\"values\":{");
-
-		out.println("\t\t\t\"op\":\"Pmax\",");
-		out.println("\t\t\t\"exp\":{\"op\":\"U\", \"left\":true, \"right\":\"marked\", \"time-bounds\":{\"upper\":1}}");
-		out.println("\t\t\t}");
-		out.println("\t\t}");
-		out.println("\t},");
-		/* Unbounded reachability */
-		out.println("\t{\"name\":\"unboundedreach\",");
-		out.println("\t \"comment\":\"Should always be 1\",");
-		out.println("\t \"expression\":{");
-		out.println("\t\t\"fun\":\"max\",");
-		out.println("\t\t\"op\":\"filter\",");
-		out.println("\t\t\"states\":{\"op\":\"initial\"},");
-		out.println("\t\t\"values\":{");
-
-		out.println("\t\t\t\"op\":\"Pmax\",");
-		out.println("\t\t\t\"exp\":{\"op\":\"U\", \"left\":true, \"right\":\"marked\"}");
-		out.println("\t\t\t}");
-		out.println("\t\t}");
-		out.println("\t}");
+		int i = 0;
+		for (Property prop : props) {
+			out.println("\t{\"name\":\"" + prop.name + "\",");
+			out.println("\t \"expression\":{");
+			out.println("\t\t\"fun\":\"max\",");
+			out.println("\t\t\"op\":\"filter\",");
+			out.println("\t\t\"states\":{\"op\":\"initial\"},");
+			out.println("\t\t\"values\":{");
+			out.print("\t\t\t\"op\":\"");
+			switch (prop.type) {
+				case STEADY_STATE:
+					out.println("Smax\",");
+					out.println("\t\t\t\"exp\":\""
+					            + prop.variable + "\"");
+					break;
+				case REACHABILITY:
+					out.println("Pmax\",");
+					out.print("\t\t\t\"exp\":{\"op\":\"F\", \"exp\":\"" + prop.variable + "\"");
+					if (Double.isFinite(prop.timeBound))
+						out.print(", \"time-bounds\":{\"upper\":" + prop.timeBound + "}");
+					out.println("}");
+					break;
+			}
+			out.println("\t\t\t}");
+			out.println("\t\t}");
+			if (++i == props.size())
+				out.println("\t}");
+			else
+				out.println("\t},");
+		}
 		/* End of properties */
 		out.println("]");
 		out.println("}");
@@ -927,14 +917,21 @@ public class Composition implements MarkableLTS
 			variable = (String)expO;
 		} else if (expO instanceof Map) {
 			expr = (Map)expO;
-			if (!"U".equals(expr.get("op")))
-				throw new UnsupportedOperationException("The only currently supported formulae are variables and 'true U variable' (with time bound)");
-			if (!Boolean.TRUE.equals(expr.get("left")))
-				throw new UnsupportedOperationException("Until formulae currently only supported with 'true' left operand.");
-			expO = expr.get("right");
-			if (!(expO instanceof String))
-				throw new UnsupportedOperationException("Until formulae currently only supported with atomic (variable) right operand");
-			variable = (String)expO;
+			if ("U".equals(expr.get("op"))) {
+				if (!Boolean.TRUE.equals(expr.get("left")))
+					throw new UnsupportedOperationException("Until formulae currently only supported with 'true' left operand.");
+				expO = expr.get("right");
+				if (!(expO instanceof String))
+					throw new UnsupportedOperationException("Until formulae currently only supported with atomic (variable) right operand");
+				variable = (String)expO;
+			} else if ("F".equals(expr.get("op"))) {
+				expO = expr.get("exp");
+				if (!(expO instanceof String))
+					throw new UnsupportedOperationException("Finally formulae currently only supported with atomic (variable) operand");
+				variable = (String)expO;
+			} else {
+				throw new UnsupportedOperationException("The only currently supported formulae are variables and formulae 'F variable' or 'true U variable' (with time bound)");
+			}
 			Object boundO = expr.get("time-bounds");
 			if (boundO == null) {
 				timeBound = Double.POSITIVE_INFINITY;
