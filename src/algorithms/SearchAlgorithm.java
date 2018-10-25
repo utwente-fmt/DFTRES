@@ -10,38 +10,48 @@ import java.util.PrimitiveIterator;
 import java.util.PriorityQueue;
 import java.util.Set;
 
-public class MainAlgorithm {
+public class SearchAlgorithm {
+	private Set<Integer> Lambda;
+	private Set<Integer> Gamma;
+	private final ModelGenerator generator;
 
-	public double epsilon;
+	private int dp[];
+	public int d[];
+
+	private final boolean trace;
 	
-	public Set<Integer> Lambda;
-	public Set<Integer> LambdaQ;
-	public Set<Integer> Gamma;
-	public Set<Integer> GammaQ;
-	public ModelGenerator generator;
-	
-	boolean trace;
-	
-	public MainAlgorithm(ModelGenerator g, boolean t) {
+	public SearchAlgorithm(ModelGenerator g, boolean t) {
 		this.generator = g;
 		trace = t;
 	}
 	
-	public MainAlgorithm(ModelGenerator g) {
+	public SearchAlgorithm(ModelGenerator g) {
 		this(g, false);
 	}
-	
-	public void setTrace(boolean b) {
-		trace = b;
-	}
-	
-	public void runAlgorithm() {
+
+	public double[] runAlgorithm() {
+		dp = new int[200];
+		/* If parts of the state space have already been
+		 * undo this */
+		generator.initialise();
 		forwardPhase();
-		//backwardPhase(this.Lambda, this.Gamma);
+		double[] ret = backwardPhase();
+		dp = null;
+		return ret;
+	}
+
+	private void findNeighbours(int state)
+	{
+		generator.findNeighbours(state);
+		if (dp.length < generator.X.size()) {
+			int len = dp.length;
+			dp = Arrays.copyOf(dp, len * 2);
+			Arrays.fill(dp, len, dp.length, Integer.MAX_VALUE);
+		}
 	}
 
 	/* Returns whether any changes were actually made. */
-	public boolean removeHpc(int s) {
+	private boolean removeHpc(int s) {
 		HashSet<Integer> A = new HashSet<Integer>();
 		HashSet<Integer> B = new HashSet<Integer>();
 		ArrayList<Integer> pot_A = new ArrayList<Integer>();
@@ -61,10 +71,10 @@ public class MainAlgorithm {
 			for(int j=pot_A.size()-1;j>=0;j--) {
 				int x = pot_A.remove(j);
 				A.add(x);
-				for(int i=0;i<X.successors.get(x).length;i++) {//Edge e : x.outgoingEdges) {
-					int z = X.successors.get(x)[i];
+				for (int z : X.successors.get(x)) {
 					if(X.getOrder(x,z) == 0 && !generator.isBlue(x) && !A.contains(z) && !pot_A.contains(z) && z > -1) {
-						if(generator.X.successors.get(z) == null) generator.findNeighbours(z);
+						if(generator.X.successors.get(z) == null)
+							findNeighbours(z);
 						pot_A.add(z);
 					}
 				}
@@ -202,8 +212,8 @@ public class MainAlgorithm {
 		}
 
 		for (int z : D) {
-			if(X.dp[z] < Integer.MAX_VALUE)
-				X.dp[z] = X.dp[z] - minOrder;
+			if(dp[z] < Integer.MAX_VALUE)
+				dp[z] = dp[z] - minOrder;
 		}
 		return true;
 	}
@@ -214,23 +224,22 @@ public class MainAlgorithm {
 		return solv.solve(maxIts);
 	}
 	
-	public void forwardPhase() {
-		generator.initialise(); // if parts of the state space have already been generated, this must be undone
+	private void forwardPhase() {
 		ArrayDeque<Integer> current = new ArrayDeque<Integer>();
 		BitSet iLambda = new BitSet();
 		StateSpace X = generator.X;
 		int x = 0;
 		int dpxb = Integer.MAX_VALUE;
-		int curDp = X.dp[0];
+		int curDp = dp[0];
 		int lowestNonLambda = 0;
-		while(x > -1 && X.dp[x] <= dpxb) {
+		while(x > -1 && dp[x] <= dpxb) {
 			boolean skip = false;
 			if (iLambda.get(x))
 				skip = true;
 			iLambda.set(x);
 			int[] nbs = generator.X.successors.get(x);
 			if(nbs == null) {
-				generator.findNeighbours(x);
+				findNeighbours(x);
 				nbs = generator.X.successors.get(x);
 			}
 
@@ -241,13 +250,13 @@ public class MainAlgorithm {
 				if (X.inHPC.get(z))
 					continue;
 				int order = X.getOrder(x, z);
-				int dp = Math.min(X.dp[z], X.dp[x] + order);
-				X.dp[z] = dp;
-				if (dp == curDp)
+				int dpx = Math.min(dp[z], dp[x] + order);
+				dp[z] = dpx;
+				if (dpx == curDp)
 					current.add(z);
 				if(dpxb == Integer.MAX_VALUE && generator.isRed(z))
-					dpxb = dp;
-				if(iLambda.get(z) && dp == X.dp[x]) {
+					dpxb = dpx;
+				if(iLambda.get(z) && dpx == dp[x]) {
 					//System.out.println("Possible HPC!!! x = "+x+" = "+Arrays.toString(X.states.get(x))+", z = "+z+" = "+Arrays.toString(X.states.get(z)));
 					if (removeHpc(z)) {
 						nbs = generator.X.successors.get(x);
@@ -261,12 +270,12 @@ public class MainAlgorithm {
 				curDp = Integer.MAX_VALUE;
 				int z = -1;
 				while ((z = iLambda.nextClearBit(z + 1)) < X.size()) {
-					int dp = X.dp[z];
-					if (dp < curDp) {
+					int dpz = dp[z];
+					if (dpz < curDp) {
 						current.clear();
-						curDp = dp;
+						curDp = dpz;
 					}
-					if (dp == curDp)
+					if (dpz == curDp)
 						current.add(z);
 				}
 				if (current.isEmpty())
@@ -275,7 +284,7 @@ public class MainAlgorithm {
 					x = current.poll();
 			}
 			if (trace && x >= 0)
-				System.out.format("fwd (%d): %d\n", X.dp[x], x);
+				System.out.format("fwd (%d): %d\n", dp[x], x);
 		}
 
 		Gamma = new HashSet<Integer>();
@@ -287,10 +296,9 @@ public class MainAlgorithm {
 			else
 				Gamma.add(z);
 		}
-
 	}
 
-	public HashMap<Integer, int[]> determinePredecessors(
+	private HashMap<Integer, int[]> determinePredecessors(
 			final Set<Integer> states)
 	{
 		ArrayList<HashMap<Integer, ArrayList<Integer>>> intermediates;
@@ -385,7 +393,7 @@ public class MainAlgorithm {
 		return ret;
 	}
 
-	public ArrayList<ArrayList<Integer>> determinePredecessors() {
+	private ArrayList<ArrayList<Integer>> determinePredecessors() {
 		StateSpace X = generator.X;
 		ArrayList<ArrayList<Integer>> predecessors = new ArrayList<ArrayList<Integer>>();
 		for(int i = X.size(); i>= 0; i--) {
@@ -406,11 +414,10 @@ public class MainAlgorithm {
 		return predecessors;
 	}
 
-	public void backwardPhase() {
-		backwardPhase(generator.X);
-	}
-	
-	public void backwardPhase(StateSpace X) {
+	private double[] backwardPhase() {
+		StateSpace X = generator.X;
+		d = new int[X.size()];
+		double v[] = new double[X.size()];
 		if(trace) System.out.println("-----"+Lambda.size()+", "+Gamma.size());
 		BitSet LambdaP = new BitSet();
 		BitSet potentials = new BitSet();
@@ -421,17 +428,17 @@ public class MainAlgorithm {
 
 		for (int s : Lambda) {
 			if(generator.isRed(s)) {
-				X.d[s] = 0; X.v[s] = 1;
+				v[s] = 1;
 				redsAndGamma.set(s);
 			} else {
-				X.d[s] = Integer.MAX_VALUE; X.v[s] = 0;
+				d[s] = Integer.MAX_VALUE;
 				if (!generator.isBlue(s))
 					potentials.set(s);
 			}
 		}
 
 		for (int s : Gamma) {
-			X.d[s] = 0; X.v[s] = 1;
+			v[s] = 1;
 			redsAndGamma.set(s);
 		}
 		if(trace) System.out.println("Reds and Gamma size: "+redsAndGamma.size());
@@ -458,12 +465,12 @@ public class MainAlgorithm {
 				int z = predecessors.get(x).get(j);
 				int rzx = X.getOrder(z,x);//z.getTransitionOrder(x);
 				if (rzx < Integer.MAX_VALUE) {
-					if(rzx + X.d[x] < X.d[z]) {
-						X.v[z] = 0;
+					if(rzx + d[x] < d[z]) {
+						v[z] = 0;
 					}
-					X.d[z] = Math.min(X.d[z], rzx + X.d[x]);
-					if(X.d[z] == X.d[x] + rzx && !generator.isRed(z)) {
-						X.v[z] = X.v[z] + X.v[x] * X.getProb(z,x);
+					d[z] = Math.min(d[z], rzx + d[x]);
+					if(d[z] == d[x] + rzx && !generator.isRed(z)) {
+						v[z] = v[z] + v[x] * X.getProb(z,x);
 					}
 				}
 			}
@@ -491,11 +498,11 @@ public class MainAlgorithm {
 			}
 			if (suitable) {
 				suitables.set(z);
-				if (X.d[z] < curDp) {
-					curDp = X.d[z];
+				if (d[z] < curDp) {
+					curDp = d[z];
 					currentSuitables.clear();
 				}
-				if (X.d[z] == curDp)
+				if (d[z] == curDp)
 					currentSuitables.add(z);
 			}
 		}
@@ -510,16 +517,16 @@ public class MainAlgorithm {
 					break;
 				while (iter.hasNext()) {
 					int x = iter.nextInt();
-					if (X.d[x] < curDp) {
-						curDp = X.d[x];
+					if (d[x] < curDp) {
+						curDp = d[x];
 						currentSuitables.clear();
 					}
-					if (X.d[x] == curDp)
+					if (d[x] == curDp)
 						currentSuitables.add(x);
 				}
 			}
 			int x = currentSuitables.poll();
-			int dMin = X.d[x];
+			int dMin = d[x];
 
 			if (trace)
 				System.out.println("** state "+x+": d="+dMin);
@@ -533,21 +540,21 @@ public class MainAlgorithm {
 				//System.out.println(x+", "+z+": "+X.size());
 				int rzx = X.getOrder(z,x);//z.getTransitionOrder(x);
 				if(rzx < Integer.MAX_VALUE) {
-					if(rzx + X.d[x] < X.d[z])
-						X.v[z] = 0.;
-					int old = X.d[z];
-					int d = Math.min(old, rzx + X.d[x]);
-					if (d != old) {
-						X.d[z] =  d;
-						if (d < curDp) {
+					if(rzx + d[x] < d[z])
+						v[z] = 0;
+					int old = d[z];
+					int md = Math.min(old, rzx + d[x]);
+					if (md != old) {
+						d[z] =  md;
+						if (md < curDp) {
 							currentSuitables.clear();
-							curDp = d;
+							curDp = md;
 						}
-						if (d == curDp)
+						if (md == curDp)
 							currentSuitables.add(z);
 					}
-					if (d == X.d[x] + rzx && !generator.isRed(z)) {
-						X.v[z] = X.v[z] + X.v[x] * X.getProb(z,x);
+					if (md == d[x] + rzx && !generator.isRed(z)) {
+						v[z] = v[z] + v[x] * X.getProb(z,x);
 					}
 				}
 				if (suitables.get(z) || LambdaP.get(z) || !potentials.get(z))
@@ -564,12 +571,12 @@ public class MainAlgorithm {
 				}
 				if (suitable) {
 					suitables.set(z);
-					int d = X.d[z];
-					if (d < curDp) {
-						curDp = d;
+					int md = d[z];
+					if (md < curDp) {
+						curDp = md;
 						currentSuitables.clear();
 					}
-					if (d == curDp)
+					if (md == curDp)
 						currentSuitables.add(z);
 				}
 			}
@@ -577,11 +584,10 @@ public class MainAlgorithm {
 
 		// finallY: reset blue states
 		for(int z : Lambda) {
-			if(generator.isBlue(z)) {
-				X.d[z] =  Integer.MAX_VALUE;
-				X.v[z] =  0;
-			}
+			if(generator.isBlue(z))
+				v[z] = 0;
 		}
+		return v;
 	}
 	
 	public void determineXUnderQ(Scheme scheme) {

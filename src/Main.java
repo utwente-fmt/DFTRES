@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.Random;
 import schemes.SchemeZVAd;
 import schemes.SchemeZVAv;
-import algorithms.MainAlgorithm;
 import algorithms.ModelGenerator;
 import algorithms.Scheme;
 import algorithms.SimulationResult;
@@ -129,13 +128,6 @@ class Main {
 				nProp = new Property(prop, prop.name + "-MC");
 			SimulationResult res = runSim(nProp, mc);
 			ret.add(res);
-		}
-
-		if (zvad || zvav) {
-			MainAlgorithm algorithm = new MainAlgorithm(generator, false);
-
-			algorithm.forwardPhase();
-			algorithm.backwardPhase();
 		}
 
 		if (zvad) {

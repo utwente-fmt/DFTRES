@@ -91,7 +91,7 @@ public class ReachabilityTracer extends TraceGenerator
 		double likelihood = 1;
 		int path[] = null;
 		if (forceBound < 0 && Double.isFinite(prop.timeBound))
-			path = new int[generator.X.d.length];
+			path = new int[generator.X.exitRates.length];
 
 		do {
 			scheme.computeNewProbs(state);
