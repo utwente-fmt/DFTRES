@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
-import schemes.SchemeMC;
 import schemes.SchemeZVAd;
 import schemes.SchemeZVAv;
 import algorithms.MainAlgorithm;
@@ -17,6 +16,8 @@ import algorithms.ModelGenerator;
 import algorithms.Scheme;
 import algorithms.SimulationResult;
 import algorithms.Simulator;
+
+import algorithms.ReachabilityTracer;
 
 import ec.util.MersenneTwisterFast;
 import nl.ennoruijters.interval.XoroShiro128RandomSource;
@@ -122,7 +123,7 @@ class Main {
 			multiple = true;
 
 		if (mc) {
-			SchemeMC mc = new SchemeMC(rng,generator);
+			Scheme mc = new Scheme(rng,generator);
 			Property nProp = prop;
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-MC");
@@ -308,6 +309,10 @@ class Main {
 		boolean haveSeed = false;
 		ArrayList<SimulationResult> results = new ArrayList<>();
 		String useRng = "XS128";
+		if (args.length == 0) {
+			System.err.println("No filename provided.");
+			System.exit(-1);
+		}
 		String filename = args[args.length - 1];
 		String janiOutputFile = null, traLabOutputFile = null;
 

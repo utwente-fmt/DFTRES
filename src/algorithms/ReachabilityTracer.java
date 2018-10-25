@@ -129,7 +129,119 @@ public class ReachabilityTracer extends TraceGenerator
 		double estSum = Math.fma(-N, estMean, sum);
 		double var = Math.fma(-estSum, mean - estMean, sumSquares);
 		var /= N - 1;
+		SimulationResult ret = null;
+		if (scheme.isBinomial())
+			ret = binomialCI(alpha, var, time);
 
-		return new SimulationResult(prop, alpha, mean, var, new long[]{N, M}, time, baseModelSize);
+		if (ret == null)
+			ret = new SimulationResult(prop, alpha, mean, var, new long[]{N, M}, time, baseModelSize);
+		return ret;
+	}
+
+	private static long gcd(long a, long b)
+	{
+		long t;
+		while (b != 0) {
+			t = b;
+			b = a % b;
+			a = t;
+		}
+		return a;
+	}
+
+	private static long binomCoeff(long n, long k)
+	{
+		long ret = 1;
+                long denom = 1, numer = 1;
+                if (k > n - k)
+                        k = n - k;
+                for (int i = 1; i <= k; i++) {
+			long g;
+			long newn = n + 1 - i, newd = i;
+			g = gcd(newn, newd);
+			newn /= g;
+			newd /= g;
+			g = gcd(newn, denom);
+			newn /= g;
+			denom /= g;
+			g = gcd(numer, newd);
+                        numer /= g;
+                        newd /= g;
+                        numer = Math.multiplyExact(numer, newn);
+                        denom = Math.multiplyExact(denom, newd);
+                }
+                return numer / denom;
+	}
+
+	private SimulationResult binomialCI(double alpha, double var, long time)
+	{
+		double mean, lbound, ubound;
+		boolean inverse = false;
+		long M = this.M;
+		if (M > N / 2) {
+			M = N - M;
+			inverse = true;
+		}
+		if (M == 0) {
+			mean = 0;
+			if (!inverse) {
+				lbound = 0;
+				ubound = 1 - Math.pow(alpha / 2, 1.0 / N);
+			} else {
+				ubound = 1;
+				lbound = Math.pow(alpha / 2, 1.0 / N);
+			}
+		} else if (M <= 1024) {
+			mean = M / (double)N;
+			long coeffs[] = new long[(int)M + 1];
+			try {
+				for (int i = 0; i <= M; i++)
+					coeffs[i] = binomCoeff(N, i);
+			} catch (ArithmeticException e) {
+				return null;
+			}
+			double minP = 0, maxP = 1;
+			lbound = (maxP + minP) / 2;
+			while (lbound != maxP && lbound != minP) {
+				double cdf = 0;
+				double v1, v2;
+				for (int i = 0; i <= M - 1; i++) {
+					v1 = Math.pow(lbound, i) * coeffs[i];
+					v2 = Math.pow(1 - lbound, N - i);
+					cdf = Math.fma(v1, v2, cdf);
+				}
+				if (1 - cdf > alpha / 2)
+					maxP = lbound;
+				else
+					minP = lbound;
+				lbound = (maxP + minP) / 2;
+			}
+
+			minP = 0;
+			maxP = 1;
+			ubound = (maxP + minP) / 2;
+			while (ubound != maxP && ubound != minP) {
+				double cdf = 0;
+				double v1, v2;
+				for (int i = 0; i <= M; i++) {
+					v1 = Math.pow(ubound, i) * coeffs[i];
+					v2 = Math.pow(1 - ubound, N - i);
+					cdf = Math.fma(v1, v2, cdf);
+				}
+				if (cdf > alpha / 2)
+					minP = ubound;
+				else
+					maxP = ubound;
+				ubound = (maxP + minP) / 2;
+			}
+			if (inverse) {
+				minP = 1 - lbound;
+				lbound = 1 - ubound;
+				ubound = minP;
+			}
+		} else {
+			return null;
+		}
+		return new SimulationResult(prop, mean, alpha, var, lbound, ubound, new long[]{N, M}, time, baseModelSize);
 	}
 }

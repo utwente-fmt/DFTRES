@@ -13,7 +13,11 @@ public class SchemeZVAd extends Scheme {
 		super(rng, gen);
 		this.name = "Path-ZVA-d";
 	}
-	
+
+	public boolean isBinomial() {
+		return false;
+	}
+
 	public void reset() {
 		haveLeftLambda = false;
 	}

@@ -85,8 +85,13 @@ public class SimulationResult {
 
 	public String toString() {
 		double CIHalfWidth = (ubound - lbound) / 2;
-		return "mean: "+mean+",\n"
-		     + "var: "+var+",\n"
-		     + "CI: ["+getCI()+"] = "+mean+" +/- "+CIHalfWidth+"\n";
+		String ret = "point estimate: "+mean+",\n";
+		ret       += "var: "+var+",\n";
+		ret       += "CI: ["+getCI()+"]";
+		if ((ubound + lbound) / 2 == mean)
+			ret += mean+" +/- "+CIHalfWidth+"\n";
+		else
+			ret += "\n";
+		return ret;
 	}
 }

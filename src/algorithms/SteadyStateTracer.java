@@ -1,6 +1,5 @@
 package algorithms;
 
-import schemes.SchemeMC;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 
 /**
@@ -16,12 +15,12 @@ public class SteadyStateTracer extends TraceGenerator
 	private double sumTimesSquared;
 	private double estMeanTime;
 	private double estMeanRedTime;
-	private SchemeMC mcScheme;
+	private final Scheme mcScheme;
 
 	public SteadyStateTracer(Scheme s, Property p)
 	{
 		super(s, p);
-		mcScheme = new SchemeMC(s.rng, generator);
+		mcScheme = new Scheme(s.rng, generator);
 	}
 
 	public void reset()
@@ -93,6 +92,9 @@ public class SteadyStateTracer extends TraceGenerator
 		long time = getElapsedTime();
 		double meanZ = sumRedTime / N;
 		double meanT = sumTime / N;
+		if (M <= 1) {
+			return new SimulationResult(prop, sumRedTime / sumTime, alpha, Double.NaN, 0, Double.POSITIVE_INFINITY, new long[]{N, M}, time, baseModelSize);
+		}
 		if (Simulator.VERBOSE) {
 			System.err.println("Estimator for Z (unavail. time during cycle): " + meanZ);
 			System.err.println("Estimator for D (total    time during cycle): " + meanT);

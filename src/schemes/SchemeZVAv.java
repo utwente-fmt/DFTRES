@@ -36,6 +36,10 @@ public class SchemeZVAv extends Scheme {
 		}
 	}
 
+	public boolean isBinomial() {
+		return false;
+	}
+
 	public void computeNewProbs(int state) {
 		super.computeNewProbs(state);
 		if (state < cachedWeightsIS.length) {

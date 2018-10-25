@@ -30,8 +30,13 @@ public class Scheme
 	public Scheme(Random rng, ModelGenerator gen) {
 		this.rng = rng;
 		generator = gen;
+		name = "standard Monte Carlo";
 	}
-	
+
+	public boolean isBinomial() {
+		return true;
+	}
+
 	/**
 	 * Executes a set of processing steps that need to occur every time a new state is drawn.
 	 */
