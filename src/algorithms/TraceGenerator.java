@@ -1,11 +1,11 @@
 package algorithms;
 
+import models.StateSpace;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 
 public abstract class TraceGenerator
 {
 	public final Scheme scheme;
-	public final ModelGenerator generator;
 	public final Property prop;
 	public final int baseModelSize;
 	private long startTime;
@@ -13,8 +13,7 @@ public abstract class TraceGenerator
 	public TraceGenerator(Scheme scheme, Property prop)
 	{
 		this.scheme = scheme;
-		generator = scheme.generator;
-		baseModelSize = generator.X.size();
+		baseModelSize = scheme.model.size();
 		this.prop = prop;
 		startTime = System.nanoTime();
 	}

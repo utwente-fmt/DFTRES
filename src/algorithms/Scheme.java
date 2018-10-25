@@ -1,4 +1,5 @@
 package algorithms;
+import models.StateSpace;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Random;
@@ -8,29 +9,36 @@ import java.util.Random;
 
 public class Scheme
 {
-	public double[] stateWeightsIS;
-	public double totalStateWeightIS;
+	protected double[] stateWeightsIS;
+	protected double totalStateWeightIS;
 
-	public String name;
+	public final String name;
 
 	public Random rng;
-	public ModelGenerator generator;
+	public StateSpace model;
+	private final StateSpace initialModel;
 	
 	private int chosen;
 	private int prevState;
 	private double delta;
 	private double lastDeltaLikelihood;
 	
-	public int[] neighbours;
-	public int[] orders;
-	public double[] probs;
+	protected int[] neighbours;
+	protected int[] orders;
+	protected double[] probs;
 
 	public static double gamma = 1;
+	private double[] pReachSink = new double[1];
 
-	public Scheme(Random rng, ModelGenerator gen) {
+	public Scheme(Random rng, StateSpace model) {
+		this(rng, model, "standard Monte Carlo");
+	}
+
+	public Scheme(Random rng, StateSpace model, String name) {
 		this.rng = rng;
-		generator = gen;
-		name = "standard Monte Carlo";
+		this.initialModel = model;
+		this.model = model.snapshot();
+		this.name = name;
 	}
 
 	public boolean isBinomial() {
@@ -43,19 +51,21 @@ public class Scheme
 	
 	public void initGlobalVariables(int state) {
 		prevState = state;
-		neighbours = generator.X.successors.get(state);
+		neighbours = model.successors.get(state);
 		if(neighbours == null) {
-			generator.findNeighbours(state);
-			neighbours = generator.X.successors.get(state);
+			model.findNeighbours(state);
+			neighbours = model.successors.get(state);
 		}
-		orders = generator.X.orders.get(state);
-		probs = generator.X.probs.get(state);
+		orders = model.orders.get(state);
+		probs = model.probs.get(state);
 		
 		stateWeightsIS = probs;
 		totalStateWeightIS = 1;
 	}
 	
-	public void reset() {}
+	public void resetModelCache() {
+		this.model = initialModel.snapshot();
+	}
 
 	/**
 	 * Computes the weight of all the possible destination states and stores them in an array.
@@ -77,7 +87,7 @@ public class Scheme
 	public int drawNextState() {
 		if (stateWeightsIS.length == 1) {
 			chosen = 0;
-			return generator.X.successors.get(prevState)[0];
+			return model.successors.get(prevState)[0];
 		}
 		chosen = -1;
 		double sumProb = 0; 
@@ -86,7 +96,7 @@ public class Scheme
 			sumProb += stateWeightsIS[i];
 			if(u<sumProb) {
 				chosen = i;
-				return generator.X.successors.get(prevState)[i];
+				return model.successors.get(prevState)[i];
 			}
 		}
 		// The program should not reach this part of the code - after all, the IS probabilities should sum to one.
@@ -95,38 +105,65 @@ public class Scheme
 		// of the possible successor states is chosen.
 		System.out.println("Warning; dummy return statement reached in 'drawNextState' in Scheme.java.");
 		System.out.println("Possible model error, or Gauss-Seidel accuracy not high enough.");
-		System.out.println("State: "+prevState+" = "+Arrays.toString(generator.X.states.get(prevState)));
-		System.out.println("Successors (state indices): "+Arrays.toString(generator.X.successors.get(prevState)));
+		System.out.println("State: "+prevState+" = "+Arrays.toString(model.states.get(prevState)));
+		System.out.println("Successors (state indices): "+Arrays.toString(model.successors.get(prevState)));
 		double totProb = 0;
-		for(int i=0;i<generator.X.probs.get(prevState).length;i++) {
-			totProb += generator.X.probs.get(prevState)[i];
+		for(int i=0;i<model.probs.get(prevState).length;i++) {
+			totProb += model.probs.get(prevState)[i];
 		}
-		System.out.println("Probs: "+Arrays.toString(generator.X.probs.get(prevState)));
+		System.out.println("Probs: "+Arrays.toString(model.probs.get(prevState)));
 		System.out.println("IS Weight: "+Arrays.toString(stateWeightsIS));
 		System.out.println("IS total weight: "+totalStateWeightIS);
 		System.out.println("Real total weight.: "+totProb);
 		System.out.println("Chosen: " + u);
 		chosen = stateWeightsIS.length-1; // possible error due to floating point precision (?)! 10/3/2015: seems so, although it seems to happen less often if tracing is on for some odd reason
-		return generator.X.successors.get(prevState)[chosen];
+		return model.successors.get(prevState)[chosen];
+	}
+
+	/** Draw successor state conditional on eventually leaving the
+	 * HPC to the sink state.
+	 */
+	private int drawHPCSuccessor(int state, int sink)
+	{
+		int k;
+		StateSpace.HPCState s = model.hpcs.get(state);
+		int[] succ = s.successors;
+		if (pReachSink.length < succ.length)
+			pReachSink = new double[succ.length];
+		double[] probs = s.probs;
+		double sumP = 0;
+		for (int i = 0; i < succ.length; i++) {
+			double p;
+			k = succ[i];
+			if (k == sink)
+				p = 1;
+			else if (!model.inHPC.get(k))
+				p = 0;
+			else if (k == prevState)
+				p = model.probs.get(k)[chosen];
+			else
+				p = model.getProb(k, sink);
+			sumP = Math.fma(p, probs[i], sumP);
+			pReachSink[i] = sumP;
+		}
+		double u = rng.nextDouble() * sumP;
+		for (k = 0; u > pReachSink[k]; k++)
+			;
+		return succ[k];
 	}
 
 	/* Note: not combinable with drawDelta (may pick different segments) */
 	public int[] extendPath(int[] path)
 	{
-		if(!generator.X.inHPC.get(prevState)) {
+		if(!model.inHPC.get(prevState)) {
 			if (path.length <= prevState)
 				path = Arrays.copyOf(path, prevState + 1);
 			path[prevState]++;
 			return path;
 		}
 		int k = prevState;
-		double[] pReachSink = new double[1];
 		long count = 0;
-		StateSpace X = generator.X;
-		int[] initialSucc = X.successors.get(k);
-		int sink = X.successors.get(prevState)[chosen];
-		double sinkProb = X.getProb(k, sink);
-		delta = 0;
+		int sink = model.successors.get(prevState)[chosen];
 
 		while(k != sink) {
 			if (path.length <= k)
@@ -136,30 +173,7 @@ public class Scheme
 			if (count % 1048576 == 0)
 				System.err.format("%d Tries.\n", count);
 
-			StateSpace.HPCState s = X.hpcs.get(k);
-			int[] succ = s.successors;
-			if (pReachSink.length < succ.length)
-				pReachSink = new double[succ.length];
-			double[] probs = s.probs;
-			double sumP = 0;
-			for (int i = 0; i < succ.length; i++) {
-				double p;
-				k = succ[i];
-				if (k == sink)
-					p = 1;
-				else if (!X.inHPC.get(k))
-					p = 0;
-				else if (X.successors.get(k) == initialSucc)
-					p = X.probs.get(k)[chosen];
-				else
-					p = X.getProb(k, sink);
-				sumP = Math.fma(p, probs[i], sumP);
-				pReachSink[i] = sumP;
-			}
-			double u = rng.nextDouble() * sumP;
-			for (k = 0; u > pReachSink[k]; k++)
-				;
-			k = succ[k];
+			k = drawHPCSuccessor(k, sink);
 		}
 		return path;
 	}
@@ -200,8 +214,8 @@ public class Scheme
 
 	public double drawDelta(double timeLimit, double force) {
 		int k = prevState;
-		if(!generator.X.inHPC.get(k)) {
-			double rate = generator.X.exitRates[k];
+		if(!model.inHPC.get(k)) {
+			double rate = model.exitRates[k];
 			if (force >= 0) {
 				double compLikelihood = Math.exp(-rate * timeLimit);
 				double likelihood = -Math.expm1(-rate * timeLimit);
@@ -223,18 +237,14 @@ public class Scheme
 			}
 			return delta;
 		}
-		double[] pReachSink = new double[1];
 		long count = 0;
-		StateSpace X = generator.X;
-		int[] initialSucc = X.successors.get(k);
-		int sink = X.successors.get(prevState)[chosen];
-		double sinkProb = X.getProb(k, sink);
+		int sink = model.successors.get(prevState)[chosen];
 		delta = 0;
 		lastDeltaLikelihood = 1;
 
 		while(k != sink) {
 			double currentDelta;
-			double rate = X.exitRates[k];
+			double rate = model.exitRates[k];
 			if (force >= 0) {
 				double compLikelihood = Math.exp(-rate * timeLimit);
 				double likelihood = -Math.expm1(-rate * timeLimit);
@@ -250,38 +260,13 @@ public class Scheme
 				currentDelta = drawExponential() / rate;
 			}
 			delta += currentDelta;
-			timeLimit -= currentDelta;
-			if (timeLimit < 0)
+			if (delta > timeLimit)
 				return Double.POSITIVE_INFINITY;
 
 			count++;
 			if (count % 1048576 == 0)
 				System.err.format("%d Tries.\n", count);
-
-			StateSpace.HPCState s = X.hpcs.get(k);
-			int[] succ = s.successors;
-			if (pReachSink.length < succ.length)
-				pReachSink = new double[succ.length];
-			double[] probs = s.probs;
-			double sumP = 0;
-			for (int i = 0; i < succ.length; i++) {
-				double p;
-				k = succ[i];
-				if (k == sink)
-					p = 1;
-				else if (!X.inHPC.get(k))
-					p = 0;
-				else if (X.successors.get(k) == initialSucc)
-					p = X.probs.get(k)[chosen];
-				else
-					p = X.getProb(k, sink);
-				sumP = Math.fma(p, probs[i], sumP);
-				pReachSink[i] = sumP;
-			}
-			double u = rng.nextDouble() * sumP;
-			for (k = 0; u > pReachSink[k]; k++)
-				;
-			k = succ[k];
+			k = drawHPCSuccessor(k, sink);
 		}
 		//System.out.println("jump from "+generator.currentState+" to "+generator.X.successors.get(generator.currentState)[chosen]);
 		//System.out.println("--- delta: "+delta);
@@ -290,48 +275,22 @@ public class Scheme
 
 	public double drawMeanTransitionTime() {
 		int k = prevState;
-		if(!generator.X.inHPC.get(k))
-			return 1 / generator.X.exitRates[k];
+		if(!model.inHPC.get(k))
+			return 1 / model.exitRates[k];
 
 		double[] pReachSink = new double[1];
 		long count = 0;
-		StateSpace X = generator.X;
-		int[] initialSucc = X.successors.get(k);
-		int sink = X.successors.get(prevState)[chosen];
-		double sinkProb = X.getProb(k, sink);
+		int sink = model.successors.get(prevState)[chosen];
 		double ret = 0;
 
 		while(k != sink) {
-			ret += 1 / X.exitRates[k];
+			ret += 1 / model.exitRates[k];
 
 			count++;
 			if (count % 1048576 == 0)
 				System.err.format("%d Tries.\n", count);
 
-			StateSpace.HPCState s = X.hpcs.get(k);
-			int[] succ = s.successors;
-			if (pReachSink.length < succ.length)
-				pReachSink = new double[succ.length];
-			double[] probs = s.probs;
-			double sumP = 0;
-			for (int i = 0; i < succ.length; i++) {
-				double p;
-				k = succ[i];
-				if (k == sink)
-					p = 1;
-				else if (!X.inHPC.get(k))
-					p = 0;
-				else if (X.successors.get(k) == initialSucc)
-					p = X.probs.get(k)[chosen];
-				else
-					p = X.getProb(k, sink);
-				sumP = Math.fma(p, probs[i], sumP);
-				pReachSink[i] = sumP;
-			}
-			double u = rng.nextDouble() * sumP;
-			for (k = 0; u > pReachSink[k]; k++)
-				;
-			k = succ[k];
+			k = drawHPCSuccessor(k, sink);
 		}
 		return ret;
 	}

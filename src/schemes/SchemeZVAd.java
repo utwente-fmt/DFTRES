@@ -1,7 +1,7 @@
 package schemes;
-import algorithms.ModelGenerator;
 import algorithms.Scheme;
 import algorithms.SearchAlgorithm;
+import models.StateSpace;
 import java.util.Random;
 
 // path-ZVA, assuming the generator contains a list of generated states with correct values for d
@@ -12,12 +12,17 @@ public class SchemeZVAd extends Scheme {
 	private final double v[];
 	private final int d[];
 	
-	public SchemeZVAd(Random rng, ModelGenerator gen) {
-		super(rng, gen);
-		this.name = "Path-ZVA-d";
-		SearchAlgorithm s = new SearchAlgorithm(gen);
-		v = s.runAlgorithm();
-		d = s.d;
+	private SchemeZVAd(Random rng, StateSpace model, double v[], int d[]) {
+		super(rng, model, "Path-ZVA-d");
+		this.v = v;
+		this.d = d;
+	}
+
+	public static SchemeZVAd instantiate(Random rng, StateSpace model) {
+		SearchAlgorithm s = new SearchAlgorithm(model);
+		double v[] = s.runAlgorithm();
+		int[] d = s.d;
+		return new SchemeZVAd(rng, model, v, d);
 	}
 
 	public boolean isBinomial() {
@@ -41,7 +46,7 @@ public class SchemeZVAd extends Scheme {
 		totalStateWeightIS = 0;
 		for(int i=0;i<probs.length;i++) {
 			if(neighbours[i]> -1) {
-				stateWeightsIS[i] = probs[i]*Math.pow(generator.epsilon, d[neighbours[i]]);
+				stateWeightsIS[i] = probs[i]*Math.pow(model.epsilon, d[neighbours[i]]);
 				totalStateWeightIS += stateWeightsIS[i];
 			}
 		}

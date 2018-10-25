@@ -1,5 +1,6 @@
 package algorithms;
 
+import models.StateSpace;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 
 /**
@@ -20,7 +21,7 @@ public class SteadyStateTracer extends TraceGenerator
 	public SteadyStateTracer(Scheme s, Property p)
 	{
 		super(s, p);
-		mcScheme = new Scheme(s.rng, generator);
+		mcScheme = new Scheme(s.rng, s.model);
 	}
 
 	public void reset()
@@ -45,22 +46,22 @@ public class SteadyStateTracer extends TraceGenerator
 
 	public void sample()
 	{
-		scheme.reset();
                 int state = 0;
                 double likelihood = 1;
                 double timeInRed = 0;
+		StateSpace model = scheme.model;
 
 		/* Do a cycle with IS to measure red time */
                 do {
                         scheme.computeNewProbs(state);
                         state = scheme.drawNextState();
                         likelihood *= scheme.likelihood();
-                } while(!generator.isRed(state) && !generator.isBlue(state));
-		while(!generator.isBlue(state)) {
+                } while(!model.isRed(state) && !model.isBlue(state));
+		while(!model.isBlue(state)) {
                         double delta;
 			mcScheme.computeNewProbs(state);
 			int newState = mcScheme.drawNextState();
-			if(generator.isRed(state))
+			if(model.isRed(state))
 				timeInRed += mcScheme.drawMeanTransitionTime();
 			state = newState;
 		}
@@ -73,7 +74,6 @@ public class SteadyStateTracer extends TraceGenerator
 		}
 
 		/* Now do a cycle without IS to measure cycle duration. */
-		mcScheme.reset();
 		state = 0;
 		double totalTime = 0;
 		do {
@@ -81,7 +81,7 @@ public class SteadyStateTracer extends TraceGenerator
 			mcScheme.computeNewProbs(state);
 			totalTime += mcScheme.drawMeanTransitionTime();
 			state = mcScheme.drawNextState();
-		} while(!generator.isBlue(state));
+		} while(!model.isBlue(state));
 		sumTime += totalTime;
 		totalTime -= estMeanTime;
 		sumTimesSquared = Math.fma(totalTime, totalTime, sumTimesSquared);

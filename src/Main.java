@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.Random;
 import schemes.SchemeZVAd;
 import schemes.SchemeZVAv;
-import algorithms.ModelGenerator;
 import algorithms.Scheme;
 import algorithms.SimulationResult;
 import algorithms.Simulator;
@@ -116,13 +115,12 @@ class Main {
 	{
 		boolean multiple = false;
 		ArrayList<SimulationResult> ret = new ArrayList<>();
-		ModelGenerator generator = new ExpModel(epsilon, model, prop);
-		generator.initialise();
+		ExpModel statespace = new ExpModel(epsilon, model, prop);
 		if ((mc ? 1 : 0) + (zvav ? 1 : 0) + (zvad ? 1 : 0) > 1)
 			multiple = true;
 
 		if (mc) {
-			Scheme mc = new Scheme(rng,generator);
+			Scheme mc = new Scheme(rng, statespace);
 			Property nProp = prop;
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-MC");
@@ -131,7 +129,7 @@ class Main {
 		}
 
 		if (zvad) {
-			SchemeZVAd sc = new SchemeZVAd(rng,generator);
+			SchemeZVAd sc = SchemeZVAd.instantiate(rng, statespace);
 			Property nProp = prop;
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-ZVAd");
@@ -140,7 +138,7 @@ class Main {
 		}
 
 		if (zvav) {
-			SchemeZVAv sc = new SchemeZVAv(rng,generator);
+			SchemeZVAv sc = SchemeZVAv.instantiate(rng, statespace);
 			Property nProp = prop;
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-ZVAv");

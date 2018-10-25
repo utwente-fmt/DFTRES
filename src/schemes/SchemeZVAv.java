@@ -1,26 +1,31 @@
 package schemes;
 
-import algorithms.ModelGenerator;
 import algorithms.Scheme;
 import algorithms.SearchAlgorithm;
+import models.StateSpace;
 import java.util.Random;
 
 // path-IS, assuming the generator contains a list of generated states with correct values for w
 
 public class SchemeZVAv extends Scheme {
-	private double[][] cachedWeightsIS;
-	private double[] cachedWeightSums;
+	private final double[][] cachedWeightsIS;
+	private final double[] cachedWeightSums;
 	
-	public SchemeZVAv(Random rng, ModelGenerator gen) {
-		super(rng, gen);
-		this.name = "Path-ZVA-Delta";
+	private SchemeZVAv(Random rng, StateSpace model,
+	                   double weights[][], double sums[])
+	{
+		super(rng, model, "Path-ZVA-Delta");
+		cachedWeightsIS = weights;
+		cachedWeightSums = sums;
+	}
 
-		SearchAlgorithm s = new SearchAlgorithm(gen);
-		double v[] = s.runAlgorithm();
-		cachedWeightsIS = new double[v.length][];
-		cachedWeightSums = new double[v.length];
-		for (int state = 0; state < gen.X.successors.size(); state++) {
-			int neighbours[] = gen.X.successors.get(state);
+	public static SchemeZVAv instantiate(Random rng, StateSpace model)
+	{
+		double v[] = new SearchAlgorithm(model).runAlgorithm();
+		double weights[][] = new double[v.length][];
+		double sums[] = new double[v.length];
+		for (int state = 0; state < model.successors.size(); state++) {
+			int neighbours[] = model.successors.get(state);
 			boolean outOfLambda = false;
 			if (neighbours == null)
 				continue;
@@ -28,16 +33,17 @@ public class SchemeZVAv extends Scheme {
 				outOfLambda = true;
 			if (outOfLambda)
 				continue;
-			double probs[] = gen.X.probs.get(state);
+			double probs[] = model.probs.get(state);
 			double sum = 0;
-			cachedWeightsIS[state] = new double[probs.length];
+			weights[state] = new double[probs.length];
 			for(int i = 0; i < probs.length; i++) {
 				double vi = v[neighbours[i]];
-				cachedWeightsIS[state][i] = probs[i] * vi;
+				weights[state][i] = probs[i] * vi;
 				sum = Math.fma(probs[i], vi, sum);
 			}
-			cachedWeightSums[state] = sum;
+			sums[state] = sum;
 		}
+		return new SchemeZVAv(rng, model, weights, sums);
 	}
 
 	public boolean isBinomial() {

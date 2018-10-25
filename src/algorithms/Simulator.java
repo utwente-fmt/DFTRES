@@ -1,5 +1,6 @@
 package algorithms;
 
+import models.StateSpace;
 import java.util.Arrays;
 import java.util.HashMap;
 import nl.utwente.ewi.fmt.EXPRES.Property;
@@ -42,11 +43,9 @@ public class Simulator {
 		int percentage = 0;
 		long N = 0;
 		long start = System.currentTimeMillis();
-		ModelGenerator generator = gen.generator;
-		int initSize = generator.X.size();
+		int initSize = gen.scheme.model.size();
 		if (VERBOSE)
 			System.err.println("Start size: " + initSize);
-		StateSpace resX = generator.X.clone();
 
 		/* For time bounds, start by estimating the number of
 		 * simulations we can run.
@@ -58,8 +57,8 @@ public class Simulator {
 			long trialSimTime = start + msec / 100;
 			while (System.currentTimeMillis() < trialSimTime) {
 				// keep the cache from exploding
-				if(generator.X.size() > 2 * initSize)
-					generator.X = resX.clone();
+				if(gen.scheme.model.size() > 2 * initSize)
+					gen.scheme.resetModelCache();
 				gen.sample();
 				N++;
 			}
@@ -70,14 +69,14 @@ public class Simulator {
 			long startExact = System.nanoTime();
 			while (estN < N) {
 				// keep the cache from exploding
-				if(generator.X.size() > 2 * initSize)
-					generator.X = resX.clone();
+				if(gen.scheme.model.size() > 2 * initSize)
+					gen.scheme.resetModelCache();
 				gen.sample();
 				estN++;
 			}
 			long exactTime = System.nanoTime() - startExact;
 			msec -= (System.currentTimeMillis() - start);
-			N = (msec * (1000000 * 2 * N)) / exactTime;
+			N = (msec * (1000000 * N)) / exactTime;
 			if (N < maxN)
 				maxN = N;
 			N = 0;
@@ -88,8 +87,8 @@ public class Simulator {
 
 		while(N < maxN) {
 			// keep the cache from exploding
-			if(generator.X.size() > 2 * initSize)
-				generator.X = resX.clone();
+			if(gen.scheme.model.size() > 2 * initSize)
+				gen.scheme.resetModelCache();
 			gen.sample();
 			if (showProgress && maxN < Integer.MAX_VALUE) {
 				int newPerc = (int)(N * 50 / maxN);
@@ -105,7 +104,7 @@ public class Simulator {
 			N++;
 		}
 		if (VERBOSE)
-			System.err.println("End size: "+generator.X.size());
+			System.err.println("End size: "+gen.scheme.model.size());
 		return gen.getResult(alpha);
 	}
 
@@ -117,7 +116,7 @@ public class Simulator {
 		double lbound = 0, ubound = 1, mean;
 		double sum = 0;
 		double curRelErr;
-		int initSize = gen.generator.X.size();
+		int initSize = gen.scheme.model.size();
 		SimulationResult result;
 		alpha /= 2; /* Start with a window 1/2 as big, then 1/4,
 		             * 1/8, ... */
