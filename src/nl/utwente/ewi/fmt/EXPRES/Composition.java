@@ -705,6 +705,10 @@ public class Composition implements MarkableLTS
 	public void printJani(String name, PrintStream out, Set<Property> props)
 	{
 		TreeSet<String> localHides = new TreeSet<>(hideLabels);
+		/* Add markLabels to the hide set, as the marking
+		 * (presumably) captures any visible effects of the
+		 * transition. */
+		localHides.addAll(markLabels.keySet());
 		out.println("{\"jani-version\":1,");
 		out.println("\"name\":\""+name+"\",");
 		out.println("\"type\":\"ma\",");
@@ -716,7 +720,7 @@ public class Composition implements MarkableLTS
 		TreeSet<String> actions = new TreeSet<String>();
 		for (String l : synchronizedLabels)
 			actions.add(l);
-		actions.removeAll(hideLabels);
+		actions.removeAll(localHides);
 		if (!actions.isEmpty()) {
 			System.err.println("Warning: non-hidden labels remain after synchronization:");
 			System.err.println(actions);
