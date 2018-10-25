@@ -34,7 +34,7 @@ public class MakeJani {
 		System.out.println("\t\t\t\t\"tool\": \"DFTRES\",");
 		System.out.println("\t\t\t\t\"version\": \"" + Version.version + "\",");
 		System.out.println("\t\t\t\t\"url\": \"https://github.com/utwente-fmt/DFTRES\",");
-		System.out.println("\t\t\t\t\"command\": \"java -jar DFTRES.jar " + String.join(" ", Arrays.asList(cmdline)) + "\",");
+		System.out.println("\t\t\t\t\"command\": \"java -jar DFTRES.jar " + String.join(" ", Arrays.asList(cmdline)) + "\"");
 		System.out.println("\t\t\t},");
 		System.out.println("\t\t\t\"open-parameter-values\": [],");
 		System.out.println("\t\t\t\"file-parameter-values\": []");
