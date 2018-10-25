@@ -185,7 +185,7 @@ class Main {
 		System.out.println("\t\t\"url\": \"https://github.com/utwente-fmt/DFTRES\"");
 		System.out.println("\t},");
 		System.out.println("\t\"system\": {");
-		System.out.println("\t\t\"cpu\": \"" + getCPUName() + "\"");
+		System.out.println("\t\t\"cpu\": \"" + getCPUName() + "\",");
 		System.out.print("\t\t\"ram\": ");
 		Long ram = getSystemMemory();
 		if (ram != null)
