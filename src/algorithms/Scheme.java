@@ -16,9 +16,10 @@ public class Scheme
 	public Random rng;
 	public ModelGenerator generator;
 	
-	public int chosen;
-	public double delta;
-	public double lastDeltaLikelihood;
+	private int chosen;
+	private int prevState;
+	private double delta;
+	private double lastDeltaLikelihood;
 	
 	public int[] neighbours;
 	public int[] orders;
@@ -35,14 +36,15 @@ public class Scheme
 	 * Executes a set of processing steps that need to occur every time a new state is drawn.
 	 */
 	
-	public void initGlobalVariables() {
-		neighbours = generator.X.successors.get(generator.currentState);
+	public void initGlobalVariables(int state) {
+		prevState = state;
+		neighbours = generator.X.successors.get(state);
 		if(neighbours == null) {
-			generator.findNeighbours(generator.currentState);
-			neighbours = generator.X.successors.get(generator.currentState);
+			generator.findNeighbours(state);
+			neighbours = generator.X.successors.get(state);
 		}
-		orders = generator.X.orders.get(generator.currentState);
-		probs = generator.X.probs.get(generator.currentState);
+		orders = generator.X.orders.get(state);
+		probs = generator.X.probs.get(state);
 		
 		stateWeightsIS = probs;
 		totalStateWeightIS = 1;
@@ -57,8 +59,8 @@ public class Scheme
 	 * this method should be overwritten by extensions of the general Scheme framework.
 	 */
 	
-	public void computeNewProbs() {
-		initGlobalVariables();
+	public void computeNewProbs(int state) {
+		initGlobalVariables(state);
 	}
 	
 	/**
@@ -70,7 +72,7 @@ public class Scheme
 	public int drawNextState() {
 		if (stateWeightsIS.length == 1) {
 			chosen = 0;
-			return generator.X.successors.get(generator.currentState)[0];
+			return generator.X.successors.get(prevState)[0];
 		}
 		chosen = -1;
 		double sumProb = 0; 
@@ -79,7 +81,7 @@ public class Scheme
 			sumProb += stateWeightsIS[i];
 			if(u<sumProb) {
 				chosen = i;
-				return generator.X.successors.get(generator.currentState)[i];
+				return generator.X.successors.get(prevState)[i];
 			}
 		}
 		// The program should not reach this part of the code - after all, the IS probabilities should sum to one.
@@ -88,36 +90,36 @@ public class Scheme
 		// of the possible successor states is chosen.
 		System.out.println("Warning; dummy return statement reached in 'drawNextState' in Scheme.java.");
 		System.out.println("Possible model error, or Gauss-Seidel accuracy not high enough.");
-		System.out.println("State: "+generator.currentState+" = "+Arrays.toString(generator.X.states.get(generator.currentState)));
-		System.out.println("Successors (state indices): "+Arrays.toString(generator.X.successors.get(generator.currentState)));
+		System.out.println("State: "+prevState+" = "+Arrays.toString(generator.X.states.get(prevState)));
+		System.out.println("Successors (state indices): "+Arrays.toString(generator.X.successors.get(prevState)));
 		double totProb = 0;
-		for(int i=0;i<generator.X.probs.get(generator.currentState).length;i++) {
-			totProb += generator.X.probs.get(generator.currentState)[i];
+		for(int i=0;i<generator.X.probs.get(prevState).length;i++) {
+			totProb += generator.X.probs.get(prevState)[i];
 		}
-		System.out.println("Probs: "+Arrays.toString(generator.X.probs.get(generator.currentState)));
+		System.out.println("Probs: "+Arrays.toString(generator.X.probs.get(prevState)));
 		System.out.println("IS Weight: "+Arrays.toString(stateWeightsIS));
 		System.out.println("IS total weight: "+totalStateWeightIS);
 		System.out.println("Real total weight.: "+totProb);
 		System.out.println("Chosen: " + u);
 		chosen = stateWeightsIS.length-1; // possible error due to floating point precision (?)! 10/3/2015: seems so, although it seems to happen less often if tracing is on for some odd reason
-		return generator.X.successors.get(generator.currentState)[chosen];
+		return generator.X.successors.get(prevState)[chosen];
 	}
 
 	/* Note: not combinable with drawDelta (may pick different segments) */
 	public int[] extendPath(int[] path)
 	{
-		int k = generator.currentState;
-		if(!generator.X.inHPC.get(k)) {
-			if (path.length <= k)
-				path = Arrays.copyOf(path, k + 1);
-			path[k]++;
+		if(!generator.X.inHPC.get(prevState)) {
+			if (path.length <= prevState)
+				path = Arrays.copyOf(path, prevState + 1);
+			path[prevState]++;
 			return path;
 		}
+		int k = prevState;
 		double[] pReachSink = new double[1];
 		long count = 0;
 		StateSpace X = generator.X;
 		int[] initialSucc = X.successors.get(k);
-		int sink = X.successors.get(generator.currentState)[chosen];
+		int sink = X.successors.get(prevState)[chosen];
 		double sinkProb = X.getProb(k, sink);
 		delta = 0;
 
@@ -192,7 +194,7 @@ public class Scheme
 	}
 
 	public double drawDelta(double timeLimit, double force) {
-		int k = generator.currentState;
+		int k = prevState;
 		if(!generator.X.inHPC.get(k)) {
 			double rate = generator.X.exitRates[k];
 			if (force >= 0) {
@@ -220,7 +222,7 @@ public class Scheme
 		long count = 0;
 		StateSpace X = generator.X;
 		int[] initialSucc = X.successors.get(k);
-		int sink = X.successors.get(generator.currentState)[chosen];
+		int sink = X.successors.get(prevState)[chosen];
 		double sinkProb = X.getProb(k, sink);
 		delta = 0;
 		lastDeltaLikelihood = 1;

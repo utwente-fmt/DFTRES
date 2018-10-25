@@ -6,9 +6,9 @@ import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
-import java.util.TreeMap;
 import schemes.SchemeMC;
 import schemes.SchemeZVAd;
 import schemes.SchemeZVAv;
@@ -35,12 +35,13 @@ class Main {
 	static Random rng;
 	static int maxTime = Integer.MAX_VALUE, maxSims = Integer.MAX_VALUE;
 	static double epsilon = 0.01;
+	static double confidence = 0.95;
 	static double relErr = Double.NaN;
 	static double forceBound = Double.POSITIVE_INFINITY;
 	static boolean mc = false, zvad = false, zvav = false;
 	static boolean jsonOutput = false;
 	static LTS model;
-	static TreeMap<String, Property> properties = new TreeMap<>();
+	static HashSet<Property> properties = new HashSet<>();
 
 	private static Long getMaximalMemory()
 	{
@@ -94,37 +95,24 @@ class Main {
 		return "CPU";
 	}
 
-	private static SimulationResult runSim(String name, Property prop,
-	                                       Scheme s, Scheme s2)
+	private static SimulationResult runSim(Property prop, Scheme s)
 	{
-		Simulator simulator = new Simulator(forceBound);
+		Simulator simulator = new Simulator(prop, s, forceBound);
 		SimulationResult res;
-		if (prop.type == Property.Type.STEADY_STATE) {
-			if (!Double.isNaN(relErr))
-				throw new UnsupportedOperationException("Simulating up to relative error currently not implemented for steady-state properties.");
+		if (!Double.isNaN(relErr)) {
 			if (maxSims < Integer.MAX_VALUE)
-				res = simulator.simUnavailabilityFixN(maxSims, s, s2);
-			else
-				res = simulator.simUnavailability(maxTime, s, s2);
-		} else if (prop.timeBound < Double.POSITIVE_INFINITY) {
-			if (!Double.isNaN(relErr)) {
-				if (maxSims < Integer.MAX_VALUE)
-					System.err.println("Warning: Simulating up to relative error, ignoring simulation bound.");
-				if (maxTime < Integer.MAX_VALUE)
-					System.err.println("Warning: Simulating up to relative error, ignoring time limit.");
-				res = simulator.simReliabilityRelErr(s, prop.timeBound, relErr);
-			} else {
-				res = simulator.simReliability(maxTime, s, maxSims, prop.timeBound);
-			}
+				System.err.println("Warning: Simulating up to relative error, ignoring simulation bound.");
+			if (maxTime < Integer.MAX_VALUE)
+				System.err.println("Warning: Simulating up to relative error, ignoring time limit.");
+			res = simulator.simRelErr(relErr, 1-confidence);
 		} else {
-			throw new UnsupportedOperationException("Time-unbounded reachability currently not supported.");
+			res = simulator.sim(maxTime, maxSims, 1-confidence);
 		}
-		res.property = name;
 		return res;
 	}
 
-	/* Call with reliabilityTime == -1 for availability. */
-	private static ArrayList<SimulationResult> runSimulations(String name, Property prop) throws IOException
+	private static ArrayList<SimulationResult> runSimulations(Property prop)
+			throws IOException
 	{
 		boolean multiple = false;
 		ArrayList<SimulationResult> ret = new ArrayList<>();
@@ -133,16 +121,12 @@ class Main {
 		if ((mc ? 1 : 0) + (zvav ? 1 : 0) + (zvad ? 1 : 0) > 1)
 			multiple = true;
 
-		SchemeMC smc = null;
-		if (prop.type == Property.Type.STEADY_STATE) {
-			smc = new SchemeMC(rng, generator);
-		}
-
 		if (mc) {
-			SchemeMC mc2 = new SchemeMC(rng,generator);
-			SimulationResult res = runSim(name, prop, mc2, smc);
+			SchemeMC mc = new SchemeMC(rng,generator);
+			Property nProp = prop;
 			if (multiple)
-				res.property += "-MC";
+				nProp = new Property(prop, prop.name + "-MC");
+			SimulationResult res = runSim(nProp, mc);
 			ret.add(res);
 		}
 
@@ -155,17 +139,19 @@ class Main {
 
 		if (zvad) {
 			SchemeZVAd sc = new SchemeZVAd(rng,generator);
-			SimulationResult res = runSim(name, prop, sc, smc);
+			Property nProp = prop;
 			if (multiple)
-				res.property += "-ZVAd";
+				nProp = new Property(prop, prop.name + "-ZVAd");
+			SimulationResult res = runSim(nProp, sc);
 			ret.add(res);
 		}
 
 		if (zvav) {
 			SchemeZVAv sc = new SchemeZVAv(rng,generator);
-			SimulationResult res = runSim(name, prop, sc, smc);
+			Property nProp = prop;
 			if (multiple)
-				res.property += "-ZVAv";
+				nProp = new Property(prop, prop.name + "-ZVAv");
+			SimulationResult res = runSim(nProp, sc);
 			ret.add(res);
 		}
 		return ret;
@@ -209,7 +195,7 @@ class Main {
 		System.out.println("\t\"property-times\": [");
 		for (int i = 0; i < results.size(); i++) {
 			SimulationResult res = results.get(i);
-			System.out.format("\t\t{ \"name\": \"%s\", \"time\": %s }%s\n", res.property, Double.toString(Math.round(res.simTimeNanos / 1000000) / 1000.0), (i == results.size() - 1) ? "" : "," );
+			System.out.format("\t\t{ \"name\": \"%s\", \"time\": %s }%s\n", res.property.name, Double.toString(Math.round(res.simTimeNanos / 1000000) / 1000.0), (i == results.size() - 1) ? "" : "," );
 		}
 		System.out.println("\t],");
 		System.out.println("\t\"data\": [");
@@ -224,7 +210,7 @@ class Main {
 		for (int i = 0; i < results.size(); i++) {
 			SimulationResult res = results.get(i);
 			System.out.println("\t\t{");
-			System.out.println("\t\t\t\"property\": \"" + res.property + "\",");
+			System.out.println("\t\t\t\"property\": \"" + res.property.name + "\",");
 			System.out.println("\t\t\t\"value\": " + res.mean + ",");
 			System.out.println("\t\t\t\"values\": [");
 			System.out.println("\t\t\t\t{ \"name\": \"Time\", \"value\": " + Math.round(res.simTimeNanos / 1000000.0) / 1000.0 + ", \"unit\": \"s\" },");
@@ -246,7 +232,7 @@ class Main {
 		System.out.println("Total time: " + Double.toString(Math.round(timeNanos / 1000000.0) / 1000.0) + " s.");
 		for (int i = 0; i < results.size(); i++) {
 			SimulationResult res = results.get(i);
-			System.out.println("Property " + res.property + ":");
+			System.out.println("Property " + res.property.name + ":");
 			System.out.println(res.toString());
 		}
 	}
@@ -310,12 +296,12 @@ class Main {
 
 		for (int i = 0; i < args.length - 1; i++) {
 			if (args[i].equals("-a")) {
-				Property av = new Property(Property.Type.STEADY_STATE, null);
-				properties.put("Availability", av);
+				Property av = new Property(Property.Type.STEADY_STATE, null, "Unavailability");
+				properties.add(av);
 			} else if (args[i].equals("-r")) {
 				double time = Double.parseDouble(args[++i]);
-				Property rel = new Property(Property.Type.REACHABILITY, time, null);
-				properties.put("Reliability", rel);
+				Property rel = new Property(Property.Type.REACHABILITY, time, null, "Unreliability");
+				properties.add(rel);
 			} else if (args[i].equals("-s")) {
 				seed = Long.parseLong(args[++i]);
 				haveSeed = true;
@@ -371,13 +357,11 @@ class Main {
 			MakeTraLab mtl = new MakeTraLab(model);
 			mtl.convert(traLabOutputFile);
 		}
-		for (Map.Entry<String, Property> e : properties.entrySet()) {
-			String name = e.getKey();
-			Property prop = e.getValue();
+		for (Property prop : properties) {
 			try {
-				results.addAll(runSimulations(name, prop));
+				results.addAll(runSimulations(prop));
 			} catch (UnsupportedOperationException e2) {
-				System.err.println(name + ": " + e2.getMessage());
+				System.err.println(prop.name + ": " + e2.getMessage());
 			}
 		}
 		long time = System.nanoTime() - startTime;

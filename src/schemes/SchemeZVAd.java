@@ -18,10 +18,10 @@ public class SchemeZVAd extends Scheme {
 		haveLeftLambda = false;
 	}
 	
-	public void computeNewProbs() {
-		initGlobalVariables();
-		if(generator.X.v[generator.currentState] == 1) haveLeftLambda = true; // this seems to be an easy way to check whether gamma has been reached (or whether it doesn't matter anymore, because the probability of ending up in the goal state is 1 anyway).
-		if (generator.currentState == 0)
+	public void computeNewProbs(int state) {
+		super.computeNewProbs(state);
+		if(generator.X.v[state] == 1) haveLeftLambda = true; // this seems to be an easy way to check whether gamma has been reached (or whether it doesn't matter anymore, because the probability of ending up in the goal state is 1 anyway).
+		if (state == 0)
 			haveLeftLambda = false;
 		if (haveLeftLambda)
 			return;

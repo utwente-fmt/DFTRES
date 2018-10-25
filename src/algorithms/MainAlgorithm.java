@@ -592,8 +592,7 @@ public class MainAlgorithm {
 			double[] probs = generator.X.probs.get(k);
 			if(probs != null) {
 				double[] probsQ = new double[probs.length];
-				generator.currentState = k;
-				scheme.computeNewProbs();
+				scheme.computeNewProbs(k);
 				for(int i=0;i<probs.length;i++) {
 					probsQ[i] = scheme.stateWeightsIS[i] / scheme.totalStateWeightIS;///= totProbQ;
 				}

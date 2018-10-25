@@ -36,9 +36,8 @@ public class SchemeZVAv extends Scheme {
 		}
 	}
 
-	public void computeNewProbs() {
-		initGlobalVariables();
-		int state = generator.currentState;
+	public void computeNewProbs(int state) {
+		super.computeNewProbs(state);
 		if (state < cachedWeightsIS.length) {
 			if (cachedWeightsIS[state] != null) {
 				stateWeightsIS = cachedWeightsIS[state];

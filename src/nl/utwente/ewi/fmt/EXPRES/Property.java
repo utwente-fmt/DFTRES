@@ -6,20 +6,30 @@ public class Property
 		STEADY_STATE,
 		REACHABILITY
 	};
+	public final String name;
 	public final Type type;
 	public final double timeBound;
 	public final String variable;
 
-	public Property(Type type, double bound, String var)
+	public Property(Type type, double bound, String var, String name)
 	{
+		this.name = name;
 		this.type = type;
 		this.timeBound = bound;
 		this.variable = var;
 	}
 
-	public Property(Type type, String var)
+	public Property(Type type, String var, String name)
 	{
-		this(type, Double.POSITIVE_INFINITY, var);
+		this(type, Double.POSITIVE_INFINITY, var, name);
+	}
+
+	public Property(Property other, String newName)
+	{
+		this.type = other.type;
+		this.timeBound = other.timeBound;
+		this.variable = other.variable;
+		this.name = newName;
 	}
 
 	public int hashCode()

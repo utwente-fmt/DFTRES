@@ -12,8 +12,6 @@ public class ModelGenerator{
 	public StateSpace XUnderQ;
 	
 	public double epsilon;
-	public int currentState;
-	public double time;
 	
 	public int minOrder;
 	public double totalRate;
@@ -28,8 +26,6 @@ public class ModelGenerator{
 	{
 		name = other.name;
 		epsilon = other.epsilon;
-		currentState = other.currentState;
-		time = other.time;
 		minOrder = other.minOrder;
 		totalRate = other.totalRate;
 		if (other.neighbours != null)
@@ -137,7 +133,7 @@ public class ModelGenerator{
 		
 	}
 	
-	public String currentStateString() {
-		return "state "+currentState+", ="+Arrays.toString(X.states.get(currentState));
+	public String stateString(int state) {
+		return "state "+ state +", ="+Arrays.toString(X.states.get(state));
 	}
 }

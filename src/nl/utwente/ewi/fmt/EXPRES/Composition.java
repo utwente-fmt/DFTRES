@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -118,10 +119,10 @@ public class Composition implements MarkableLTS
 	 * @param type The type of the given file, currently supported:
 	 * exp
 	 */
-	public Composition(String filename, String type, Map<String, Property> propertiesOut) throws IOException
+	public Composition(String filename, String type, Set<Property> propertiesOut) throws IOException
 	{
 		markLabels = new TreeMap<String, Integer>();
-		TreeMap<String, Property> props = new TreeMap<>();
+		Set<Property> props = new TreeSet<>();
 		switch (type) {
 			case "exp":
 				readExpFile(filename);
@@ -129,7 +130,7 @@ public class Composition implements MarkableLTS
 			case "jani":
 				props = readJaniFile(filename);
 				if (propertiesOut != null)
-					propertiesOut.putAll(props);
+					propertiesOut.addAll(props);
 				break;
 			default:
 				throw new IllegalArgumentException("Unsupported composition type");
@@ -890,12 +891,12 @@ public class Composition implements MarkableLTS
 		throw new IllegalArgumentException("Type " + t.toString() + " is not supported.");
 	}
 
-	private static Property parseJaniProperty(Map prop, String[] nameOut)
+	private static Property parseJaniProperty(Map prop)
 	{
 		Object nameO = prop.get("name");
 		if (!(nameO instanceof String))
 			throw new IllegalArgumentException("Property name should be string, not: " + nameO);
-		nameOut[0] = (String) nameO;
+		String name = (String) nameO;
 		Object expO = prop.get("expression");
 		if (!(expO instanceof Map))
 			throw new IllegalArgumentException("Property expression should be object, not: " + expO);
@@ -954,10 +955,10 @@ public class Composition implements MarkableLTS
 		} else {
 			throw new IllegalArgumentException("Property expression should be identifier or expression.");
 		}
-		return new Property(propType, timeBound, variable);
+		return new Property(propType, timeBound, variable, name);
 	}
 
-	private TreeMap<String, Property> readJaniFile(String filename) throws IOException
+	private Set<Property> readJaniFile(String filename) throws IOException
 	{
 		globalVars = new TreeMap<>();
 		Object jani = JSONParser.readJsonFromFile(filename);
@@ -1085,21 +1086,20 @@ public class Composition implements MarkableLTS
 					synchronizedLabels[i] = resultAction.toString();
 			}
 		}
-		TreeMap<String, Property> ret = new TreeMap<>();
+		HashSet<Property> ret = new HashSet<>();
 		Object propO = root.get("properties");
 		if (propO == null)
 			return ret;
 		if (!(propO instanceof Object[]))
 			throw new IllegalArgumentException("Properties should be array, not: " + propO);
 		Object[] props = (Object[])propO;
-		String name[] = new String[1];
 		for (Object propO2 : props) {
 			if (!(propO2 instanceof Map))
 				throw new IllegalArgumentException("Property should be object, not: " + propO2);
 			Map prop = (Map)propO2;
 			try {
-				Property p = parseJaniProperty(prop, name);
-				ret.put(name[0], p);
+				Property p = parseJaniProperty(prop);
+				ret.add(p);
 			} catch (UnsupportedOperationException e) {
 				System.err.println(e.getMessage());
 			}
