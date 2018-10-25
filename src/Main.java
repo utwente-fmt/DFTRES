@@ -161,13 +161,30 @@ class Main {
 	{
 		DateTimeFormatter form = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 		LocalDateTime now = LocalDateTime.now();
+		String version = System.getenv("MODEL_VERSION");
+		if (version == null)
+			version = "\"VERSION\"";
+		String submitter = System.getenv("SUBMITTER");
+		if (submitter == null)
+			submitter = "SUBMITTER";
 		System.out.println("{");
 		System.out.println("\t\"file\": \"../" + model + "\",");
-		System.out.println("\t\"version\": \"VERSION\",");
+		System.out.println("\t\"version\": " + version + ",");
 		System.out.println("\t\"date\": \"" + form.format(now) + "\",");
-		System.out.println("\t\"submitter\": \"SUBMITTER\",");
+		System.out.println("\t\"submitter\": \"" + submitter + "\",");
 		System.out.println("\t\"file-parameter-values\": [");
-		System.out.println("\t\t\"VALUES\"");
+		Map<String, Object> params = MakeJani.getFileVars();
+		if (params.isEmpty()) {
+			System.out.println("\t\t\"VALUES\"");
+		} else {
+			int i = 0;
+			for (String name : params.keySet()) {
+				System.out.print("\t\t{ \"name\": \"" + name + "\", \"value\": " + params.get(name) + " }");
+				if (++i != params.size())
+					System.out.print(",");
+				System.out.println();
+			}
+		}
 		System.out.println("\t],");
 		System.out.println("\t\"tool\": {");
 		System.out.println("\t\t\"name\": \"DFTRES\",");
