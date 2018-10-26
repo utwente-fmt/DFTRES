@@ -155,7 +155,7 @@ public abstract class StateSpace {
 	public int size() {
 		return states.size();
 	}
-	
+
 	public void addHPC(int x) {
 		if(!inHPC.get(x)) {
 			inHPC.set(x);

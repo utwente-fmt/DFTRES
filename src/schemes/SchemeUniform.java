@@ -4,7 +4,6 @@ import algorithms.SearchAlgorithm;
 import models.StateSpace;
 import java.util.Random;
 
-
 /** Importance sampling scheme that completely ignores actual transition
  * probabilities and instead uniformly selects between the transitions.
  */
@@ -17,7 +16,7 @@ public class SchemeUniform extends Scheme {
 
 	public SchemeUniform clone()
 	{
-		return new SchemeUniform(model.snapshot());
+		return new SchemeUniform(model);
 	}
 
 	public boolean isBinomial() {

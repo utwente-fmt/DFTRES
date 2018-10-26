@@ -33,7 +33,8 @@ import models.ExpModel;
 
 class Main {
 	static Random rng;
-	static int maxTime = Integer.MAX_VALUE, maxSims = Integer.MAX_VALUE;
+	static int maxTime = Integer.MAX_VALUE;
+	static long maxSims = Long.MAX_VALUE;
 	static double epsilon = 0.01;
 	static double confidence = 0.95;
 	static double relErr = Double.NaN;
@@ -49,8 +50,10 @@ class Main {
 		{
 			String line;
 			while ((line = r.readLine()) != null) {
-				if (line.matches("VmHWM:.*"))
-					return Long.valueOf(line.split(" +")[1]) * 1024;
+				if (line.matches("VmHWM:.*")) {
+					String digits = line.replaceAll("[^0123456789]", "");
+					return Long.valueOf(digits) * 1024;
+				}
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -101,9 +104,9 @@ class Main {
 		Simulator simulator = new Simulator(rng, prop, s, forceBound);
 		SimulationResult res;
 		if (!Double.isNaN(relErr)) {
-			if (maxSims < Integer.MAX_VALUE)
+			if (maxSims < Long.MAX_VALUE)
 				System.err.println("Warning: Simulating up to relative error, ignoring simulation bound.");
-			if (maxTime < Integer.MAX_VALUE)
+			if (maxTime < Long.MAX_VALUE)
 				System.err.println("Warning: Simulating up to relative error, ignoring time limit.");
 			res = simulator.simRelErr(relErr, 1-confidence);
 		} else {
@@ -333,13 +336,15 @@ class Main {
 			} else if (args[i].equals("-t"))
 				maxTime = Integer.parseInt(args[++i]) * 1000;
 			else if (args[i].equals("-n"))
-				maxSims = Integer.parseInt(args[++i]);
+				maxSims = Long.parseLong(args[++i]);
 			else if (args[i].equals("-e"))
 				epsilon = Double.parseDouble(args[++i]);
 			else if (args[i].equals("-f"))
 				forceBound = Double.parseDouble(args[++i]);
 			else if (args[i].equals("-p"))
 				Simulator.coresToUse = Integer.parseInt(args[++i]);
+			else if (args[i].equals("--progress"))
+				Simulator.showProgress = true;
 			else if (args[i].equals("--acc"))
 				TraceGenerator.acceleration = Double.parseDouble(args[++i]);
 			else if (args[i].equals("--relErr"))

@@ -47,7 +47,7 @@ public class Scheme
 		}
 		orders = model.orders.get(state);
 		probs = model.probs.get(state);
-		
+
 		stateWeightsIS = probs;
 		totalStateWeightIS = 1;
 	}

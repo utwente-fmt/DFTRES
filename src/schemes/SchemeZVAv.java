@@ -20,8 +20,7 @@ public class SchemeZVAv extends Scheme {
 
 	public SchemeZVAv clone()
 	{
-		return new SchemeZVAv(model.snapshot(),
-		                      cachedWeightsIS, cachedWeightSums);
+		return new SchemeZVAv(model, cachedWeightsIS, cachedWeightSums);
 	}
 
 	public static SchemeZVAv instantiate(StateSpace model)

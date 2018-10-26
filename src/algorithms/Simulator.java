@@ -160,6 +160,7 @@ public class Simulator {
 			/* Spend about another 1% estimating the time
 			 * after caching and without constant time
 			 * measurements. */
+			N *= coresToUse;
 			long startExact = System.nanoTime();
 			TraceGenerator[] gens = multiCoreSim(N, coresToUse);
 			gens = Arrays.copyOf(gens, gens.length + 1);
@@ -167,7 +168,7 @@ public class Simulator {
 			long exactTime = System.nanoTime() - startExact;
 			gen.resetAndEstimateMeans(gens);
 			msec -= (System.currentTimeMillis() - start);
-			N = (msec * (1000000 * N)) / exactTime;
+			N = (long)((msec * (1000000.0 * N)) / exactTime);
 			if (N < maxN)
 				maxN = N;
 		} else {
@@ -184,10 +185,12 @@ public class Simulator {
 			 * but our confidence interval will not.
 			 */
 		}
-		if (VERBOSE)
-			System.err.format("Will run %d simulations.\n", maxN);
+		if (showProgress)
+			System.err.format("\nWill run %d simulations.\n", maxN);
 
 		TraceGenerator ts[] = multiCoreSim(maxN, coresToUse);
+		if (showProgress)
+			System.err.println();
 		if (VERBOSE)
 			System.err.println("End size: "+gen.scheme.model.size());
 		return gen.getResult(ts, alpha);

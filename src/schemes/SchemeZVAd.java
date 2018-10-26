@@ -20,7 +20,7 @@ public class SchemeZVAd extends Scheme {
 
 	public SchemeZVAd clone()
 	{
-		return new SchemeZVAd(model.snapshot(), v, d);
+		return new SchemeZVAd(model, v, d);
 	}
 
 	public static SchemeZVAd instantiate(StateSpace model) {

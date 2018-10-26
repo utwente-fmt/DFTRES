@@ -33,9 +33,9 @@ public class Composition implements MarkableLTS
 
 	/* Rejection cache: a transition t (i.e.
 	 * t<vectorAutomata.length) was last rejected by automaton
-	 * rejectedFor[t][0] being in state rejectedFor[t][1].
+	 * rejectedFor[2*t] being in state rejectedFor[2*t+1].
 	 */
-	private int[][] rejectedFor;
+	private ThreadLocal<int[]> rejectedFor;
 	private int[] haveRateTransitions;
 
 	private class PartialState {
@@ -333,9 +333,7 @@ public class Composition implements MarkableLTS
 
 	private void afterParsing()
 	{
-		rejectedFor = new int[vectorAutomata.length][2];
-		for (int i = 0; i < vectorAutomata.length; i++)
-		       rejectedFor[i][1] = -1;
+		rejectedFor = new ThreadLocal<int[]>();
 		haveRateTransitions = new int[0];
 		for (int i = 0; i < automata.length; i++) {
 			for (int j = 0; j < automata[i].getNumStates(); j++) {
@@ -492,7 +490,14 @@ public class Composition implements MarkableLTS
 			int j;
 
 			/* Check the rejection cache */
-			if (from[rejectedFor[i][0]] == rejectedFor[i][1])
+			int[] rejCache = rejectedFor.get();
+			if (rejCache == null) {
+				rejCache = new int[2*vectorAutomata.length];
+				for (int k = 0; k < vectorAutomata.length; k++)
+					rejCache[2*k+1] = -1;
+				rejectedFor.set(rejCache);
+			}
+			if (from[rejCache[2*i]] == rejCache[2*i+1])
 				continue;
 
 			/* Try the partial-state cache first */
@@ -514,8 +519,8 @@ public class Composition implements MarkableLTS
 				int origin = from[needed[j]];
 				t[j] = a.getTargetFor(origin, neededL[j]);
 				if (t[j] < 0) {
-					rejectedFor[i][0] = needed[j];
-					rejectedFor[i][1] = from[needed[j]];
+					rejCache[2*i] = needed[j];
+					rejCache[2*i+1] = from[needed[j]];
 					//System.err.println("Rejecting transition " + synchronizedLabels[i] + ": need " + neededL[j] + " at " + needed[j]);
 					break;
 				}
