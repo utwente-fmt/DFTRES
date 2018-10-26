@@ -52,6 +52,7 @@ class Main {
 					return Long.valueOf(line.split(" +")[1]) * 1024;
 			}
 		} catch (Exception e) {
+			e.printStackTrace();
 			return null;
 		}
 		return null;
@@ -210,7 +211,7 @@ class Main {
 		if (results.size() > 0) {
 			System.out.println("\t\t{");
 			System.out.println("\t\t\t\"group\": \"Importance sampling precomputation\",");
-			System.out.println("\t\t\t\"value\": [");
+			System.out.println("\t\t\t\"values\": [");
 			System.out.println("\t\t\t\t{ \"name\": \"Stored states\", \"value\": " + results.get(0).storedStates + " }");
 			System.out.println("\t\t\t]");
 			System.out.println("\t\t},");
