@@ -4,6 +4,8 @@ import models.StateSpace;
 import java.util.Arrays;
 import java.util.Random;
 import nl.utwente.ewi.fmt.EXPRES.Property;
+import nl.ennoruijters.interval.XoroShiro128RandomSource;
+import ec.util.MersenneTwisterFast;
 
 /* General note: Only use one of extendPath, drawDelta, or drawMeanDelta
  * per transition.
@@ -34,6 +36,37 @@ public abstract class TraceGenerator
 		this.prop = prop;
 		this.rng = rng;
 		startTime = System.nanoTime();
+	}
+
+	protected Random subRNG()
+	{
+		Random ret;
+		if (rng instanceof XoroShiro128RandomSource) {
+			ret = ((XoroShiro128RandomSource)rng).long_jump();
+		} else if (rng instanceof MersenneTwisterFast) {
+			/* To be deterministic, we instantiate several new
+			 * RNGs from the original. We use XoroShiro to select
+			 * the new states, to make sure (with high
+			 * probability) there is no weird relationship
+			 * between the states.
+			 */
+			int state[] = new int[624];
+			XoroShiro128RandomSource t;
+			t = new XoroShiro128RandomSource(rng.nextLong());
+			for (int j = 0; j < state.length; j++)
+				state[j] = t.nextInt();
+			ret = new MersenneTwisterFast(state);
+		} else {
+			System.err.println("WARNING: Unknown RNG for multicore simulation, defaulting to Xoroshiro128.");
+			ret = new XoroShiro128RandomSource(rng.nextLong());
+		}
+		return ret;
+	}
+
+	public abstract TraceGenerator copy();
+
+	public void reseedRNG(long seed) {
+		rng.setSeed(seed);
 	}
 
 	/**
@@ -228,6 +261,11 @@ public abstract class TraceGenerator
 		reset();
 	}
 
+	public void resetAndEstimateMeans(TraceGenerator[] ts)
+	{
+		reset();
+	}
+
 	/** Get time in nanoseconds since creation or last reset. */
 	public long getElapsedTime()
 	{
@@ -235,5 +273,6 @@ public abstract class TraceGenerator
 	}
 
 	public abstract SimulationResult getResult(double alpha);
+	public abstract SimulationResult getResult(TraceGenerator[] ts, double alpha);
 	public abstract void sample();
 }

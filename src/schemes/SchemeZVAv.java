@@ -18,6 +18,12 @@ public class SchemeZVAv extends Scheme {
 		cachedWeightSums = sums;
 	}
 
+	public SchemeZVAv clone()
+	{
+		return new SchemeZVAv(model.snapshot(),
+		                      cachedWeightsIS, cachedWeightSums);
+	}
+
 	public static SchemeZVAv instantiate(StateSpace model)
 	{
 		double v[] = new SearchAlgorithm(model).runAlgorithm();

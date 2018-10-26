@@ -24,6 +24,15 @@ public class ReachabilityTracer extends TraceGenerator
 		this.forceBound = forceBound;
 	}
 
+	public TraceGenerator copy()
+	{
+		ReachabilityTracer ret;
+		ret = new ReachabilityTracer(subRNG(), scheme.clone(),
+		                             prop, forceBound);
+		ret.estMean = estMean;
+		return ret;
+	}
+
 	public void reset()
 	{
 		super.reset();
@@ -38,6 +47,20 @@ public class ReachabilityTracer extends TraceGenerator
 			newEstMean = sum / N;
 		super.resetAndEstimateMeans();
 		estMean = newEstMean;
+	}
+
+	public void resetAndEstimateMeans(TraceGenerator[] ts)
+	{
+		double sum = 0;
+		long N = 0;
+		super.resetAndEstimateMeans(ts);
+		for (TraceGenerator t : ts) {
+			if (t instanceof ReachabilityTracer) {
+				sum += ((ReachabilityTracer)t).sum;
+				N += ((ReachabilityTracer)t).N;
+			}
+		}
+		estMean = sum / N;
 	}
 
 	private double computeProb(int[] path)
@@ -135,6 +158,28 @@ public class ReachabilityTracer extends TraceGenerator
 		if (ret == null)
 			ret = new SimulationResult(prop, alpha, mean, var, new long[]{N, M}, time, baseModelSize);
 		return ret;
+	}
+
+	public SimulationResult getResult(TraceGenerator[] ts, double alpha)
+	{
+		sum = 0;
+		N = M = 0;
+		for (TraceGenerator t : ts) {
+			if (t instanceof ReachabilityTracer) {
+				ReachabilityTracer rt = (ReachabilityTracer)t;
+				if (estMean != rt.estMean) {
+					sum = 0;
+					sumSquares = 0;
+					N = M = 0;
+				}
+				estMean = rt.estMean;
+				sum += rt.sum;
+				sumSquares += rt.sumSquares;
+				N += rt.N;
+				M += rt.M;
+			}
+		}
+		return getResult(alpha);
 	}
 
 	private static long gcd(long a, long b)

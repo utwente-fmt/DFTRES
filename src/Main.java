@@ -327,6 +327,8 @@ class Main {
 				epsilon = Double.parseDouble(args[++i]);
 			else if (args[i].equals("-f"))
 				forceBound = Double.parseDouble(args[++i]);
+			else if (args[i].equals("-p"))
+				Simulator.coresToUse = Integer.parseInt(args[++i]);
 			else if (args[i].equals("--acc"))
 				TraceGenerator.acceleration = Double.parseDouble(args[++i]);
 			else if (args[i].equals("--relErr"))

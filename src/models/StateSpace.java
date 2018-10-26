@@ -124,7 +124,7 @@ public abstract class StateSpace {
 	/** Follows the behaviour of snapshot() */
 	protected StateSpace(StateSpace other) {
 		parent = other;
-		exitRates = other.exitRates;
+		exitRates = other.exitRates.clone();
 		knownStates = new HashMap<>(other.knownStates);
 		states = new ArrayList<>(other.states);
 		successors = new ArrayList<>(other.successors);

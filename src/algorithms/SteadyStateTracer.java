@@ -30,6 +30,15 @@ public class SteadyStateTracer extends TraceGenerator
 		}
 	}
 
+	public TraceGenerator copy()
+	{
+		SteadyStateTracer ret;
+		ret = new SteadyStateTracer(subRNG(), scheme.clone(), prop);
+		ret.estMeanTime = estMeanTime;
+		ret.estMeanRedTime = estMeanRedTime;
+		return ret;
+	}
+
 	public void reset()
 	{
 		super.reset();
@@ -48,6 +57,23 @@ public class SteadyStateTracer extends TraceGenerator
 		super.resetAndEstimateMeans();
 		estMeanTime = emt;
 		estMeanRedTime = emrt;
+	}
+
+	public void resetAndEstimateMeans(TraceGenerator[] ts)
+	{
+		double sum = 0;
+		double sumRed = 0;
+		long N = 0;
+		super.resetAndEstimateMeans(ts);
+		for (TraceGenerator t : ts) {
+			if (t instanceof SteadyStateTracer) {
+				sum += ((SteadyStateTracer)t).sumTime;
+				sumRed += ((SteadyStateTracer)t).sumRedTime;
+				N += ((SteadyStateTracer)t).N;
+			}
+		}
+		estMeanTime = sum / N;
+		estMeanRedTime = sumRed / N;
 	}
 
 	public void resetModelCache()
@@ -118,5 +144,34 @@ public class SteadyStateTracer extends TraceGenerator
                 varV /= (N-1)*sumTime*sumTime;
 
 		return new SimulationResult(prop, alpha, meanV, varV, new long[]{N, M}, time, baseModelSize);
+	}
+
+	public SimulationResult getResult(TraceGenerator[] ts, double alpha)
+	{
+		N = M = 0;
+		sumRedTime = sumTime = sumRedTimesSquared = sumTimesSquared = 0;
+
+		for (TraceGenerator t : ts) {
+			if (t instanceof SteadyStateTracer) {
+				SteadyStateTracer st = (SteadyStateTracer)t;
+				if (estMeanTime != st.estMeanTime
+				    || estMeanRedTime != st.estMeanRedTime)
+				{
+					N = M = 0;
+					sumRedTime = sumTime = 0;
+					sumRedTimesSquared = 0;
+					sumTimesSquared = 0;
+				}
+				estMeanTime = st.estMeanTime;
+				estMeanRedTime = st.estMeanRedTime;
+				sumTime += st.sumTime;
+				sumRedTime += st.sumRedTime;
+				sumTimesSquared += st.sumTimesSquared;
+				sumRedTimesSquared += st.sumRedTimesSquared;
+				N += st.N;
+				M += st.M;
+			}
+		}
+		return getResult(alpha);
 	}
 }

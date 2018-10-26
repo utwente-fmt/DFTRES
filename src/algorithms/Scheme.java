@@ -30,6 +30,11 @@ public class Scheme
 		this.name = name;
 	}
 
+	public Scheme clone()
+	{
+		return new Scheme(initialModel);
+	}
+
 	public boolean isBinomial() {
 		return true;
 	}

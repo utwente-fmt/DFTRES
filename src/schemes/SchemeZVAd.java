@@ -18,6 +18,11 @@ public class SchemeZVAd extends Scheme {
 		this.d = d;
 	}
 
+	public SchemeZVAd clone()
+	{
+		return new SchemeZVAd(model.snapshot(), v, d);
+	}
+
 	public static SchemeZVAd instantiate(StateSpace model) {
 		SearchAlgorithm s = new SearchAlgorithm(model);
 		double v[] = s.runAlgorithm();
