@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
+import schemes.SchemeUniform;
 import schemes.SchemeZVAd;
 import schemes.SchemeZVAv;
 import algorithms.Scheme;
@@ -37,7 +38,7 @@ class Main {
 	static double confidence = 0.95;
 	static double relErr = Double.NaN;
 	static double forceBound = Double.POSITIVE_INFINITY;
-	static boolean mc = false, zvad = false, zvav = false;
+	static boolean mc = false, zvad = false, zvav = false, unif = false;
 	static boolean jsonOutput = false;
 	static LTS model;
 	static HashSet<Property> properties = new HashSet<>();
@@ -117,7 +118,7 @@ class Main {
 		boolean multiple = false;
 		ArrayList<SimulationResult> ret = new ArrayList<>();
 		ExpModel statespace = new ExpModel(epsilon, model, prop);
-		if ((mc ? 1 : 0) + (zvav ? 1 : 0) + (zvad ? 1 : 0) > 1)
+		if ((mc ? 1 : 0) + (zvav ? 1 : 0) + (zvad ? 1 : 0) + (unif ? 1 : 0) > 1)
 			multiple = true;
 
 		if (mc) {
@@ -126,6 +127,15 @@ class Main {
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-MC");
 			SimulationResult res = runSim(nProp, mc);
+			ret.add(res);
+		}
+
+		if (unif) {
+			Scheme s = new SchemeUniform(statespace);
+			Property nProp = prop;
+			if (multiple)
+				nProp = new Property(prop, prop.name + "-Unif");
+			SimulationResult res = runSim(nProp, s);
 			ret.add(res);
 		}
 
@@ -338,6 +348,8 @@ class Main {
 				mc = true;
 			else if (args[i].equals("--zvad"))
 				zvad = true;
+			else if (args[i].equals("--unif"))
+				unif = true;
 			else if (args[i].equals("--zvav"))
 				zvav = true;
 			else if (args[i].equals("--json"))
@@ -349,7 +361,7 @@ class Main {
 			else
 				System.err.format("Unknown option '%s', ignoring\n", args[i]);
 		}
-		if (!(mc || zvav || zvad))
+		if (!(mc || zvav || zvad || unif))
 			zvav = true;
 		if (useRng.equalsIgnoreCase("xs128")) {
 			if (haveSeed)
