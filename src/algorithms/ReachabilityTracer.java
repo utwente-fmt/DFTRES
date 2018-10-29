@@ -149,7 +149,7 @@ public class ReachabilityTracer extends TraceGenerator
 		long time = getElapsedTime();
 		double mean = sum / N;
 		double estSum = Math.fma(-N, estMean, sum);
-		double var = Math.fma(-estSum, mean - estMean, sumSquares);
+		double var = Math.fma(-estSum, estSum / N, sumSquares);
 		var /= N - 1;
 		SimulationResult ret = null;
 		if (scheme.isBinomial())

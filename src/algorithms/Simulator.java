@@ -31,8 +31,8 @@ public class Simulator {
 		public void doneOne() {
 			if (showProgress && maxN < Long.MAX_VALUE) {
 				long d = done.incrementAndGet();
-				int prev = (int)((d - 1) * 50 / maxN);
-				int newPerc = (int)(d * 50 / maxN);
+				int prev = (int)(((d - 1) * 50) / maxN);
+				int newPerc = (int)((d * 50) / maxN);
 				if (newPerc != prev) {
 					if (newPerc % 5 == 0)
 						System.err.print(newPerc * 2 + "%");
@@ -133,10 +133,12 @@ public class Simulator {
 		if (maxCacheSize < MIN_MAX_CACHE_SIZE)
 			maxCacheSize = MIN_MAX_CACHE_SIZE;
 
+		if (maxN == 0)
+			maxN = Long.MAX_VALUE;
 		/* For time bounds, start by estimating the number of
 		 * simulations we can run.
 		 */
-		if (msec < Integer.MAX_VALUE) {
+		if (msec > 0) {
 			long N = 0;
 
 			/* Do our stuff in a separate TG so that later
@@ -217,7 +219,7 @@ public class Simulator {
 		 * estimate (without spoiling the confidence level).
 		 */
 		do {
-			result = sim(Integer.MAX_VALUE, maxN, 0.05);
+			result = sim(0, maxN, 0.05);
 			if (result.M == 0)
 				maxN *= 10;
 			mean = result.mean;
@@ -233,7 +235,7 @@ public class Simulator {
 			if (newN > maxN)
 				maxN = newN;
 
-			result = sim(Integer.MAX_VALUE, maxN, alpha);
+			result = sim(0, maxN, alpha);
 			if (result.M > 0) {
 				if (result.lbound > lbound)
 					lbound = result.lbound;

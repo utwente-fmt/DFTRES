@@ -17,6 +17,7 @@ public class SteadyStateTracer extends TraceGenerator
 	private double sumTimesSquared;
 	private double estMeanTime;
 	private double estMeanRedTime;
+	private boolean hasDeadlocks;
 	private final SteadyStateTracer mcTracer;
 
 	public SteadyStateTracer(Random rng, Scheme s, Property p)
@@ -34,6 +35,7 @@ public class SteadyStateTracer extends TraceGenerator
 	{
 		SteadyStateTracer ret;
 		ret = new SteadyStateTracer(subRNG(), scheme.clone(), prop);
+		ret.hasDeadlocks = hasDeadlocks;
 		ret.estMeanTime = estMeanTime;
 		ret.estMeanRedTime = estMeanRedTime;
 		return ret;
@@ -42,6 +44,7 @@ public class SteadyStateTracer extends TraceGenerator
 	public void reset()
 	{
 		super.reset();
+		hasDeadlocks = false;
 		N = M = 0;
 		sumRedTime = sumTime = sumRedTimesSquared = sumTimesSquared = 0;
 		estMeanTime = estMeanRedTime = 0;
@@ -57,6 +60,7 @@ public class SteadyStateTracer extends TraceGenerator
 		super.resetAndEstimateMeans();
 		estMeanTime = emt;
 		estMeanRedTime = emrt;
+		hasDeadlocks = false;
 	}
 
 	public void resetAndEstimateMeans(TraceGenerator[] ts)
@@ -74,6 +78,7 @@ public class SteadyStateTracer extends TraceGenerator
 		}
 		estMeanTime = sum / N;
 		estMeanRedTime = sumRed / N;
+		hasDeadlocks = false;
 	}
 
 	public void resetModelCache()
@@ -84,6 +89,7 @@ public class SteadyStateTracer extends TraceGenerator
 
 	public void sample()
 	{
+		boolean deadlocked = false;
                 int state = 0;
                 double likelihood = 1;
                 double timeInRed = 0;
@@ -91,39 +97,105 @@ public class SteadyStateTracer extends TraceGenerator
 
 		/* Do a cycle with IS to measure red time */
                 do {
+			int prevState = state;
                         state = drawNextState(state);
-                        likelihood *= likelihood();
-                } while(!model.isRed(state) && !model.isBlue(state));
-		while(!model.isBlue(state)) {
+			if (state != prevState) {
+				likelihood *= likelihood();
+			} else {
+				if (drawMeanTransitionTime() == Double.POSITIVE_INFINITY) {
+					deadlocked = true;
+				} else {
+					likelihood *= likelihood();
+				}
+			}
+                } while(!model.isRed(state) && !model.isBlue(state) && !deadlocked);
+		while(!model.isBlue(state) && !deadlocked) {
                         double delta;
 			int newState = mcTracer.drawNextState(state);
 			if(model.isRed(state))
 				timeInRed += mcTracer.drawMeanTransitionTime();
+			if (state == newState)
+				deadlocked = true;
 			state = newState;
 		}
-		N++;
-		if (timeInRed > 0) {
-			M++;
-			sumRedTime = Math.fma(timeInRed, likelihood, sumRedTime);
-			double Z = Math.fma(timeInRed, likelihood, -estMeanRedTime);
-			sumRedTimesSquared = Math.fma(Z, Z, sumRedTimesSquared);
+		if (deadlocked) {
+			/* We basically resort to estimating
+			 * P(eventually red), probably very badly due to
+			 * the importance sampling.
+			 */
+			if (!hasDeadlocks) {
+				/* We didn't know yet we could deadlock.
+				 * */
+				hasDeadlocks = true;
+				M = 0;
+				N = 0;
+				sumRedTime = sumRedTimesSquared = 0;
+			}
+			N++;
+			if (model.isRed(state)) {
+				M++;
+				sumRedTime += likelihood;
+				sumRedTimesSquared = Math.fma(likelihood, likelihood, sumRedTimesSquared);
+			}
 		}
 
 		/* Now do a cycle without IS to measure cycle duration. */
+		deadlocked = false;
 		state = 0;
 		double totalTime = 0;
 		do {
 			double delta;
+			int prevState = state;
 			state = mcTracer.drawNextState(state);
 			totalTime += mcTracer.drawMeanTransitionTime();
-		} while(!model.isBlue(state));
-		sumTime += totalTime;
-		totalTime -= estMeanTime;
-		sumTimesSquared = Math.fma(totalTime, totalTime, sumTimesSquared);
+			if (state == prevState)
+				deadlocked = true;
+		} while(!model.isBlue(state) && !deadlocked);
+		if (deadlocked) {
+			if (!hasDeadlocks) {
+				/* We didn't know yet we could deadlock.
+				 * */
+				hasDeadlocks = true;
+				M = 0;
+				N = 0;
+				sumRedTime = sumRedTimesSquared = 0;
+			}
+			N++;
+			if (model.isRed(state)) {
+				M++;
+				sumRedTime += 1;
+				sumRedTimesSquared += 1;
+			}
+		}
+		if (!hasDeadlocks) {
+			N++;
+			if (timeInRed > 0) {
+				M++;
+				sumRedTime = Math.fma(timeInRed, likelihood, sumRedTime);
+				double Z = Math.fma(timeInRed, likelihood, -estMeanRedTime);
+				sumRedTimesSquared = Math.fma(Z, Z, sumRedTimesSquared);
+			}
+			sumTime += totalTime;
+			totalTime -= estMeanTime;
+			sumTimesSquared = Math.fma(totalTime, totalTime, sumTimesSquared);
+		}
+	}
+
+	public SimulationResult getDeadlockResult(double alpha)
+	{
+		long time = getElapsedTime();
+		double mean = sumRedTime / N;
+		double var = Math.fma(-sumRedTime, mean, sumRedTimesSquared);
+		var /= N - 1;
+
+		return new SimulationResult(prop, alpha, mean, var, new long[]{N, M}, time, baseModelSize);
+
 	}
 
 	public SimulationResult getResult(double alpha)
 	{
+		if (hasDeadlocks)
+			return getDeadlockResult(alpha);
 		long time = getElapsedTime();
 		double meanZ = sumRedTime / N;
 		double meanT = sumTime / N;
@@ -148,14 +220,25 @@ public class SteadyStateTracer extends TraceGenerator
 
 	public SimulationResult getResult(TraceGenerator[] ts, double alpha)
 	{
+		boolean deadlock = false;
+		hasDeadlocks = false;
 		N = M = 0;
 		sumRedTime = sumTime = sumRedTimesSquared = sumTimesSquared = 0;
 
 		for (TraceGenerator t : ts) {
 			if (t instanceof SteadyStateTracer) {
 				SteadyStateTracer st = (SteadyStateTracer)t;
-				if (estMeanTime != st.estMeanTime
-				    || estMeanRedTime != st.estMeanRedTime)
+				if (deadlock && !st.hasDeadlocks)
+					continue;
+				if (st.hasDeadlocks && !deadlock) {
+					N = M = 0;
+					deadlock = true;
+					hasDeadlocks = true;
+					sumRedTime = sumRedTimesSquared = 0;
+				}
+				if (!deadlock
+				    && (estMeanTime != st.estMeanTime
+				        || estMeanRedTime != st.estMeanRedTime))
 				{
 					N = M = 0;
 					sumRedTime = sumTime = 0;

@@ -80,6 +80,10 @@ public abstract class TraceGenerator
 			chosen = 0;
 			return scheme.neighbours[0];
 		}
+		if (scheme.stateWeightsIS.length == 0) {
+			chosen = -1;
+			return state;
+		}
 		double sumProb = 0;
 		double u = rng.nextDouble() * scheme.totalStateWeightIS;
 		for (int i = scheme.neighbours.length - 1; i >= 0; i--) {
@@ -201,6 +205,10 @@ public abstract class TraceGenerator
 	 */
 	public double drawDelta(double timeBound) {
 		int k = prevState;
+		if (chosen == -1) {
+			lastDeltaLikelihood = 1;
+			return Double.POSITIVE_INFINITY;
+		}
 		if(!scheme.model.inHPC.get(k)) {
 			double rate = scheme.model.exitRates[k];
 			delta = drawExponential(rate, timeBound);
@@ -226,6 +234,10 @@ public abstract class TraceGenerator
 
 	public double drawMeanTransitionTime() {
 		int k = prevState;
+		if (chosen == -1) {
+			lastDeltaLikelihood = 1;
+			return Double.POSITIVE_INFINITY;
+		}
 		if(!scheme.model.inHPC.get(k))
 			return 1 / scheme.model.exitRates[k];
 
