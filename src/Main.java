@@ -33,8 +33,8 @@ import models.ExpModel;
 
 class Main {
 	static Random rng;
-	static int maxTime = Integer.MAX_VALUE;
-	static long maxSims = Long.MAX_VALUE;
+	static int maxTime = 0;
+	static long maxSims = 0;
 	static double epsilon = 0.01;
 	static double confidence = 0.95;
 	static double relErr = Double.NaN;
@@ -104,9 +104,9 @@ class Main {
 		Simulator simulator = new Simulator(rng, prop, s, forceBound);
 		SimulationResult res;
 		if (!Double.isNaN(relErr)) {
-			if (maxSims < Long.MAX_VALUE)
+			if (maxSims > 0)
 				System.err.println("Warning: Simulating up to relative error, ignoring simulation bound.");
-			if (maxTime < Long.MAX_VALUE)
+			if (maxTime > 0)
 				System.err.println("Warning: Simulating up to relative error, ignoring time limit.");
 			res = simulator.simRelErr(relErr, 1-confidence);
 		} else {
@@ -388,8 +388,8 @@ class Main {
 			mtl.convert(traLabOutputFile);
 		}
 		if (Double.isNaN(relErr)
-		    && maxTime == Integer.MAX_VALUE
-		    && maxSims == Integer.MAX_VALUE)
+		    && maxTime == 0
+		    && maxSims == 0)
 		{
 			System.err.println("No bounds on simulation specified, not performing simulations.");
 			return;
