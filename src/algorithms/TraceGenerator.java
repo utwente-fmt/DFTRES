@@ -103,6 +103,10 @@ public abstract class TraceGenerator
 		return scheme.likelihood(chosen, delta) * lastDeltaLikelihood;
 	}
 
+	public boolean isDeadlocked() {
+		return chosen == -1;
+	}
+
 	/** Draw successor state conditional on eventually leaving the
 	 * HPC to the chosen state.
 	 */

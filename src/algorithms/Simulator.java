@@ -11,6 +11,7 @@ import nl.utwente.ewi.fmt.EXPRES.Property;
 public class Simulator {
 	private final static int MIN_MAX_CACHE_SIZE = 100000;
 	public final static boolean VERBOSE = false;
+	public final static int REL_ERR_RATE = 8;
 	public static int coresToUse;
 	public static boolean showProgress = false;
 	private final TraceGenerator gen;
@@ -198,9 +199,35 @@ public class Simulator {
 		return gen.getResult(ts, alpha);
 	}
 
-	public SimulationResult simRelErr(double err, double alpha)
+	public SimulationResult simUnsafeRelErr(double err, double alpha)
 	{
 		long maxN = 1000;
+		double curRelErr;
+		int initSize = gen.scheme.model.size();
+		int maxCacheSize = initSize * 2;
+		if (maxCacheSize < MIN_MAX_CACHE_SIZE)
+			maxCacheSize = MIN_MAX_CACHE_SIZE;
+		SimulationResult result;
+		long startTime = System.nanoTime();
+
+		do {
+			result = sim(0, maxN, alpha);
+			double mean = (result.ubound + result.lbound) / 2;
+			double halfWidth = (result.ubound - result.lbound) / 2;
+			curRelErr = halfWidth / mean;
+			if (showProgress)
+				System.err.format("Relative error %g after %d simulations\n", curRelErr, result.N);
+			maxN *= 2;
+		} while (curRelErr > err);
+		long exactTime = System.nanoTime() - startTime;
+		return result;
+	}
+
+	public SimulationResult simRelErr(double err, double alpha, long limitN)
+	{
+		if (REL_ERR_RATE <= 0)
+			return simUnsafeRelErr(err, alpha);
+		long maxN = 10 * coresToUse;
 		long totalSims[] = new long[2];
 		double totalAlpha = alpha;
 		double lbound = 0, ubound = 1, mean;
@@ -211,29 +238,29 @@ public class Simulator {
 		if (maxCacheSize < MIN_MAX_CACHE_SIZE)
 			maxCacheSize = MIN_MAX_CACHE_SIZE;
 		SimulationResult result;
-		alpha /= 2; /* Start with a window 1/2 as big, then 1/4,
-		             * 1/8, ... */
+		alpha = (alpha * (REL_ERR_RATE - 1)) / REL_ERR_RATE;
 		long startTime = System.nanoTime();
 
 		/* First try to hit the target at all, to get a rough
 		 * estimate (without spoiling the confidence level).
 		 */
 		do {
+			maxN *= 10;
 			result = sim(0, maxN, 0.05);
-			if (result.M == 0)
-				maxN *= 10;
 			mean = result.mean;
-		} while (result.ubound == 0);
+		} while (result.M < 10);
 
 		do {
 			/* Estimate number of samples still needed to
 			 * reach desired error */
 			double Z = SimulationResult.CIwidth(alpha);
-			long newN = (long)(result.var * Z * Z / (err * err * mean * mean));
-			if (VERBOSE)
+			long newN = 2*(long)(result.var * Z * Z / (err * err * mean * mean));
+			if (showProgress)
 				System.err.println("Estimating " + newN + " new simulations required");
 			if (newN > maxN)
 				maxN = newN;
+			if (maxN > limitN && limitN > 0)
+				maxN = limitN;
 
 			result = sim(0, maxN, alpha);
 			if (result.M > 0) {
@@ -252,9 +279,9 @@ public class Simulator {
 			curRelErr = halfWidth / mean;
 			totalSims[0] += result.N;
 			totalSims[1] += result.M;
-			if (VERBOSE)
+			if (showProgress)
 				System.err.format("Relative error %g after %d simulations\n", curRelErr, totalSims[0]);
-			alpha /= 2;
+			alpha /= REL_ERR_RATE;
 
 			if (lbound == 0) { /* Unlikely, but apparantly we
 					      haven't hit anything at all */

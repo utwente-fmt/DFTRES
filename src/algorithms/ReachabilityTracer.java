@@ -129,6 +129,7 @@ public class ReachabilityTracer extends TraceGenerator
 			}
 			likelihood *= likelihood();
 		} while(!model.isRed(state) && !model.isBlue(state)
+			&& !isDeadlocked()
 		        && time < prop.timeBound
 		        && likelihood > 0);
 
@@ -147,6 +148,11 @@ public class ReachabilityTracer extends TraceGenerator
 	public SimulationResult getResult(double alpha)
 	{
 		long time = getElapsedTime();
+		if (M == 0) {
+			return new SimulationResult(prop, 0, alpha, Double.NaN,
+					0, 1, new long[]{N, M}, time,
+					baseModelSize);
+		}
 		double mean = sum / N;
 		double estSum = Math.fma(-N, estMean, sum);
 		double var = Math.fma(-estSum, estSum / N, sumSquares);

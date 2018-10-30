@@ -108,7 +108,7 @@ class Main {
 				System.err.println("Warning: Simulating up to relative error, ignoring simulation bound.");
 			if (maxTime > 0)
 				System.err.println("Warning: Simulating up to relative error, ignoring time limit.");
-			res = simulator.simRelErr(relErr, 1-confidence);
+			res = simulator.simRelErr(relErr, 1-confidence, maxSims);
 		} else {
 			res = simulator.sim(maxTime, maxSims, 1-confidence);
 		}
