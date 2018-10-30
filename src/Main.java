@@ -312,6 +312,7 @@ class Main {
 		long seed = 0;
 		boolean haveSeed = false;
 		ArrayList<SimulationResult> results = new ArrayList<>();
+		HashSet<String> onlyProperties = new HashSet<>();
 		String useRng = "XS128";
 		if (args.length == 0) {
 			System.err.println("No filename provided.");
@@ -357,6 +358,8 @@ class Main {
 				unif = true;
 			else if (args[i].equals("--zvav"))
 				zvav = true;
+			else if (args[i].equals("--prop"))
+				onlyProperties.add(args[++i]);
 			else if (args[i].equals("--json"))
 				jsonOutput = true;
 			else if (args[i].equals("--export-jani"))
@@ -397,6 +400,8 @@ class Main {
 		if (jsonOutput && !properties.isEmpty())
 			benchmarkHeader(args, filename);
 		for (Property prop : properties) {
+			if (!onlyProperties.isEmpty() && !onlyProperties.contains(prop.name))
+				continue;
 			try {
 				results.addAll(runSimulations(prop));
 			} catch (UnsupportedOperationException e2) {
