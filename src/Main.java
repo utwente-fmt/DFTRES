@@ -238,6 +238,7 @@ class Main {
 			System.out.println("\t\t\t\t{ \"name\": \"Time\", \"value\": " + Math.round(res.simTimeNanos / 1000000.0) / 1000.0 + ", \"unit\": \"s\" },");
 			System.out.println("\t\t\t\t{ \"name\": \"Number of simulation traces\", \"value\": " + res.N + "},");
 			System.out.println("\t\t\t\t{ \"name\": \"Number of traces that hit goal states\", \"value\": " + res.M + "},");
+			System.out.println("\t\t\t\t{ \"name\": \"Relative error\", \"value\": " + res.getRelErr() + "},");
 			System.out.println("\t\t\t\t{ \"name\": \"95% Confidence interval\", \"value\": \"[" + res.getCI() + "]\" }");
 			System.out.println("\t\t\t]");
 			if (i < results.size() - 1)

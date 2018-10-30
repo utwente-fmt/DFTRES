@@ -24,22 +24,42 @@ public class Simulator {
 	private static class ProgressPrinter {
 		private final long maxN;
 		private final AtomicLong done;
+		private final long initialTime;
 
 		public ProgressPrinter(long N) {
 			maxN = N;
 			done = new AtomicLong(0);
+			initialTime = System.currentTimeMillis();
+		}
+		private synchronized void printLine(long d) {
+			int perc = (int)((d * 50) / maxN);
+			System.err.print("\r");
+			for (int i = 0; i < perc; i++) {
+				if (i % 5 == 0)
+					System.err.print(i * 2 + "%");
+				else
+					System.err.print(".");
+			}
+			long now = System.currentTimeMillis();
+			long elapsed = now - initialTime;
+			int secsLeft = (int)(elapsed * (maxN / (double)d - 1));
+			secsLeft /= 1000;
+			int minsLeft = secsLeft / 60;
+			secsLeft -= minsLeft * 60;
+			int hoursLeft = minsLeft / 60;
+			minsLeft -= hoursLeft * 60;
+			if (d != maxN)
+				System.err.format (" (est. %d:%02d:%02d remaining)", hoursLeft, minsLeft, secsLeft);
+			else
+				System.err.println("Done                     ");
 		}
 		public void doneOne() {
 			if (showProgress && maxN < Long.MAX_VALUE) {
 				long d = done.incrementAndGet();
 				int prev = (int)(((d - 1) * 50) / maxN);
 				int newPerc = (int)((d * 50) / maxN);
-				if (newPerc != prev) {
-					if (newPerc % 5 == 0)
-						System.err.print(newPerc * 2 + "%");
-					else
-						System.err.print(".");
-				}
+				if (newPerc != prev)
+					printLine(d);
 			}
 		}
 	}
@@ -227,7 +247,7 @@ public class Simulator {
 	{
 		if (REL_ERR_RATE <= 0)
 			return simUnsafeRelErr(err, alpha);
-		long maxN = 10 * coresToUse;
+		long maxN = 1000 * coresToUse;
 		long totalSims[] = new long[2];
 		double totalAlpha = alpha;
 		double lbound = 0, ubound = 1, mean;
