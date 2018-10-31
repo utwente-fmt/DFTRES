@@ -18,7 +18,6 @@ public class Simulator {
 	
 	static {
 		coresToUse = Runtime.getRuntime().availableProcessors();
-		coresToUse = (coresToUse * 3) / 4;
 	}
 
 	private static class ProgressPrinter {

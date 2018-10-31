@@ -14,14 +14,12 @@ public class ReachabilityTracer extends TraceGenerator
 	private double sum;
 	private double sumSquares;
 	private double estMean;
-	private final double forceBound;
 	private final double UNIF_BOUND = 1e-10;
 
 	public ReachabilityTracer(Random rng, Scheme s, Property prop,
 	                          double forceBound)
 	{
-		super(rng, s, prop);
-		this.forceBound = forceBound;
+		super(rng, s, prop, forceBound);
 	}
 
 	public TraceGenerator copy()

@@ -1,6 +1,6 @@
 package nl.utwente.ewi.fmt.EXPRES;
 
-public class Property
+public class Property implements Comparable<Property>
 {
 	public enum Type {
 		STEADY_STATE,
@@ -30,6 +30,20 @@ public class Property
 		this.timeBound = other.timeBound;
 		this.variable = other.variable;
 		this.name = newName;
+	}
+
+	public int compareTo(Property other)
+	{
+		if (this.type != other.type)
+			return this.type.compareTo(other.type);
+		if (!this.variable.equals(other.variable))
+			return this.variable.compareTo(other.variable);
+		if (this.timeBound < other.timeBound)
+			return -1;
+		else if (this.timeBound > other.timeBound)
+			return 1;
+		else
+			return 0;
 	}
 
 	public int hashCode()

@@ -14,7 +14,7 @@ import ec.util.MersenneTwisterFast;
 public abstract class TraceGenerator
 {
 	public static double acceleration = 1;
-	public double forceBound = Double.POSITIVE_INFINITY;
+	public final double forceBound;
 
 	public final Scheme scheme;
 	public final Property prop;
@@ -35,6 +35,17 @@ public abstract class TraceGenerator
 		baseModelSize = scheme.model.size();
 		this.prop = prop;
 		this.rng = rng;
+		this.forceBound = Double.POSITIVE_INFINITY;
+		startTime = System.nanoTime();
+	}
+
+	public TraceGenerator(Random rng, Scheme scheme, Property prop, double forceBound)
+	{
+		this.scheme = scheme;
+		baseModelSize = scheme.model.size();
+		this.prop = prop;
+		this.rng = rng;
+		this.forceBound = forceBound;
 		startTime = System.nanoTime();
 	}
 
@@ -215,6 +226,7 @@ public abstract class TraceGenerator
 		}
 		if(!scheme.model.inHPC.get(k)) {
 			double rate = scheme.model.exitRates[k];
+			lastDeltaLikelihood = 1;
 			delta = drawExponential(rate, timeBound);
 			return delta;
 		}

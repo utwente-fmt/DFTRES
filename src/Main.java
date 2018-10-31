@@ -2,11 +2,12 @@ import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.security.SecureRandom;
 import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.TreeSet;
 import java.util.Map;
 import java.util.Random;
 import schemes.SchemeUniform;
@@ -42,7 +43,7 @@ class Main {
 	static boolean mc = false, zvad = false, zvav = false, unif = false;
 	static boolean jsonOutput = false;
 	static LTS model;
-	static HashSet<Property> properties = new HashSet<>();
+	static TreeSet<Property> properties = new TreeSet<>();
 
 	private static Long getMaximalMemory()
 	{
@@ -210,7 +211,7 @@ class Main {
 		System.out.println("\t\"command\": \"java -jar DFTRES.jar " + String.join(" ", Arrays.asList(args)) + "\",");
 	}
 
-	private static void benchmarkPostSim(long timeNanos, ArrayList<SimulationResult> results)
+	private static void benchmarkPostSim(long timeNanos, ArrayList<SimulationResult> results, long seed)
 	{
 		System.out.println("\t\"time\": " + Double.toString(Math.round(timeNanos / 1000000.0) / 1000.0) + ",");
 		System.out.println("\t\"memory\": " + getMaximalMemory() + ",");
@@ -223,9 +224,10 @@ class Main {
 		System.out.println("\t\"data\": [");
 		if (results.size() > 0) {
 			System.out.println("\t\t{");
-			System.out.println("\t\t\t\"group\": \"Importance sampling precomputation\",");
+			System.out.println("\t\t\t\"group\": \"Simulator\",");
 			System.out.println("\t\t\t\"values\": [");
-			System.out.println("\t\t\t\t{ \"name\": \"Stored states\", \"value\": " + results.get(0).storedStates + " }");
+			System.out.println("\t\t\t\t{ \"name\": \"RNG Seed\", \"value\": " + seed + "},");
+			System.out.println("\t\t\t\t{ \"name\": \"CPU cores used\", \"value\": " + Simulator.coresToUse + "}");
 			System.out.println("\t\t\t]");
 			System.out.println("\t\t},");
 		}
@@ -236,6 +238,7 @@ class Main {
 			System.out.println("\t\t\t\"value\": " + res.mean + ",");
 			System.out.println("\t\t\t\"values\": [");
 			System.out.println("\t\t\t\t{ \"name\": \"Time\", \"value\": " + Math.round(res.simTimeNanos / 1000000.0) / 1000.0 + ", \"unit\": \"s\" },");
+			System.out.println("\t\t\t\t{ \"name\": \"Number of states stored by importance sampling\", \"value\": " + res.storedStates + " }");
 			System.out.println("\t\t\t\t{ \"name\": \"Number of simulation traces\", \"value\": " + res.N + "},");
 			System.out.println("\t\t\t\t{ \"name\": \"Number of traces that hit goal states\", \"value\": " + res.M + "},");
 			System.out.println("\t\t\t\t{ \"name\": \"Relative error\", \"value\": " + res.getRelErr() + "},");
@@ -313,7 +316,7 @@ class Main {
 		long seed = 0;
 		boolean haveSeed = false;
 		ArrayList<SimulationResult> results = new ArrayList<>();
-		HashSet<String> onlyProperties = new HashSet<>();
+		TreeSet<String> onlyProperties = new TreeSet<>();
 		String useRng = "XS128";
 		if (args.length == 0) {
 			System.err.println("No filename provided.");
@@ -372,16 +375,12 @@ class Main {
 		}
 		if (!(mc || zvav || zvad || unif))
 			zvav = true;
+		if (!haveSeed)
+			seed = new SecureRandom().nextLong();
 		if (useRng.equalsIgnoreCase("xs128")) {
-			if (haveSeed)
-				rng = new XoroShiro128RandomSource(seed);
-			else
-				rng = new XoroShiro128RandomSource();
+			rng = new XoroShiro128RandomSource(seed);
 		} else if (useRng.equalsIgnoreCase("mt199937")) {
-			if (haveSeed)
-				rng = new MersenneTwisterFast(seed);
-			else
-				rng = new MersenneTwisterFast();
+			rng = new MersenneTwisterFast(seed);
 		}
 
 		model = loadModel(filename);
@@ -411,7 +410,7 @@ class Main {
 		}
 		long time = System.nanoTime() - startTime;
 		if (jsonOutput && !properties.isEmpty())
-			benchmarkPostSim(time, results);
+			benchmarkPostSim(time, results, seed);
 		else
 			showResults(time, results);
 	}
