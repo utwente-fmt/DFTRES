@@ -25,6 +25,8 @@ Supported options are:
 -n <N>		Perform at most N simulations (exactly N unless a time
 		bound is also provided).
 -t <T>		Perform simulations for at most approximately T seconds.
+--relErr <R>	Perform simulations to obtain a relative error of at
+		most R.
 -a		Analyze system availability (i.e., fraction of time the
 		system is in unfailed states).
 -r <B>		Perform reliability analysis with time bound B units
