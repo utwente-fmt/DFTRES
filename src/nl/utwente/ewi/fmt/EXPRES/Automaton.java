@@ -48,7 +48,7 @@ public class Automaton implements LTS {
 	/* Private since 'Map' may in the future be suitable for
 	 * multiple types.
 	 */
-	private Automaton(Map janiData)
+	private Automaton(Map janiData, Map<String, Number> constants)
 	{
 		if (janiData.containsKey("variables"))
 			throw new IllegalArgumentException("Local variables not yet supported.");
@@ -114,9 +114,7 @@ public class Automaton implements LTS {
 				if (!(ro instanceof Map))
 					throw new IllegalArgumentException("Edge rates must be JSON objects, not: " + ro);
 				Map rateMap = (Map)ro;
-				Object rate = rateMap.get("exp");
-				if (!(rate instanceof Number))
-					throw new IllegalArgumentException("Unsupported rate expression: " + rate);
+				double rate = JaniUtils.getConstantDouble(rateMap.get("exp"), constants);
 				action = "rate " + rate;
 			}
 			labels[srci] = Arrays.copyOf(labels[srci], labels[srci].length + 1);
@@ -158,17 +156,11 @@ public class Automaton implements LTS {
 				if (!(refO instanceof String))
 					throw new IllegalArgumentException("Assignment only supported to identifiers.");
 				String ref = (String)refO;
-				int val = 0;
 				Object valO = assignment.get("value");
-				if (valO instanceof Long) {
-					val = ((Long)valO).intValue();
-					if (!Long.valueOf(val).equals(valO))
-						throw new IllegalArgumentException("Range error in assignment of value: " + valO);
-				} else if (valO instanceof Boolean) {
-					val = ((Boolean)valO) ? 1 : 0;
-				} else
-					throw new IllegalArgumentException("Assignments only supported to integers and booleans.");
-				assignMap.put(ref, val);
+				long val = JaniUtils.getConstantLong(valO, constants);
+				if (val > Integer.MAX_VALUE || val < Integer.MIN_VALUE)
+					throw new UnsupportedOperationException("Assignment of extremely large value.");
+				assignMap.put(ref, (int)val);
 			}
 			if (!assignMap.isEmpty()) {
 				this.assignments[srci] = Arrays.copyOf(this.assignments[srci], labels[srci].length);
@@ -184,9 +176,10 @@ public class Automaton implements LTS {
 		}
 	}
 
-	public static Automaton fromJani(Map janiData)
+	public static Automaton fromJani(Map janiData,
+	                                 Map<String, Number> constants)
 	{
-		return new Automaton(janiData);
+		return new Automaton(janiData, constants);
 	}	
 
 	public int hashCode()

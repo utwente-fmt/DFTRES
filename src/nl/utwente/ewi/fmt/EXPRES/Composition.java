@@ -890,7 +890,7 @@ public class Composition implements MarkableLTS
 		throw new IllegalArgumentException("Type " + t.toString() + " is not supported.");
 	}
 
-	private static Property parseJaniProperty(Map prop)
+	private static Property parseJaniProperty(Map prop, Map<String, Number> constants)
 	{
 		Object nameO = prop.get("name");
 		if (!(nameO instanceof String))
@@ -949,10 +949,7 @@ public class Composition implements MarkableLTS
 				for (Object o : bound.keySet()) {
 					if ("upper".equals(o)) {
 						o = bound.get("upper");
-						if (o instanceof Number)
-							timeBound = ((Number)o).doubleValue();
-						else
-							throw new UnsupportedOperationException("Only constant-valued upper bounds currently supported.");
+						timeBound = JaniUtils.getConstantDouble(o, constants);
 					} else if (!"upper-exclusive".equals(o)) {
 						throw new UnsupportedOperationException("Only constant-valued upper bounds currently supported.");
 					}
@@ -977,6 +974,37 @@ public class Composition implements MarkableLTS
 		Object type = root.get("type");
 		if (!"ma".equals(type))
 			throw new IllegalArgumentException("Only Markov Automata are currently supported.");
+		TreeMap<String, Number> constants = new TreeMap<>();
+		Object constsO = root.get("constants");
+		if (constsO != null) {
+			if (!(constsO instanceof Object[]))
+				throw new IllegalArgumentException("Constants should be an array.");
+			Object[] consts = (Object[])constsO;
+			for (Object cO : consts) {
+				if (!(cO instanceof Map))
+					throw new IllegalArgumentException("Constant found that is not an object.");
+				Map c = (Map)cO;
+				Object nO = c.get("name");
+				if (nO == null)
+					throw new IllegalArgumentException("Constant declaration with name.");
+				if (!(nO instanceof String))
+					throw new IllegalArgumentException("Constant declaration non-string name.");
+				String name = (String) nO;
+				Object vO = c.get("value");
+				if (vO == null)
+					throw new UnsupportedOperationException("Model parameters currently not supported.");
+				if (!(vO instanceof Number || vO instanceof Boolean))
+					vO = JaniUtils.getConstantDouble(vO, constants);
+				if (vO instanceof Number)
+					constants.put(name, (Number)vO);
+				else if (vO.equals(Boolean.TRUE))
+					constants.put(name, 1);
+				else if (vO.equals(Boolean.FALSE))
+					constants.put(name, 0);
+				else
+					throw new AssertionError("Number or Boolean constant value is neither Long, nor true or false.");
+			}
+		}
 		Object variables = root.get("variables");
 		if (variables != null) {
 			if (!(variables instanceof Object[]))
@@ -996,17 +1024,11 @@ public class Composition implements MarkableLTS
 				Object to = vm.get("type");
 				int lowerBound = typeLowerBound(to);
 				Object io = vm.get("initial-value");
-				int initial = 0;
-				if (io instanceof Boolean)
-					initial = ((Boolean)io)?1:0;
-				else if (io instanceof Long) {
-					long il = (Long)io;
-					if (il < Integer.MIN_VALUE || il > Integer.MAX_VALUE)
-						throw new IllegalArgumentException("Initial value of variable '" + name + "' exceeds 32 bits.");
-				} else {
-					throw new IllegalArgumentException("Unexpected initial value (actual expressions currently unsupported): " + io);
-				}
-				int[] vals = new int[]{0,0,initial, lowerBound};
+				long initial = 0;
+				initial = JaniUtils.getConstantLong(io, constants);
+				if (initial < Integer.MIN_VALUE || initial > Integer.MAX_VALUE)
+					throw new IllegalArgumentException("Initial value of variable '" + name + "' exceeds 32 bits.");
+				int[] vals = new int[]{0,0,(int)initial, lowerBound};
 				globalVars.put(name, vals);
 			}
 		}
@@ -1024,7 +1046,7 @@ public class Composition implements MarkableLTS
 			Map autm = (Map)aut;
 			Object n = autm.get("name");
 			if (n != null)
-				declaredAuts.put(n.toString(), Automaton.fromJani(autm));
+				declaredAuts.put(n.toString(), Automaton.fromJani(autm, constants));
 		}
 		Object syso = root.get("system");
 		if (syso == null)
@@ -1104,7 +1126,7 @@ public class Composition implements MarkableLTS
 				throw new IllegalArgumentException("Property should be object, not: " + propO2);
 			Map prop = (Map)propO2;
 			try {
-				Property p = parseJaniProperty(prop);
+				Property p = parseJaniProperty(prop, constants);
 				ret.add(p);
 			} catch (UnsupportedOperationException e) {
 				System.err.println(e.getMessage());
