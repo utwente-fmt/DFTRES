@@ -119,7 +119,10 @@ public class Composition implements MarkableLTS
 	 * @param type The type of the given file, currently supported:
 	 * exp
 	 */
-	public Composition(String filename, String type, Set<Property> propertiesOut) throws IOException
+	public Composition(String filename, String type,
+	                   Set<Property> propertiesOut,
+	                   Map<String, Number> constants)
+			throws IOException
 	{
 		markLabels = new TreeMap<String, Integer>();
 		Set<Property> props = new TreeSet<>();
@@ -128,7 +131,7 @@ public class Composition implements MarkableLTS
 				readExpFile(filename);
 				break;
 			case "jani":
-				props = readJaniFile(filename);
+				props = readJaniFile(filename, constants);
 				if (propertiesOut != null)
 					propertiesOut.addAll(props);
 				break;
@@ -147,7 +150,7 @@ public class Composition implements MarkableLTS
 
 	public Composition(String filename, String type) throws IOException
 	{
-		this(filename, type, null);
+		this(filename, type, null, Collections.emptyMap());
 	}
 
 	Composition()
@@ -961,7 +964,9 @@ public class Composition implements MarkableLTS
 		return new Property(propType, timeBound, variable, name);
 	}
 
-	private Set<Property> readJaniFile(String filename) throws IOException
+	private Set<Property> readJaniFile(String filename,
+	                                   Map<String, Number> overrideConsts)
+			throws IOException
 	{
 		globalVars = new TreeMap<>();
 		Object jani = JSONParser.readJsonFromFile(filename);
@@ -974,7 +979,7 @@ public class Composition implements MarkableLTS
 		Object type = root.get("type");
 		if (!"ma".equals(type))
 			throw new IllegalArgumentException("Only Markov Automata are currently supported.");
-		TreeMap<String, Number> constants = new TreeMap<>();
+		TreeMap<String, Number> constants = new TreeMap<>(overrideConsts);
 		Object constsO = root.get("constants");
 		if (constsO != null) {
 			if (!(constsO instanceof Object[]))
@@ -990,9 +995,11 @@ public class Composition implements MarkableLTS
 				if (!(nO instanceof String))
 					throw new IllegalArgumentException("Constant declaration non-string name.");
 				String name = (String) nO;
+				if (overrideConsts.containsKey(name))
+					continue;
 				Object vO = c.get("value");
 				if (vO == null)
-					throw new UnsupportedOperationException("Model parameters currently not supported.");
+					throw new IllegalArgumentException("Model parameter '" + name + "' not specified.");
 				if (!(vO instanceof Number || vO instanceof Boolean))
 					vO = JaniUtils.getConstantDouble(vO, constants);
 				if (vO instanceof Number)

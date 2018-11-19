@@ -35,8 +35,12 @@ Supported options are:
 --mc		Use the standard Monte Carlo simulator without
 		importance sampling.
 --zvav		Use the Path-ZVA importance sampling technique.
+--def <C> <V>	Define the constant named C as the value V, overriding
+		any definitions in the input file.
 --export-jani <output.jani>	Export the model the specified jani
                            	file.
 --export-tralab <output>	Export the model to <output>.tra and
                         	<output>.lab explicit-state files.
+--prop		Analyze only the specified JANI property (can be used
+		multiple times to analyze multiple properties.)
 --json		Output data in JSON format.

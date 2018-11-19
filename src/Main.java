@@ -7,9 +7,10 @@ import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.TreeSet;
 import java.util.Map;
 import java.util.Random;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import schemes.SchemeUniform;
 import schemes.SchemeZVAd;
 import schemes.SchemeZVAv;
@@ -263,12 +264,14 @@ class Main {
 		}
 	}
 
-	private static LTS loadModel(String filename) throws IOException
+	private static LTS loadModel(String filename,
+	                             Map<String, Number> constants)
+			throws IOException
 	{
 		LTS ret;
 		if (filename.endsWith(".exp")) {
 			Composition c;
-			c = new Composition(filename, "exp", properties);
+			c = new Composition(filename, "exp", properties, null);
 			c.markStatesAfter("FAIL", 1);
 			c.markStatesAfter("REPAIR", 0);
 			c.markStatesAfter("ONLINE", 0);
@@ -284,7 +287,7 @@ class Main {
 			m.markStatesAfter("ONLINE", 0);
 			ret = m;
 		} else if (filename.endsWith(".jani")) {
-			ret = new Composition(filename, "jani", properties);
+			ret = new Composition(filename, "jani", properties, constants);
 		} else if (filename.endsWith(".dft")) {
 			String[] cmd = new String[]{"dftcalc", "-x", filename};
 			Process dftc = Runtime.getRuntime().exec(cmd);
@@ -303,7 +306,7 @@ class Main {
 			if (basename.lastIndexOf('/') != -1)
 				basename = basename.substring(basename.lastIndexOf('/') + 1, basename.length());
 			basename = basename.substring(0, basename.length() - 4);
-			return loadModel("output/" + basename + ".exp");
+			return loadModel("output/" + basename + ".exp", null);
 		} else {
 			throw new IllegalArgumentException("Type of file " + filename + " unknown");
 		}
@@ -315,6 +318,7 @@ class Main {
 		long startTime = System.nanoTime();
 		long seed = 0;
 		boolean haveSeed = false;
+		TreeMap<String, Number> constants = new TreeMap<>();
 		ArrayList<SimulationResult> results = new ArrayList<>();
 		TreeSet<String> onlyProperties = new TreeSet<>();
 		String useRng = "XS128";
@@ -362,7 +366,28 @@ class Main {
 				unif = true;
 			else if (args[i].equals("--zvav"))
 				zvav = true;
-			else if (args[i].equals("--prop"))
+			else if (args[i].equals("--def")) {
+				Number v = null;
+				String name = args[++i];
+				++i;
+				if (args[i].equalsIgnoreCase("false"))
+					v = Long.valueOf(0);
+				else if (args[i].equalsIgnoreCase("true"))
+					v = Long.valueOf(1);
+				try {
+					v = Long.valueOf(args[i]);
+				} catch (NumberFormatException e) {
+					try {
+						v = Double.valueOf(args[i]);
+					} catch (NumberFormatException e2) {
+					}
+				}
+				if (v == null) {
+					System.err.println("Unable to parse value: " + args[i]);
+					System.exit(-1);
+				}
+				constants.put(name, v);
+			} else if (args[i].equals("--prop"))
 				onlyProperties.add(args[++i]);
 			else if (args[i].equals("--json"))
 				jsonOutput = true;
@@ -383,7 +408,7 @@ class Main {
 			rng = new MersenneTwisterFast(seed);
 		}
 
-		model = loadModel(filename);
+		model = loadModel(filename, constants);
 		if (janiOutputFile != null)
 			MakeJani.makeJani(model, janiOutputFile, jsonOutput ? filename : null, args, properties);
 		if (traLabOutputFile != null) {
