@@ -264,32 +264,55 @@ public class Simulator {
 		long totalSims[] = new long[2];
 		double totalAlpha = alpha;
 		double lbound = 0, ubound = 1, mean;
-		double sum = 0;
 		double curRelErr;
 		int initSize = gen.scheme.model.size();
 		int maxCacheSize = initSize * 2;
 		if (maxCacheSize < MIN_MAX_CACHE_SIZE)
 			maxCacheSize = MIN_MAX_CACHE_SIZE;
 		SimulationResult result;
-		alpha = (alpha * (REL_ERR_RATE - 1)) / REL_ERR_RATE;
 		long startTime = System.nanoTime();
 
+		alpha = totalAlpha / REL_ERR_RATE;
 		/* First try to hit the target at all, to get a rough
 		 * estimate (without spoiling the confidence level).
 		 */
 		do {
 			maxN *= 10;
-			result = sim(0, maxN, 0.05);
+			if (alpha > 0)
+				result = sim(0, maxN, alpha);
+			else
+				result = sim(0, maxN, 0.05);
 			mean = result.mean;
+			if (alpha > 0) {
+				lbound = result.lbound;
+				ubound = result.ubound;
+				totalSims[0] = result.N;
+				totalSims[1] = result.M;
+			}
+			alpha = 0;
 		} while (result.M < 10);
 
+		mean = (ubound + lbound) / 2;
+		double halfWidth = (ubound - lbound) / 2;
+		curRelErr = halfWidth / mean;
+		/* The almost-duplicate line below is deliberate:
+		 * - First, the remaining alpha after the trial samples
+		 *   is calculated.
+		 * - Then, the fraction of the alpha for the first
+		 *   iteration is calculated.
+		 */
+		alpha = (totalAlpha * (REL_ERR_RATE - 1)) / REL_ERR_RATE;
+		alpha = (alpha * (REL_ERR_RATE - 1)) / REL_ERR_RATE;
 		do {
 			/* Estimate number of samples still needed to
 			 * reach desired error */
 			double Z = SimulationResult.CIwidth(alpha);
-			long newN = 2*(long)(result.var * Z * Z / (err * err * mean * mean));
-			if (showProgress)
+			long newN = (long)(1.2 * result.var * Z * Z / (err * err * mean * mean));
+			if (showProgress) {
+				System.err.format("Relative error %e after %d simulations\n", curRelErr, totalSims[0]);
+				System.err.format("Current estimate: [%g; %g]\n", lbound, ubound);
 				System.err.println("Estimating " + newN + " new simulations required");
+			}
 			if (newN > maxN)
 				maxN = newN;
 			if (maxN > limitN && limitN > 0)
@@ -306,14 +329,11 @@ public class Simulator {
 					ubound = result.ubound;
 				}
 			}
-			sum = Math.fma(result.N, result.mean, sum);
 			mean = (ubound + lbound) / 2;
-			double halfWidth = (ubound - lbound) / 2;
+			halfWidth = (ubound - lbound) / 2;
 			curRelErr = halfWidth / mean;
 			totalSims[0] += result.N;
 			totalSims[1] += result.M;
-			if (showProgress)
-				System.err.format("Relative error %g after %d simulations\n", curRelErr, totalSims[0]);
 			alpha /= REL_ERR_RATE;
 
 			if (lbound == 0) { /* Unlikely, but apparantly we
@@ -323,7 +343,7 @@ public class Simulator {
 			}
 		} while (curRelErr > err);
 		long exactTime = System.nanoTime() - startTime;
-		return new SimulationResult(gen.prop, sum / totalSims[0],
+		return new SimulationResult(gen.prop, mean,
 				totalAlpha, Double.NaN, lbound, ubound,
 				totalSims, exactTime, initSize);
 	}
