@@ -5,7 +5,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Random;
 import java.util.SplittableRandom;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 
 public class Simulator {
@@ -20,17 +20,20 @@ public class Simulator {
 		coresToUse = Runtime.getRuntime().availableProcessors();
 	}
 
-	private static class ProgressPrinter {
+	private static class ProgressPrinter extends Thread {
 		private final long maxN;
-		private final AtomicLong done;
+		private final LongAdder done;
 		private final long initialTime;
 
 		public ProgressPrinter(long N) {
 			maxN = N;
-			done = new AtomicLong(0);
+			done = new LongAdder();
 			initialTime = System.currentTimeMillis();
 		}
-		private synchronized void printLine(long d) {
+		private boolean printLine() {
+			long d = done.sum();
+			if (d == 0)
+				return false;
 			int perc = (int)((d * 50) / maxN);
 			System.err.print("\r");
 			for (int i = 0; i < perc; i++) {
@@ -47,18 +50,23 @@ public class Simulator {
 			secsLeft -= minsLeft * 60;
 			int hoursLeft = minsLeft / 60;
 			minsLeft -= hoursLeft * 60;
-			if (d != maxN)
+			if (d != maxN) {
 				System.err.format (" (est. %d:%02d:%02d remaining)", hoursLeft, minsLeft, secsLeft);
-			else
+				return false;
+			} else {
 				System.err.println("Done                     ");
+				return true;
+			}
 		}
 		public void doneOne() {
-			if (showProgress && maxN < Long.MAX_VALUE) {
-				long d = done.incrementAndGet();
-				int prev = (int)(((d - 1) * 50) / maxN);
-				int newPerc = (int)((d * 50) / maxN);
-				if (newPerc != prev)
-					printLine(d);
+			done.increment();
+		}
+		public void run() {
+			while (!printLine()) {
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+				}
 			}
 		}
 	}
@@ -127,12 +135,18 @@ public class Simulator {
 				ts[i] = new Thread(new Tracer(ret[i], ourN));
 				ts[i].start();
 			}
+			p.start();
 			for (int i = 0; i < threads; i++) {
 				try {
 					ts[i].join();
 				} catch (InterruptedException e) {
 					i--;
 				}
+			}
+			p.interrupt();
+			try {
+				p.join();
+			} catch (InterruptedException e) {
 			}
 		} else {
 			new Tracer(ret[0], maxN).run();
