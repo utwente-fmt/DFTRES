@@ -40,7 +40,7 @@ class Main {
 	static double epsilon = 0.01;
 	static double confidence = 0.95;
 	static double relErr = Double.NaN;
-	static double forceBound = Double.POSITIVE_INFINITY;
+	static Double forceBound = null;
 	static boolean mc = false, zvad = false, zvav = false, unif = false;
 	static boolean jsonOutput = false;
 	static LTS model;
@@ -103,7 +103,16 @@ class Main {
 
 	private static SimulationResult runSim(Property prop, Scheme s)
 	{
-		Simulator simulator = new Simulator(rng, prop, s, forceBound);
+		double force;
+		if (forceBound != null) {
+			force = forceBound;
+		} else {
+			if (prop.type == Property.Type.STEADY_STATE)
+				force = Double.POSITIVE_INFINITY;
+			else
+				force = 0;
+		}
+		Simulator simulator = new Simulator(rng, prop, s, force);
 		SimulationResult res;
 		if (!Double.isNaN(relErr)) {
 			if (maxSims > 0)
@@ -349,7 +358,7 @@ class Main {
 			else if (args[i].equals("-e"))
 				epsilon = Double.parseDouble(args[++i]);
 			else if (args[i].equals("-f"))
-				forceBound = Double.parseDouble(args[++i]);
+				forceBound = Double.valueOf(args[++i]);
 			else if (args[i].equals("-p"))
 				Simulator.coresToUse = Integer.parseInt(args[++i]);
 			else if (args[i].equals("--progress"))
