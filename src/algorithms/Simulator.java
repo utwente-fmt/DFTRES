@@ -262,7 +262,7 @@ public class Simulator {
 			return simUnsafeRelErr(err, alpha);
 		long maxN = 1000 * coresToUse;
 		long totalSims[] = new long[2];
-		double totalAlpha = alpha;
+		double totalAlpha = alpha, consumedAlpha;
 		double lbound = 0, ubound = 1, mean;
 		double curRelErr;
 		int initSize = gen.scheme.model.size();
@@ -273,6 +273,7 @@ public class Simulator {
 		long startTime = System.nanoTime();
 
 		alpha = totalAlpha / REL_ERR_RATE;
+		consumedAlpha = alpha;
 		/* First try to hit the target at all, to get a rough
 		 * estimate (without spoiling the confidence level).
 		 */
@@ -295,20 +296,18 @@ public class Simulator {
 		mean = (ubound + lbound) / 2;
 		double halfWidth = (ubound - lbound) / 2;
 		curRelErr = halfWidth / mean;
-		/* The almost-duplicate line below is deliberate:
-		 * - First, the remaining alpha after the trial samples
-		 *   is calculated.
-		 * - Then, the fraction of the alpha for the first
-		 *   iteration is calculated.
-		 */
-		alpha = (totalAlpha * (REL_ERR_RATE - 1)) / REL_ERR_RATE;
+		System.err.format("Consumed alpha so far: %g\n", consumedAlpha);
+		alpha = (totalAlpha - consumedAlpha) / (1 - consumedAlpha);
 		alpha = (alpha * (REL_ERR_RATE - 1)) / REL_ERR_RATE;
+		consumedAlpha += alpha - (alpha * consumedAlpha);
 		do {
 			/* Estimate number of samples still needed to
 			 * reach desired error */
 			double Z = SimulationResult.CIwidth(alpha);
 			long newN = (long)(1.2 * result.var * Z * Z / (err * err * mean * mean));
 			if (showProgress) {
+				System.err.format("Current alpha: %g\n", alpha);
+				System.err.format("Consumed alpha after this step: %g\n", consumedAlpha);
 				System.err.format("Relative error %e after %d simulations\n", curRelErr, totalSims[0]);
 				System.err.format("Current estimate: [%g; %g]\n", lbound, ubound);
 				System.err.println("Estimating " + newN + " new simulations required");
@@ -334,7 +333,9 @@ public class Simulator {
 			curRelErr = halfWidth / mean;
 			totalSims[0] += result.N;
 			totalSims[1] += result.M;
-			alpha /= REL_ERR_RATE;
+			alpha = (totalAlpha - consumedAlpha) / (1 - consumedAlpha);
+			alpha = (alpha * (REL_ERR_RATE - 1)) / REL_ERR_RATE;
+			consumedAlpha += alpha - (alpha * consumedAlpha);
 
 			if (lbound == 0) { /* Unlikely, but apparantly we
 					      haven't hit anything at all */
@@ -342,6 +343,8 @@ public class Simulator {
 				continue;
 			}
 		} while (curRelErr > err);
+		if (showProgress)
+			System.err.format("Consumed alpha: %g\n", consumedAlpha);
 		long exactTime = System.nanoTime() - startTime;
 		return new SimulationResult(gen.prop, mean,
 				totalAlpha, Double.NaN, lbound, ubound,
