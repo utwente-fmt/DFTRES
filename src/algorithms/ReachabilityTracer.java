@@ -147,16 +147,25 @@ public class ReachabilityTracer extends TraceGenerator
 	{
 		long time = getElapsedTime();
 		if (M == 0) {
-			return new SimulationResult(prop, 0, alpha, Double.NaN,
-					0, 1, new long[]{N, M}, time,
-					baseModelSize);
+			if (scheme.isBinomial()
+			    && forceBound == Double.POSITIVE_INFINITY)
+			{
+				return binomialCI(alpha, Double.NaN, time);
+			} else {
+				return new SimulationResult(prop, 0, alpha,
+				                            Double.NaN,
+							    0, 1,
+							    new long[]{N, M},
+							    time,
+							    baseModelSize);
+			}
 		}
 		double mean = sum / N;
 		double estSum = Math.fma(-N, estMean, sum);
 		double var = Math.fma(-estSum, estSum / N, sumSquares);
 		var /= N - 1;
 		SimulationResult ret = null;
-		if (scheme.isBinomial())
+		if (scheme.isBinomial() && forceBound == Double.POSITIVE_INFINITY)
 			ret = binomialCI(alpha, var, time);
 
 		if (ret == null)
