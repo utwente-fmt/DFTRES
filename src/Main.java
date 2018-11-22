@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
@@ -30,6 +31,7 @@ import nl.utwente.ewi.fmt.EXPRES.MakeJani;
 import nl.utwente.ewi.fmt.EXPRES.MakeTraLab;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 import nl.utwente.ewi.fmt.EXPRES.Version;
+import nl.utwente.ewi.fmt.EXPRES.expression.ConstantExpression;
 
 import models.ExpModel;
 
@@ -126,15 +128,27 @@ class Main {
 		return res;
 	}
 
-	private static ArrayList<SimulationResult> runSimulations(Property prop)
+	private static List<SimulationResult> runSimulations(Property prop)
 			throws IOException
 	{
 		boolean multiple = false;
-		ArrayList<SimulationResult> ret = new ArrayList<>();
 		ExpModel statespace = new ExpModel(epsilon, model, prop);
+		if (!(mc || zvav || zvad || unif)) {
+			Scheme s;
+			if (prop.type == Property.Type.EXPECTED_VALUE
+			    && prop.timeBound == Double.POSITIVE_INFINITY)
+			{
+				s = new Scheme(statespace);
+			} else {
+				s = SchemeZVAv.instantiate(statespace);
+			}
+			SimulationResult res = runSim(prop, s);
+			return List.of(res);
+		}
 		if ((mc ? 1 : 0) + (zvav ? 1 : 0) + (zvad ? 1 : 0) + (unif ? 1 : 0) > 1)
 			multiple = true;
 
+		ArrayList<SimulationResult> ret = new ArrayList<>();
 		if (mc) {
 			Scheme mc = new Scheme(statespace);
 			Property nProp = prop;
@@ -155,6 +169,9 @@ class Main {
 
 		if (zvad) {
 			SchemeZVAd sc = SchemeZVAd.instantiate(statespace);
+			if (prop.type == Property.Type.EXPECTED_VALUE) {
+				System.err.println("WARNING: Importance sampling and expected value queries often give misleading results.");
+			}
 			Property nProp = prop;
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-ZVAd");
@@ -163,6 +180,9 @@ class Main {
 		}
 
 		if (zvav) {
+			if (prop.type == Property.Type.EXPECTED_VALUE) {
+				System.err.println("WARNING: Importance sampling and expected value queries often give misleading results.");
+			}
 			SchemeZVAv sc = SchemeZVAv.instantiate(statespace);
 			Property nProp = prop;
 			if (multiple)
@@ -342,10 +362,16 @@ class Main {
 			if (args[i].equals("-a")) {
 				Property av = new Property(Property.Type.STEADY_STATE, "marked", "Unavailability");
 				properties.add(av);
+				onlyProperties.add(av.name);
 			} else if (args[i].equals("-r")) {
 				double time = Double.parseDouble(args[++i]);
 				Property rel = new Property(Property.Type.REACHABILITY, time, "marked", "Unreliability");
 				properties.add(rel);
+				onlyProperties.add(rel.name);
+			} else if (args[i].equals("--mttf")) {
+				Property mttf = new Property(Property.Type.EXPECTED_VALUE, Double.POSITIVE_INFINITY, "marked", "MTTF", new ConstantExpression(1), null);
+				properties.add(mttf);
+				onlyProperties.add(mttf.name);
 			} else if (args[i].equals("-s")) {
 				seed = Long.parseLong(args[++i]);
 				haveSeed = true;
@@ -407,8 +433,6 @@ class Main {
 			else
 				System.err.format("Unknown option '%s', ignoring\n", args[i]);
 		}
-		if (!(mc || zvav || zvad || unif))
-			zvav = true;
 		if (!haveSeed)
 			seed = new SecureRandom().nextLong();
 		if (useRng.equalsIgnoreCase("xs128")) {
