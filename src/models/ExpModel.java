@@ -1,10 +1,12 @@
 package models;
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 import nl.utwente.ewi.fmt.EXPRES.Composition;
 import nl.utwente.ewi.fmt.EXPRES.LTS;
 import nl.utwente.ewi.fmt.EXPRES.MarkovReducedLTS;
 import nl.utwente.ewi.fmt.EXPRES.Property;
+import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 
 public class ExpModel extends StateSpace
 {
@@ -70,7 +72,7 @@ public class ExpModel extends StateSpace
 	
 	public boolean isBlue(int[] state)
 	{
-		if (prop.type == Property.Type.REACHABILITY)
+		if (prop.type != Property.Type.STEADY_STATE)
 			return false;
 		for (int i = 0; i < initialState.length; i++)
 			if (state[i] != initialState[i])
@@ -120,5 +122,15 @@ public class ExpModel extends StateSpace
 		this.orders.set(s, orders);
 		this.probs.set(s, probs);
 		exitRates[s] = totProb;
+	}
+
+	public Number evaluate(Expression expr, int s)
+	{
+		Map<String, Integer> vals = Map.of();
+		if (expr.getReferencedVariables().size() > 0) {
+			int[] state = states.get(s);
+			vals = comp.getVarValues(state);
+		}
+		return expr.evaluate(vals);
 	}
 }

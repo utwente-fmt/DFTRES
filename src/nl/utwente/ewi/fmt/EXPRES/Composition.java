@@ -15,6 +15,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.LinkedHashMap;
 import nl.ennoruijters.util.JSONParser;
+import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 
 public class Composition implements MarkableLTS
 {
@@ -712,7 +713,11 @@ public class Composition implements MarkableLTS
 
 	public void printJani(String name, PrintStream out, Set<Property> props)
 	{
-		TreeSet<String> localHides = new TreeSet<>(hideLabels);
+		TreeSet<String> localHides;
+		if (hideLabels != null)
+			localHides = new TreeSet<>(hideLabels);
+		else
+			localHides = new TreeSet<>();
 		/* Add markLabels to the hide set, as the marking
 		 * (presumably) captures any visible effects of the
 		 * transition. */
@@ -720,9 +725,29 @@ public class Composition implements MarkableLTS
 		out.println("{\"jani-version\":1,");
 		out.println("\"name\":\""+name+"\",");
 		out.println("\"type\":\"ma\",");
-		out.println("\"variables\":["+
-				"{\"name\":\"marked\",\"type\":\"bool\","+
-				"\"initial-value\":false}],");
+		if (!markLabels.isEmpty()) {
+			out.println("\"variables\":["+
+					"{\"name\":\"marked\","+
+					"\"type\":\"bool\","+
+					"\"initial-value\":false}],");
+		} else {
+			out.println("\"variables\":[");
+			boolean first = true;
+			for (String var : globalVars.keySet()) {
+				if (!first)
+					out.println(",");
+				first = false;
+				int[] data = globalVars.get(var);
+				int uBound = data[3] + (1 << (data[1] - data[0])) - 1;
+				out.print("\t{\"name\":\"" + var + "\", "
+					+ "\"type\":{\"base\":\"int\", "
+					+ "\"kind\":\"bounded\", "
+					+ "\"lower-bound\":" + data[3] + ", "
+					+ "\"upper-bound\":" + uBound + "}, "
+					+ "\"initial-value\":" + data[2] + "}");
+			}
+			out.println("\n],");
+		}
 		/* List of all actions */
 		out.println("\"actions\":[");
 		TreeSet<String> actions = new TreeSet<String>();
@@ -742,51 +767,66 @@ public class Composition implements MarkableLTS
 				actions.add(l);
 		}
 		actions.addAll(getAllTransitionLabels());
-		for (String l : actions)
-			out.println("\t{\"name\":\""+l+"\"},");
-		out.println("\t{\"name\":\"mark\"},");
-		out.println("\t{\"name\":\"unmark\"}");
-		out.println("\t],");
+		actions.add("mark");
+		actions.add("unmark");
+		boolean first = true;
+		for (String l : actions) {
+			if (!first)
+				out.println(",");
+			first = false;
+			out.print("\t{\"name\":\""+l+"\"}");
+		}
+		out.println("\n],");
 		out.println("\"automata\":[");
 		HashMap<Automaton, Integer> outputAutomata = new HashMap<>();
 		String autNames[] = new String[automata.length];
 		for (int i = 0; i < automata.length; i++) {
 			Integer num = outputAutomata.get(automata[i]);
 			if (num == null) {
+				if (i > 0)
+					out.println(",");
 				num = outputAutomata.size();
 				outputAutomata.put(automata[i], num);
 				automata[i].printJaniAutomaton("aut"+num, out);
-				out.println(",");
 			}
 			autNames[i] = "aut" + num;
 		}
-		/* Monitor automaton */
-		out.println("\t{\"name\":\"monitor\",");
-		out.println("\t \"locations\":[{\"name\":\"l\"}],");
-		out.println("\t \"initial-locations\":[\"l\"],");
-		out.println("\t \"edges\":[");
-		out.println("\t\t{\"location\":\"l\",");
-		out.println("\t\t \"action\":\"mark\",");
-		out.println("\t\t \"destinations\":[{");
-		out.println("\t\t\t\"location\":\"l\",");
-		out.println("\t\t\t\"assignments\":[{\"ref\":\"marked\", \"value\":true}]");
-		out.println("\t\t\t}]},");
-		out.println("\t\t{\"location\":\"l\",");
-		out.println("\t\t \"action\":\"unmark\",");
-		out.println("\t\t \"destinations\":[{");
-		out.println("\t\t\t\"location\":\"l\",");
-		out.println("\t\t\t\"assignments\":[{\"ref\":\"marked\", \"value\":false}]");
-		out.println("\t\t\t}]");
-		out.println("\t\t}]");
-		out.println("\t}");
-
+		if (!markLabels.isEmpty()) {
+			/* Monitor automaton */
+			out.println(",");
+			out.println("\t{\"name\":\"monitor\",");
+			out.println("\t \"locations\":[{\"name\":\"l\"}],");
+			out.println("\t \"initial-locations\":[\"l\"],");
+			out.println("\t \"edges\":[");
+			out.println("\t\t{\"location\":\"l\",");
+			out.println("\t\t \"action\":\"mark\",");
+			out.println("\t\t \"destinations\":[{");
+			out.println("\t\t\t\"location\":\"l\",");
+			out.println("\t\t\t\"assignments\":[{\"ref\":\"marked\", \"value\":true}]");
+			out.println("\t\t\t}]},");
+			out.println("\t\t{\"location\":\"l\",");
+			out.println("\t\t \"action\":\"unmark\",");
+			out.println("\t\t \"destinations\":[{");
+			out.println("\t\t\t\"location\":\"l\",");
+			out.println("\t\t\t\"assignments\":[{\"ref\":\"marked\", \"value\":false}]");
+			out.println("\t\t\t}]");
+			out.println("\t\t}]");
+			out.println("\t}");
+		} else {
+			out.println();
+		}
 		/* Continuing with rest of JANI */
 		out.println("],");
 		out.println("\"system\":{\"elements\":[");
 		for (int i = 0; i < automata.length; i++) {
-			out.println("\t{\"automaton\":\"" + autNames[i] + "\"},");
+			if (i != 0)
+				out.println(",");
+			out.print("\t{\"automaton\":\"" + autNames[i] + "\"}");
 		}
-		out.println("\t{\"automaton\":\"monitor\"}");
+		if (!markLabels.isEmpty())
+			out.println("\t{\"automaton\":\"monitor\"}");
+		else
+			out.println();
 		out.println("\t],");
 		out.println("\t\"syncs\":[");
 		for (int i = 0; i < vectorLabels.length; i++) {
@@ -805,13 +845,17 @@ public class Composition implements MarkableLTS
 				else
 					out.print("\""+labels[j]+"\"");
 			}
-			Integer markResult = markLabels.get(synchronizedLabels[i]);
-			if (markResult != null && markResult == 0) {
-				out.print(", \"unmark\"]");
-			} else if (markResult != null) {
-				out.print(", \"mark\"]");
+			if (!markLabels.isEmpty()) {
+				Integer markResult = markLabels.get(synchronizedLabels[i]);
+				if (markResult != null && markResult == 0) {
+					out.print(", \"unmark\"]");
+				} else if (markResult != null) {
+					out.print(", \"mark\"]");
+				} else {
+					out.print(", null]");
+				}
 			} else {
-				out.print(", null]");
+				out.print("]");
 			}
 			if (!localHides.contains(synchronizedLabels[i])) {
 				out.println(",");
@@ -836,33 +880,11 @@ public class Composition implements MarkableLTS
 		out.println("\"properties\": [");
 		int i = 0;
 		for (Property prop : props) {
-			out.println("\t{\"name\":\"" + prop.name + "\",");
-			out.println("\t \"expression\":{");
-			out.println("\t\t\"fun\":\"max\",");
-			out.println("\t\t\"op\":\"filter\",");
-			out.println("\t\t\"states\":{\"op\":\"initial\"},");
-			out.println("\t\t\"values\":{");
-			out.print("\t\t\t\"op\":\"");
-			switch (prop.type) {
-				case STEADY_STATE:
-					out.println("Smax\",");
-					out.println("\t\t\t\"exp\":\""
-					            + prop.variable + "\"");
-					break;
-				case REACHABILITY:
-					out.println("Pmax\",");
-					out.print("\t\t\t\"exp\":{\"op\":\"F\", \"exp\":\"" + prop.variable + "\"");
-					if (Double.isFinite(prop.timeBound))
-						out.print(", \"time-bounds\":{\"upper\":" + prop.timeBound + "}");
-					out.println("}");
-					break;
-			}
-			out.println("\t\t\t}");
-			out.println("\t\t}");
+			prop.printJani(out, 1);
 			if (++i == props.size())
-				out.println("\t}");
+				out.println();
 			else
-				out.println("\t},");
+				out.println(",");
 		}
 		/* End of properties */
 		out.println("]");
@@ -880,7 +902,7 @@ public class Composition implements MarkableLTS
 			Object base = tm.get("base");
 			if (!"int".equals(base))
 				throw new IllegalArgumentException(base.toString() + " type variables are currently not supported.");
-			if (!"kind".equals(tm.get("kind")))
+			if (!"bounded".equals(tm.get("kind")))
 				throw new IllegalArgumentException("Bounded type without 'bounded' kind not supported.");
 			Object lb = tm.get("lower-bound");
 			if (lb instanceof Long) {
@@ -920,11 +942,19 @@ public class Composition implements MarkableLTS
 			propType = Property.Type.STEADY_STATE;
 		else if ("Pmax".equals(op) || "Pmin".equals(op))
 			propType = Property.Type.REACHABILITY;
+		else if ("Emax".equals(op) || "Emin".equals(op))
+			propType = Property.Type.EXPECTED_VALUE;
 		else
 			throw new UnsupportedOperationException("Unsupported property operation: " + op);
 		double timeBound = 0;
 		String variable = null;
-		expO = values.get("exp");
+		if (propType == Property.Type.STEADY_STATE
+		    || propType == Property.Type.REACHABILITY)
+		{
+			expO = values.get("exp");
+		} else {
+			expO = values.get("reach");
+		}
 		if (expO instanceof String) {
 			variable = (String)expO;
 		} else if (expO instanceof Map) {
@@ -960,6 +990,41 @@ public class Composition implements MarkableLTS
 			}
 		} else {
 			throw new IllegalArgumentException("Property expression should be identifier or expression.");
+		}
+		if (propType == Property.Type.EXPECTED_VALUE) {
+			timeBound = Double.POSITIVE_INFINITY;
+			if (values.containsKey("step-instant"))
+				throw new UnsupportedOperationException("Step-bounded properties currently not supported.");
+			if (values.containsKey("reward-instants"))
+				throw new UnsupportedOperationException("Reward-instant queries currently not supported.");
+			expO = values.get("exp");
+			if (expO == null)
+				throw new IllegalArgumentException("Expected-reward query without reward expression.");
+			Expression transientRew = Expression.fromJani(expO);
+			Expression cumulativeRew = null;
+			expO = values.get("accumulate");
+			if (expO != null) {
+				if (!(expO instanceof Object[]))
+					throw new IllegalArgumentException("Reward accumulation should be an array.");
+				Object[] accs = (Object[])expO;
+				if (accs.length > 1)
+					throw new UnsupportedOperationException("Only time-accumulating or time-instant reward queries currently supported.");
+				if (accs.length == 1) {
+					if (!"time".equals(accs[0]))
+						throw new UnsupportedOperationException("Only time-accumulating or time-instant reward queries currently supported.");
+				}
+				cumulativeRew = transientRew;
+				transientRew = null;
+			}
+			if (values.containsKey("time-instant")) {
+				Expression instant = Expression.fromJani(values.get("time-instant"));
+				instant = instant.simplify(constants);
+				if (instant.getReferencedVariables().size() > 0) {
+					throw new UnsupportedOperationException("Time-instant expression involves variables.");
+				}
+				timeBound = instant.evaluate(constants).doubleValue();
+			}
+			return new Property(propType, timeBound, variable, name, cumulativeRew, transientRew);
 		}
 		return new Property(propType, timeBound, variable, name);
 	}

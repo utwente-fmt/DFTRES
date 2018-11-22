@@ -475,7 +475,24 @@ public class Automaton implements LTS {
 		for (int i = 0; i < targets.length; i++) {
 			for (int j = 0; j < targets[i].length; j++) {
 				out.println("\t\t{\"location\":\"l"+i+"\",");
-				out.println("\t\t \"destinations\":[{\"location\":\"l"+targets[i][j]+"\"}],");
+				if (assignments == null || assignments[i] == null || assignments[i].length <= j || assignments[i][j] == null) {
+					out.println("\t\t \"destinations\":[{\"location\":\"l"+targets[i][j]+"\"}],");
+				} else {
+					out.println("\t\t \"destinations\":[{");
+					out.println("\t\t\t\"location\": \"l" + targets[i][j] + "\",");
+					out.println("\t\t\t\"assignments\": [");
+					boolean first = true;
+					for (String var : assignments[i][j].keySet()) {
+						Number val = assignments[i][j].get(var);
+						if (!first)
+							out.println(",");
+						first = false;
+						out.print("\t\t\t\t{\"ref\": \"" + var + "\", \"value\": " + val + "}");
+					}
+					out.println();
+					out.println("\t\t\t]");
+					out.println("\t\t }],");
+				}
 				if (labels[i][j].startsWith("rate ")) {
 					out.println("\t\t \"rate\":{\"exp\":"+labels[i][j].substring(5)+"}");
 				} else {

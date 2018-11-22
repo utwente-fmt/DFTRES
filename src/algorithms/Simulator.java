@@ -81,6 +81,10 @@ public class Simulator {
 			case STEADY_STATE:
 				gen = new SteadyStateTracer(rng, scheme, prop);
 				break;
+			case EXPECTED_VALUE:
+				gen = new ExpectedValueTracer(rng, scheme, prop,
+				                              forcingBound);
+				break;
 			default:
 				gen = null;
 				assert(false);

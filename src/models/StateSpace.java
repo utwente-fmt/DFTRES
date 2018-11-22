@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 
+import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
+
 public abstract class StateSpace {
 	static class StateWrapper
 	{
@@ -221,5 +223,12 @@ public abstract class StateSpace {
 
 	public String stateString(int state) {
 		return "state "+ state +", ="+Arrays.toString(states.get(state));
+	}
+
+	public Number evaluate(Expression expr, int state)
+	{
+		if (expr.getReferencedVariables().size() > 0)
+			throw new UnsupportedOperationException("Expression with variables evaluated over model without variables.");
+		return expr.evaluate(Map.of());
 	}
 }
