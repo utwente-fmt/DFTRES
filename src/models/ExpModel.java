@@ -62,24 +62,6 @@ public class ExpModel extends StateSpace
 		return getInitialState().length;
 	}
 
-	public boolean isRed(int[] state)
-       	{
-		if (prop == null || prop.variable == null)
-			return state[initialState.length - 1] == 1;
-		else
-			return comp.getVarValue(prop.variable, state) != 0;
-	}
-	
-	public boolean isBlue(int[] state)
-	{
-		if (prop.type != Property.Type.STEADY_STATE)
-			return false;
-		for (int i = 0; i < initialState.length; i++)
-			if (state[i] != initialState[i])
-				return false;
-		return true;
-	}
-
 	public void findNeighbours(int s)
 	{
 		int[] state = states.get(s);
@@ -124,13 +106,8 @@ public class ExpModel extends StateSpace
 		exitRates[s] = totProb;
 	}
 
-	public Number evaluate(Expression expr, int s)
+	public Number getVarValue(String variable, int state)
 	{
-		Map<String, Integer> vals = Map.of();
-		if (expr.getReferencedVariables().size() > 0) {
-			int[] state = states.get(s);
-			vals = comp.getVarValues(state);
-		}
-		return expr.evaluate(vals);
+		return comp.getVarValue(variable, states.get(state));
 	}
 }

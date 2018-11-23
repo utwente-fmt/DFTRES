@@ -71,6 +71,8 @@ public class Scheme
 		/* We do not currently change the exit rate, so the
 		 * sojourn time has no effect.
 		 */
+		if (probs.length == 0)
+			return 1;
 		return probs[t] * totalStateWeightIS / stateWeightsIS[t];
 	}
 

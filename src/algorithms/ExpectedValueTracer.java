@@ -81,28 +81,28 @@ public class ExpectedValueTracer extends TraceGenerator
 				} else {
 					time += delta;
 				}
-				if (prop.time_cumulative_reward != null) {
-					reward = Math.fma(evaluate(prop.time_cumulative_reward, prevState), delta, reward);
+				if (prop.timeCumulativeReward != null) {
+					reward = Math.fma(evaluate(prop.timeCumulativeReward, prevState), delta, reward);
 				}
-			} else if (prop.time_cumulative_reward != null) {
-				reward = Math.fma(evaluate(prop.time_cumulative_reward, prevState), drawMeanTransitionTime(), reward);
+			} else if (prop.timeCumulativeReward != null) {
+				reward = Math.fma(evaluate(prop.timeCumulativeReward, prevState), drawMeanTransitionTime(), reward);
 			}
 			likelihood *= likelihood();
-		} while(!model.isRed(state)
+		} while(!prop.isRed(model, state)
 			&& !isDeadlocked()
 		        && time < prop.timeBound
 		        && likelihood > 0);
 
-		if (isDeadlocked() && !model.isRed(state)
+		if (isDeadlocked() && !prop.isRed(model, state)
 		    && prop.timeBound == Double.POSITIVE_INFINITY)
 			throw new UnsupportedOperationException("Deadlock detected while evaluating state-bounded expected value.");
 
-		N++;
-		if (model.isRed(state))
-			M++;
-		if (prop.transient_reward != null)
-			reward += evaluate(prop.transient_reward, state);
+		if (prop.transientReward != null)
+			reward += evaluate(prop.transientReward, state);
 
+		N++;
+		if (reward > 0)
+			M++;
 		sum = Math.fma(reward, likelihood, sum);
 		double diffEst = Math.fma(reward, likelihood, -estMean);
 		sumSquares = Math.fma(diffEst, diffEst, sumSquares);
@@ -151,6 +151,6 @@ public class ExpectedValueTracer extends TraceGenerator
 
 	private double evaluate(Expression exp, int state)
 	{
-		return scheme.model.evaluate(exp, state).doubleValue();
+		return exp.evaluate(scheme.model, state).doubleValue();
 	}
 }

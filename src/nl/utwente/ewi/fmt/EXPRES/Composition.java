@@ -947,7 +947,7 @@ public class Composition implements MarkableLTS
 		else
 			throw new UnsupportedOperationException("Unsupported property operation: " + op);
 		double timeBound = 0;
-		String variable = null;
+		Expression reachTarget = null;
 		if (propType == Property.Type.STEADY_STATE
 		    || propType == Property.Type.REACHABILITY)
 		{
@@ -956,21 +956,17 @@ public class Composition implements MarkableLTS
 			expO = values.get("reach");
 		}
 		if (expO instanceof String) {
-			variable = (String)expO;
+			reachTarget = Expression.fromJani(expO);
 		} else if (expO instanceof Map) {
 			expr = (Map)expO;
 			if ("U".equals(expr.get("op"))) {
 				if (!Boolean.TRUE.equals(expr.get("left")))
 					throw new UnsupportedOperationException("Until formulae currently only supported with 'true' left operand.");
 				expO = expr.get("right");
-				if (!(expO instanceof String))
-					throw new UnsupportedOperationException("Until formulae currently only supported with atomic (variable) right operand");
-				variable = (String)expO;
+				reachTarget = Expression.fromJani(expO);
 			} else if ("F".equals(expr.get("op"))) {
 				expO = expr.get("exp");
-				if (!(expO instanceof String))
-					throw new UnsupportedOperationException("Finally formulae currently only supported with atomic (variable) operand");
-				variable = (String)expO;
+				reachTarget = Expression.fromJani(expO);
 			} else {
 				throw new UnsupportedOperationException("The only currently supported formulae are variables and formulae 'F variable' or 'true U variable' (with time bound)");
 			}
@@ -988,6 +984,10 @@ public class Composition implements MarkableLTS
 					}
 				}
 			}
+		} else if (propType == Property.Type.EXPECTED_VALUE
+		           && expO == null)
+		{
+			reachTarget = null;
 		} else {
 			throw new IllegalArgumentException("Property expression should be identifier or expression.");
 		}
@@ -1024,9 +1024,9 @@ public class Composition implements MarkableLTS
 				}
 				timeBound = instant.evaluate(constants).doubleValue();
 			}
-			return new Property(propType, timeBound, variable, name, cumulativeRew, transientRew);
+			return new Property(propType, timeBound, reachTarget, name, cumulativeRew, transientRew);
 		}
-		return new Property(propType, timeBound, variable, name);
+		return new Property(propType, timeBound, reachTarget, name);
 	}
 
 	private Set<Property> readJaniFile(String filename,

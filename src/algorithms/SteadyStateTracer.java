@@ -94,30 +94,26 @@ public class SteadyStateTracer extends TraceGenerator
                 double likelihood = 1;
                 double timeInRed = 0;
 		StateSpace model = scheme.model;
+		SteadyStateTracer tracer = this;
 
 		/* Do a cycle with IS to measure red time */
                 do {
 			int prevState = state;
-                        state = drawNextState(state);
+                        state = tracer.drawNextState(state);
+			if (prop.isRed(model, prevState)) {
+				timeInRed += tracer.drawMeanTransitionTime();
+				tracer = mcTracer;
+			}
 			if (state != prevState) {
 				likelihood *= likelihood();
 			} else {
-				if (drawMeanTransitionTime() == Double.POSITIVE_INFINITY) {
+				if (tracer.drawMeanTransitionTime() == Double.POSITIVE_INFINITY) {
 					deadlocked = true;
 				} else {
 					likelihood *= likelihood();
 				}
 			}
-                } while(!model.isRed(state) && !model.isBlue(state) && !deadlocked);
-		while(!model.isBlue(state) && !deadlocked) {
-                        double delta;
-			int newState = mcTracer.drawNextState(state);
-			if(model.isRed(state))
-				timeInRed += mcTracer.drawMeanTransitionTime();
-			if (state == newState)
-				deadlocked = true;
-			state = newState;
-		}
+                } while(!prop.isBlue(model, state) && !deadlocked);
 		if (deadlocked) {
 			/* We basically resort to estimating
 			 * P(eventually red), probably very badly due to
@@ -132,7 +128,7 @@ public class SteadyStateTracer extends TraceGenerator
 				sumRedTime = sumRedTimesSquared = 0;
 			}
 			N++;
-			if (model.isRed(state)) {
+			if (prop.isRed(model, state)) {
 				M++;
 				sumRedTime += likelihood;
 				sumRedTimesSquared = Math.fma(likelihood, likelihood, sumRedTimesSquared);
@@ -150,7 +146,7 @@ public class SteadyStateTracer extends TraceGenerator
 			totalTime += mcTracer.drawMeanTransitionTime();
 			if (state == prevState)
 				deadlocked = true;
-		} while(!model.isBlue(state) && !deadlocked);
+		} while(!prop.isBlue(model, state) && !deadlocked);
 		if (deadlocked) {
 			if (!hasDeadlocks) {
 				/* We didn't know yet we could deadlock.
@@ -161,7 +157,7 @@ public class SteadyStateTracer extends TraceGenerator
 				sumRedTime = sumRedTimesSquared = 0;
 			}
 			N++;
-			if (model.isRed(state)) {
+			if (prop.isRed(model, state)) {
 				M++;
 				sumRedTime += 1;
 				sumRedTimesSquared += 1;

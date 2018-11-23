@@ -208,27 +208,11 @@ public abstract class StateSpace {
 	 */
 	public abstract void findNeighbours(int x);
 
-	public abstract boolean isRed(int[] s);
-	public abstract boolean isBlue(int[] s);
-
-	public boolean isRed(int s)
-	{
-		return isRed(states.get(s));
-	}
-
-	public boolean isBlue(int s)
-	{
-		return isBlue(states.get(s));
-	}
-
 	public String stateString(int state) {
 		return "state "+ state +", ="+Arrays.toString(states.get(state));
 	}
 
-	public Number evaluate(Expression expr, int state)
-	{
-		if (expr.getReferencedVariables().size() > 0)
-			throw new UnsupportedOperationException("Expression with variables evaluated over model without variables.");
-		return expr.evaluate(Map.of());
+	public Number getVarValue(String variable, int state) {
+		return null;
 	}
 }

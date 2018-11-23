@@ -87,11 +87,11 @@ public abstract class TraceGenerator
 		prevState = state;
 		lastDeltaLikelihood = 1;
 		scheme.prepareState(state);
-		if (scheme.stateWeightsIS.length == 1) {
+		if (scheme.neighbours.length == 1) {
 			chosen = 0;
 			return scheme.neighbours[0];
 		}
-		if (scheme.stateWeightsIS.length == 0) {
+		if (scheme.neighbours.length == 0) {
 			chosen = -1;
 			return state;
 		}

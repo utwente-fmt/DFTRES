@@ -32,6 +32,7 @@ import nl.utwente.ewi.fmt.EXPRES.MakeTraLab;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 import nl.utwente.ewi.fmt.EXPRES.Version;
 import nl.utwente.ewi.fmt.EXPRES.expression.ConstantExpression;
+import nl.utwente.ewi.fmt.EXPRES.expression.VariableExpression;
 
 import models.ExpModel;
 
@@ -132,7 +133,7 @@ class Main {
 			throws IOException
 	{
 		boolean multiple = false;
-		ExpModel statespace = new ExpModel(epsilon, model, prop);
+		ExpModel statespace = new ExpModel(epsilon, model);
 		if (!(mc || zvav || zvad || unif)) {
 			Scheme s;
 			if (prop.type == Property.Type.EXPECTED_VALUE
@@ -140,7 +141,7 @@ class Main {
 			{
 				s = new Scheme(statespace);
 			} else {
-				s = SchemeZVAv.instantiate(statespace);
+				s = SchemeZVAv.instantiate(statespace, prop);
 			}
 			SimulationResult res = runSim(prop, s);
 			return List.of(res);
@@ -168,7 +169,7 @@ class Main {
 		}
 
 		if (zvad) {
-			SchemeZVAd sc = SchemeZVAd.instantiate(statespace);
+			SchemeZVAd sc = SchemeZVAd.instantiate(statespace, prop);
 			if (prop.type == Property.Type.EXPECTED_VALUE) {
 				System.err.println("WARNING: Importance sampling and expected value queries often give misleading results.");
 			}
@@ -183,7 +184,7 @@ class Main {
 			if (prop.type == Property.Type.EXPECTED_VALUE) {
 				System.err.println("WARNING: Importance sampling and expected value queries often give misleading results.");
 			}
-			SchemeZVAv sc = SchemeZVAv.instantiate(statespace);
+			SchemeZVAv sc = SchemeZVAv.instantiate(statespace, prop);
 			Property nProp = prop;
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-ZVAv");
@@ -360,16 +361,16 @@ class Main {
 
 		for (int i = 0; i < args.length - 1; i++) {
 			if (args[i].equals("-a")) {
-				Property av = new Property(Property.Type.STEADY_STATE, "marked", "Unavailability");
+				Property av = new Property(Property.Type.STEADY_STATE, new VariableExpression("marked"), "Unavailability");
 				properties.add(av);
 				onlyProperties.add(av.name);
 			} else if (args[i].equals("-r")) {
 				double time = Double.parseDouble(args[++i]);
-				Property rel = new Property(Property.Type.REACHABILITY, time, "marked", "Unreliability");
+				Property rel = new Property(Property.Type.REACHABILITY, time, new VariableExpression("marked"), "Unreliability");
 				properties.add(rel);
 				onlyProperties.add(rel.name);
 			} else if (args[i].equals("--mttf")) {
-				Property mttf = new Property(Property.Type.EXPECTED_VALUE, Double.POSITIVE_INFINITY, "marked", "MTTF", new ConstantExpression(1), null);
+				Property mttf = new Property(Property.Type.EXPECTED_VALUE, Double.POSITIVE_INFINITY, new VariableExpression("marked"), "MTTF", new ConstantExpression(1), null);
 				properties.add(mttf);
 				onlyProperties.add(mttf.name);
 			} else if (args[i].equals("-s")) {

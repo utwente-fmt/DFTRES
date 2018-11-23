@@ -6,6 +6,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import models.StateSpace;
+
 public class VariableExpression extends Expression
 {
 	public final String variable;
@@ -30,5 +32,27 @@ public class VariableExpression extends Expression
 
 	public void writeJani(PrintStream out, int indent) {
 		out.print("\"" + variable + "\"");
+	}
+
+	public int hashCode() {
+		return variable.hashCode();
+	}
+
+	public boolean equals(Object other) {
+		if (!(other instanceof Expression))
+			return false;
+		Expression expr = (Expression)other;
+		expr = expr.simplify(Map.of());
+		if (!(expr instanceof VariableExpression))
+			return false;
+		return ((VariableExpression)expr).variable.equals(variable);
+	}
+
+	public Number evaluate(StateSpace s, int state) {
+		return s.getVarValue(variable, state);
+	}
+
+	public String toString() {
+		return '"' + variable + '"';
 	}
 }

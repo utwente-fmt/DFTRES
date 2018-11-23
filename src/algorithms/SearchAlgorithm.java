@@ -10,24 +10,27 @@ import java.util.List;
 import java.util.PrimitiveIterator;
 import java.util.PriorityQueue;
 import java.util.Set;
+import nl.utwente.ewi.fmt.EXPRES.Property;
 
 public class SearchAlgorithm {
 	private Set<Integer> Lambda;
 	private Set<Integer> Gamma;
 	private final StateSpace model;
+	private final Property prop;
 
 	private int dp[];
 	public int d[];
 
 	private final boolean trace;
 	
-	public SearchAlgorithm(StateSpace m, boolean t) {
+	public SearchAlgorithm(StateSpace m, boolean t, Property prop) {
 		this.model = m;
 		trace = t;
+		this.prop = prop;
 	}
 	
-	public SearchAlgorithm(StateSpace m) {
-		this(m, false);
+	public SearchAlgorithm(StateSpace m, Property prop) {
+		this(m, false, prop);
 	}
 
 	public double[] runAlgorithm() {
@@ -69,7 +72,12 @@ public class SearchAlgorithm {
 				int x = pot_A.remove(j);
 				A.add(x);
 				for (int z : model.successors.get(x)) {
-					if(model.getOrder(x,z) == 0 && !model.isBlue(x) && !A.contains(z) && !pot_A.contains(z) && z > -1) {
+					if(model.getOrder(x,z) == 0
+					   && !prop.isBlue(model, x)
+					   && !A.contains(z)
+					   && !pot_A.contains(z)
+					   && z > -1)
+					{
 						if(model.successors.get(z) == null)
 							findNeighbours(z);
 						pot_A.add(z);
@@ -87,7 +95,7 @@ public class SearchAlgorithm {
 				for (int x : predecessors.get(z)) {
 					if(model.getOrder(x,z) != 0)
 					      continue;
-					if (model.isBlue(x))
+					if (prop.isBlue(model, x))
 						continue;
 					Integer xx = x;
 					if (A.contains(xx) && !B.contains(xx)
@@ -250,7 +258,8 @@ public class SearchAlgorithm {
 				dp[z] = dpx;
 				if (dpx == curDp)
 					current.add(z);
-				if(dpxb == Integer.MAX_VALUE && model.isRed(z))
+				if(dpxb == Integer.MAX_VALUE
+				   && prop.isRed(model, z))
 					dpxb = dpx;
 				if(iLambda.get(z) && dpx == dp[x]) {
 					//System.out.println("Possible HPC!!! x = "+x+" = "+Arrays.toString(X.states.get(x))+", z = "+z+" = "+Arrays.toString(X.states.get(z)));
@@ -421,12 +430,12 @@ public class SearchAlgorithm {
 		//System.out.println(predecessors);
 
 		for (int s : Lambda) {
-			if(model.isRed(s)) {
+			if(prop.isRed(model, s)) {
 				v[s] = 1;
 				redsAndGamma.set(s);
 			} else {
 				d[s] = Integer.MAX_VALUE;
-				if (!model.isBlue(s))
+				if (!prop.isBlue(model, s))
 					potentials.set(s);
 			}
 		}
@@ -463,7 +472,7 @@ public class SearchAlgorithm {
 						v[z] = 0;
 					}
 					d[z] = Math.min(d[z], rzx + d[x]);
-					if(d[z] == d[x] + rzx && !model.isRed(z)) {
+					if(d[z] == d[x] + rzx && !prop.isRed(model, z)) {
 						v[z] = v[z] + v[x] * model.getProb(z,x);
 					}
 				}
@@ -481,7 +490,7 @@ public class SearchAlgorithm {
 			for (int xx : model.successors.get(z)) {
 				if(xx > -1 && Lambda.contains(xx)) {
 					int rxxz = model.getOrder(xx,z);
-					if (!(model.isBlue(xx)
+					if (!(prop.isBlue(model, xx)
 					      || redsAndGamma.get(xx)
 					      || rxxz > 0))
 					{
@@ -547,7 +556,7 @@ public class SearchAlgorithm {
 						if (md == curDp)
 							currentSuitables.add(z);
 					}
-					if (md == d[x] + rzx && !model.isRed(z)) {
+					if (md == d[x] + rzx && !prop.isRed(model, z)) {
 						v[z] = v[z] + v[x] * model.getProb(z,x);
 					}
 				}
@@ -558,7 +567,7 @@ public class SearchAlgorithm {
 					if (xx < 0 || !Lambda.contains(xx))
 						continue;
 					int rxxz = model.getOrder(xx,z);
-					if (!(model.isBlue(xx) || LambdaP.get(xx) || redsAndGamma.get(xx) || rxxz > 0)) {
+					if (!(prop.isBlue(model, xx) || LambdaP.get(xx) || redsAndGamma.get(xx) || rxxz > 0)) {
 						suitable = false;
 						break;
 					}
@@ -578,7 +587,7 @@ public class SearchAlgorithm {
 
 		// finallY: reset blue states
 		for(int z : Lambda) {
-			if(model.isBlue(z))
+			if(prop.isBlue(model, z))
 				v[z] = 0;
 		}
 		return v;

@@ -3,6 +3,7 @@ import algorithms.Scheme;
 import algorithms.SearchAlgorithm;
 import models.StateSpace;
 import java.util.Random;
+import nl.utwente.ewi.fmt.EXPRES.Property;
 
 // path-ZVA, assuming the generator contains a list of generated states with correct values for d
 
@@ -23,8 +24,8 @@ public class SchemeZVAd extends Scheme {
 		return new SchemeZVAd(model, v, d);
 	}
 
-	public static SchemeZVAd instantiate(StateSpace model) {
-		SearchAlgorithm s = new SearchAlgorithm(model);
+	public static SchemeZVAd instantiate(StateSpace model, Property prop) {
+		SearchAlgorithm s = new SearchAlgorithm(model, prop);
 		double v[] = s.runAlgorithm();
 		int[] d = s.d;
 		return new SchemeZVAd(model, v, d);

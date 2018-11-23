@@ -1,8 +1,11 @@
 package nl.utwente.ewi.fmt.EXPRES;
 
+import java.util.Arrays;
+import java.util.Map;
 import java.io.IOException;
 import java.io.PrintStream;
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
+import models.StateSpace;
 
 public class Property implements Comparable<Property>
 {
@@ -14,54 +17,77 @@ public class Property implements Comparable<Property>
 	public final String name;
 	public final Type type;
 	public final double timeBound;
-	public final String variable;
+	public final Expression reachTarget;
+	public final Expression timeCumulativeReward, transientReward;
 
-	public final Expression time_cumulative_reward, transient_reward;
-
-	public Property(Type type, double bound, String var, String name,
-	                Expression cumulative_reward,
-			Expression transient_reward)
+	public Property(Type type, double bound, Expression target, String name,
+	                Expression cumulativeReward,
+			Expression transientReward)
 	{
 		this.name = name;
 		this.type = type;
 		this.timeBound = bound;
-		this.variable = var;
-		this.time_cumulative_reward = cumulative_reward;
-		this.transient_reward = transient_reward;
+		if (target != null)
+			reachTarget = target.simplify(Map.of());
+		else
+			reachTarget = null;
+		if (cumulativeReward != null)
+			timeCumulativeReward = cumulativeReward.simplify(Map.of());
+		else
+			timeCumulativeReward = null;
+		if (transientReward != null)
+			this.transientReward = transientReward.simplify(Map.of());
+		else
+			this.transientReward = null;
 	}
 
-	public Property(Type type, double bound, String var, String name)
+	public Property(Type type, double bound, Expression target, String name)
 	{
-		this(type, bound, var, name, null, null);
+		this(type, bound, target, name, null, null);
 	}
 
-	public Property(Type type, String var, String name)
+	public Property(Type type, Expression target, String name)
 	{
-		this(type, Double.POSITIVE_INFINITY, var, name);
+		this(type, Double.POSITIVE_INFINITY, target, name);
 	}
 
 	public Property(Property other, String newName)
 	{
 		this.type = other.type;
 		this.timeBound = other.timeBound;
-		this.variable = other.variable;
+		this.reachTarget = other.reachTarget;
 		this.name = newName;
-		this.time_cumulative_reward = other.time_cumulative_reward;
-		this.transient_reward = other.transient_reward;
+		this.timeCumulativeReward = other.timeCumulativeReward;
+		this.transientReward = other.transientReward;
+	}
+
+	private static int compareExprs(Expression e1, Expression e2)
+	{
+		if (e1 == null && e2 == null)
+			return 0;
+		if (e1 == null && e2 != null)
+			return -1;
+		if (e1 != null && e2 == null)
+			return 1;
+		return e1.toString().compareTo(e2.toString());
 	}
 
 	public int compareTo(Property other)
 	{
+		int ret;
 		if (this.type != other.type)
 			return this.type.compareTo(other.type);
-		if (!this.variable.equals(other.variable))
-			return this.variable.compareTo(other.variable);
+		ret = compareExprs(this.reachTarget, other.reachTarget);
+		if (ret != 0)
+			return ret;
 		if (this.timeBound < other.timeBound)
 			return -1;
 		else if (this.timeBound > other.timeBound)
 			return 1;
-		else
-			return 0;
+		ret = compareExprs(this.timeCumulativeReward, other.timeCumulativeReward);
+		if (ret != 0)
+			return ret;
+		return compareExprs(this.transientReward, other.transientReward);
 	}
 
 	public int hashCode()
@@ -69,7 +95,15 @@ public class Property implements Comparable<Property>
 		int ret = getClass().hashCode();
 		ret = (ret * 3) + type.hashCode();
 		ret = (ret * 3) + Double.hashCode(timeBound);
-		ret = (ret * 3) + variable.hashCode();
+		ret *= 3;
+		if (reachTarget != null)
+			ret += reachTarget.hashCode();
+		ret *= 3;
+		if (timeCumulativeReward != null)
+			ret += timeCumulativeReward.hashCode();
+		ret *= 3;
+		if (transientReward != null)
+			ret += transientReward.hashCode();
 		return ret;
 	}
 
@@ -82,7 +116,30 @@ public class Property implements Comparable<Property>
 			return false;
 		if (timeBound != other.timeBound)
 			return false;
-		return variable.equals(other.variable);
+		if (compareExprs(reachTarget, other.reachTarget) != 0)
+			return false;
+		if (compareExprs(timeCumulativeReward, other.timeCumulativeReward) != 0)
+			return false;
+		return compareExprs(transientReward, other.transientReward) == 0;
+	}
+
+	public boolean isRed(StateSpace ss, int state)
+       {
+		if (reachTarget == null)
+			return false;
+		Number n = reachTarget.evaluate(ss, state);
+		if (n instanceof Integer || n instanceof Long)
+			return n.longValue() != 0;
+		return n.doubleValue() != 0;
+	}
+	
+	public boolean isBlue(StateSpace ss, int state)
+	{
+		if (type != Type.STEADY_STATE)
+			return false;
+		int[] vals = ss.states.get(state);
+		int[] init = ss.getInitialState();
+		return Arrays.equals(vals, init);
 	}
 
 	public void printJani(PrintStream out, int indent)
@@ -100,29 +157,34 @@ public class Property implements Comparable<Property>
 		switch (type) {
 			case STEADY_STATE:
 				out.println("Smax\",");
-				out.println(tabs + "\t\t\"exp\":\""
-						+ variable + "\"");
+				out.print(tabs + "\t\t\"exp\":");
+				reachTarget.writeJani(out, 3);
+				out.println();
 				break;
 			case REACHABILITY:
 				out.println("Pmax\",");
-				out.print(tabs + "\t\t\"exp\":{\"op\":\"F\", \"exp\":\"" + variable + "\"");
+				out.print(tabs + "\t\t\"exp\":{\"op\":\"F\", \"exp\":");
+				reachTarget.writeJani(out, 3);
 				if (Double.isFinite(timeBound))
 					out.print(", \"time-bounds\":{\"upper\":" + timeBound + "}");
 				out.println("}");
 				break;
 			case EXPECTED_VALUE:
 				out.println("Emax\",");
-				if (time_cumulative_reward != null)
+				if (timeCumulativeReward != null)
 					out.println(tabs + "\t\t\"accumulate\": [\"time\"],");
 				if (Double.isFinite(timeBound))
 					out.println(tabs + "\t\t\"time-instant\": " + timeBound + ",");
-				if (variable != null)
-					out.println(tabs + "\t\t\"reach\": \"" + variable + "\",");
+				if (reachTarget != null) {
+					out.print(tabs + "\t\t\"reach\":");
+					reachTarget.writeJani(out, 3);
+					out.println(",");
+				}
 				out.print(tabs + "\t\t\"exp\": ");
-				if (time_cumulative_reward != null)
-					time_cumulative_reward.writeJani(out, indent + 3);
+				if (timeCumulativeReward != null)
+					timeCumulativeReward.writeJani(out, indent + 3);
 				else
-					transient_reward.writeJani(out, indent + 3);
+					transientReward.writeJani(out, indent + 3);
 				out.println();
 				break;
 		}

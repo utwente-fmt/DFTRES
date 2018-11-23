@@ -2,8 +2,10 @@ package nl.utwente.ewi.fmt.EXPRES.expression;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import models.StateSpace;
 
 public abstract class Expression
 {
@@ -20,6 +22,15 @@ public abstract class Expression
 	}
 
 	public abstract Number evaluate(Map<String, ? extends Number> valuation);
+	public Number evaluate(StateSpace s, int state) {
+		HashMap<String, Number> vals = new HashMap<>();
+		for (String v : getReferencedVariables()) {
+			Number val = s.getVarValue(v, state);
+			if (val != null)
+				vals.put(v, val);
+		}
+		return evaluate(vals);
+	}
 
 	public static Expression fromJani(Object o)
 	{
@@ -30,5 +41,6 @@ public abstract class Expression
 		throw new UnsupportedOperationException("Expression: " + o);
 	}
 
+	public abstract String toString();
 	public abstract void writeJani(PrintStream out, int indent);
 }

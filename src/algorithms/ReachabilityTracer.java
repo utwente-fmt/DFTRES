@@ -126,13 +126,13 @@ public class ReachabilityTracer extends TraceGenerator
 				time += drawDelta(prop.timeBound - time);
 			}
 			likelihood *= likelihood();
-		} while(!model.isRed(state) && !model.isBlue(state)
+		} while(!prop.isRed(model, state) && !prop.isBlue(model, state)
 			&& !isDeadlocked()
 		        && time < prop.timeBound
 		        && likelihood > 0);
 
 		N++;
-		if(time < prop.timeBound && model.isRed(state)) {
+		if(time < prop.timeBound && prop.isRed(model, state)) {
 			M++;
 			double prob = 1;
 			if (path != null)

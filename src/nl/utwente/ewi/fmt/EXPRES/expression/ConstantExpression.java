@@ -6,6 +6,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import models.StateSpace;
+
 public class ConstantExpression extends Expression
 {
 	public final Number value;
@@ -20,5 +22,29 @@ public class ConstantExpression extends Expression
 
 	public void writeJani(PrintStream out, int indent) {
 		out.print(value);
+	}
+
+	public int hashCode() {
+		return Long.hashCode(value.longValue());
+	}
+
+	public boolean equals(Object other) {
+		if (!(other instanceof Expression))
+			return false;
+		Expression expr = (Expression)other;
+		if (!expr.getReferencedVariables().isEmpty())
+			return false;
+		Number otherV = expr.evaluate(Map.of());
+		if (otherV.doubleValue() != value.doubleValue())
+			return false;
+		return otherV.longValue() == value.longValue();
+	}
+
+	public Number evaluate(StateSpace s, int state) {
+		return value;
+	}
+
+	public String toString() {
+		return value.toString();
 	}
 }
