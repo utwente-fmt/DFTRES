@@ -357,6 +357,7 @@ public class Composition implements MarkableLTS
 		}
 		TreeMap<String, Integer> mins = new TreeMap<>();
 		TreeMap<String, Integer> maxs = new TreeMap<>();
+		TreeSet<String> unspecifieds = new TreeSet<>();
 		for (Map.Entry<String, int[]> e : globalVars.entrySet()) {
 			mins.put(e.getKey(), e.getValue()[2]);
 			maxs.put(e.getKey(), e.getValue()[2]);
@@ -370,6 +371,10 @@ public class Composition implements MarkableLTS
 						String v = e.getKey();
 						Expression exp = e.getValue();
 						Number eval = exp.evaluate(Map.of());
+						if (eval == null) {
+							unspecifieds.add(v);
+							continue;
+						}
 						int val = eval.intValue();
 						Integer cMin = mins.get(v);
 						if (cMin == null || val < cMin)
@@ -387,6 +392,10 @@ public class Composition implements MarkableLTS
 			Integer min = mins.get(v);
 			Integer max = maxs.get(v);
 			int[] data = globalVars.get(v);
+			if (unspecifieds.contains(v)) {
+				min = data[3];
+				max = data[1];
+			}
 			data[3] = min;
 			long range = max;
 			range -= min;
@@ -457,6 +466,11 @@ public class Composition implements MarkableLTS
 			int val = exp.evaluate(getVarValues(state)).intValue();
 			int vData[] = globalVars.get(name);
 			val -= vData[2]; /* Remove lower bound */
+			if (val < 0)
+				throw new IllegalArgumentException("Value " + exp.evaluate(getVarValues(state)).intValue() + " below lower bound (" + vData[2] + ") of variable " + name);
+			int max = 1 << (vData[1] - vData[0]);
+			if (val > max)
+				throw new IllegalArgumentException("Value " + exp.evaluate(getVarValues(state)).intValue() + " exceeds upper bound of variable " + name);
 			int origVals = state[state.length - 1];
 			val <<= vData[0];
 			int mask = -1;
@@ -1074,18 +1088,29 @@ public class Composition implements MarkableLTS
 					throw new IllegalArgumentException("Unexpected type of variable name: Expected string, found " + vo.toString());
 				String name = (String)no;
 				Object to = vm.get("type");
-				int lowerBound = JaniUtils.typeLowerBound(to);
+				int[] bounds = JaniUtils.typeBounds(to);
 				Object io = vm.get("initial-value");
 				long initial = 0;
 				initial = JaniUtils.getConstantLong(io, constants);
 				if (initial < Integer.MIN_VALUE || initial > Integer.MAX_VALUE)
 					throw new IllegalArgumentException("Initial value of variable '" + name + "' exceeds 32 bits.");
-				int[] vals = new int[]{0,0,(int)initial, lowerBound};
+				if (initial < bounds[0])
+					bounds[0] = (int)initial;
+				if (initial > bounds[1])
+					bounds[1] = (int)initial;
+				int[] vals = new int[]{0,bounds[1],(int)initial, bounds[0]};
 				globalVars.put(name, vals);
 			}
 		}
-		if (root.get("restrict-initial") != null)
-			throw new IllegalArgumentException("Explicit initial states currently not supported.");
+		if (root.get("restrict-initial") != null) {
+			Object iO = root.get("restrict-initial");
+			if (!(iO instanceof Map))
+				throw new IllegalArgumentException("Unexpected JSON type of 'restrict-initial': Expected Object, found " + iO);
+			Map restrict = (Map)iO;
+			iO = restrict.get("exp");
+			if (iO != Boolean.TRUE)
+				throw new IllegalArgumentException("Explicit initial states currently not supported.");
+		}
 		Object autos = root.get("automata");
 		if (!(autos instanceof Object[])) {
 			throw new IllegalArgumentException("Unexpected JSON type of 'automata': Expected array, found " + autos);

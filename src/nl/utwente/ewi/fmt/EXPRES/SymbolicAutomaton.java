@@ -54,7 +54,7 @@ public class SymbolicAutomaton implements LTS {
 				 * states lower bound, we just want to
 				 * validate the type.
 				 */
-				JaniUtils.typeLowerBound(to);
+				JaniUtils.typeBounds(to);
 				Object io = vm.get("initial-value");
 				long initial = 0;
 				initial = JaniUtils.getConstantLong(io, constants);

@@ -2,6 +2,9 @@ package nl.utwente.ewi.fmt.EXPRES;
 import java.util.Map;
 
 class JaniUtils {
+	public static final int DEFAULT_INT_BITS = 7;
+	public static final int DEFAULT_INT_MIN = 0;
+	public static final int DEFAULT_INT_MAX = (1 << DEFAULT_INT_BITS) - 1;
 	public static double getConstantDouble(Object exp,
 	                                       Map<String, Number> constants)
 	{
@@ -48,13 +51,14 @@ class JaniUtils {
 		}
 	}
 
-	public static int typeLowerBound(Object t)
+	public static int[] typeBounds(Object t)
 	{
 		if ("bool".equals(t))
-			return 0;
+			return new int[]{0, 1};
 		if ("int".equals(t))
-			return 0;
+			return new int[]{DEFAULT_INT_MIN, DEFAULT_INT_MAX};
 		if (t instanceof Map) {
+			int ret[] = new int[]{DEFAULT_INT_MIN, DEFAULT_INT_MAX};
 			Map tm = (Map)t;
 			Object base = tm.get("base");
 			if (!"int".equals(base))
@@ -66,10 +70,17 @@ class JaniUtils {
 				long l = (Long) lb;
 				if (l < Integer.MIN_VALUE || l > Integer.MAX_VALUE)
 					throw new IllegalArgumentException("Type bound should fit in 32 bits.");
-				return (int)l;
+				ret[0] = (int)l;
 			}
+			Object ub = tm.get("upper-bound");
+			if (ub instanceof Long) {
+				long u = (Long) ub;
+				if (u < Integer.MIN_VALUE || u > Integer.MAX_VALUE)
+					throw new IllegalArgumentException("Type bound should fit in 32 bits.");
+				ret[1] = (int)u;
+			}
+			return ret;
 		}
 		throw new IllegalArgumentException("Type " + t.toString() + " is not supported.");
 	}
-
 }
