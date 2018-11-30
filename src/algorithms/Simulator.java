@@ -50,8 +50,9 @@ public class Simulator {
 			secsLeft -= minsLeft * 60;
 			int hoursLeft = minsLeft / 60;
 			minsLeft -= hoursLeft * 60;
+			long mem = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
 			if (d != maxN) {
-				System.err.format (" (est. %d:%02d:%02d remaining)", hoursLeft, minsLeft, secsLeft);
+				System.err.format (" (est. %d:%02d:%02d remaining, used %d MB)", hoursLeft, minsLeft, secsLeft, mem / 1048576);
 				return false;
 			} else {
 				System.err.println("Done                     ");
