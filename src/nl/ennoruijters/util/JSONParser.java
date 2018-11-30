@@ -79,10 +79,14 @@ public class JSONParser {
 	}
 
 	private static Object[] parseArray(String bigData, int[] pos) {
-		ArrayList<Object> ret = new ArrayList<Object>();
 		pos[0]++; /* Skip the opening brace */
 		while (isWhiteSpace(bigData.charAt(pos[0])))
 			pos[0]++;
+		if (bigData.charAt(pos[0]) == ']') {
+			pos[0]++;
+			return new Object[0];
+		}
+		ArrayList<Object> ret = new ArrayList<Object>();
 		while (true) {
 			Object value = parseValue(bigData, pos);
 			ret.add(value);
@@ -177,19 +181,19 @@ public class JSONParser {
 		return ret.toString();
 	}
 
+	private static final Pattern intRegex = Pattern
+			.compile("-?(0|[123456789]\\d*)");
+	private static final Pattern numberRegex = Pattern
+			.compile("-?(0|[123456789]\\d*)(\\.\\d+)?([eE][+-]\\d+)?");
 	private static Number parseNumber(String bigData, int[] pos) {
-		Pattern p = Pattern
-				.compile("^-?(0|[123456789]\\d*)(\\.\\d+)?([eE][+-]\\d+)?");
-		Matcher m = p.matcher(bigData.substring(pos[0]));
-		if (!m.lookingAt())
-			throw new IllegalArgumentException("Not JSON (Number): " + bigData);
+		Matcher m = numberRegex.matcher(bigData);
+		if (!m.find(pos[0]) || m.start() != pos[0])
+			throw new IllegalArgumentException("Not JSON (Number, " + m.find(pos[0]) + "): " + bigData.substring(pos[0]));
 		String nr = m.group();
-		pos[0] += m.end();
-		while (isWhiteSpace(bigData.charAt(pos[0])))
-			pos[0]++;
+		pos[0] = m.end();
+
 		/* See if it's a simple integer */
-		p = Pattern.compile("^-?(0|[123456789]\\d*)");
-		m = p.matcher(nr);
+		m = intRegex.matcher(nr);
 		if (m.matches()) {
 			try {
 				return Long.valueOf(nr);
@@ -211,7 +215,11 @@ public class JSONParser {
 	}
 
 	private static Object parseValue(String bigData, int[] pos) {
-		String data = bigData.substring(pos[0]);
+		String data;
+		if (bigData.length() - pos[0] > 5)
+			data = bigData.substring(pos[0], pos[0] + 5);
+		else
+			data = bigData.substring(pos[0]);
 		if (data.startsWith("false")) {
 			pos[0] += 5;
 			return Boolean.valueOf(false);
@@ -222,12 +230,16 @@ public class JSONParser {
 			pos[0] += 4;
 			return null;
 		} else if (data.startsWith("{")) {
+			data = null;
 			return parseObject(bigData, pos);
 		} else if (data.startsWith("[")) {
+			data = null;
 			return parseArray(bigData, pos);
 		} else if (data.startsWith("\"")) {
+			data = null;
 			return parseString(bigData, pos);
 		} else {
+			data = null;
 			return parseNumber(bigData, pos);
 		}
 	}
