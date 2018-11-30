@@ -163,8 +163,8 @@ public class Property implements Comparable<Property>
 				break;
 			case REACHABILITY:
 				out.println("Pmax\",");
-				out.print(tabs + "\t\t\"exp\":{\"op\":\"F\", \"exp\":");
-				reachTarget.writeJani(out, 3);
+				out.print(tabs + "\t\t\"exp\":{\"op\":\"U\", \"left\":true, \"right\":");
+				reachTarget.booleanExpression().writeJani(out, 3);
 				if (Double.isFinite(timeBound))
 					out.print(", \"time-bounds\":{\"upper\":" + timeBound + "}");
 				out.println("}");
@@ -177,7 +177,7 @@ public class Property implements Comparable<Property>
 					out.println(tabs + "\t\t\"time-instant\": " + timeBound + ",");
 				if (reachTarget != null) {
 					out.print(tabs + "\t\t\"reach\":");
-					reachTarget.writeJani(out, 3);
+					reachTarget.booleanExpression().writeJani(out, 3);
 					out.println(",");
 				}
 				out.print(tabs + "\t\t\"exp\": ");

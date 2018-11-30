@@ -43,6 +43,14 @@ public abstract class Expression
 		throw new UnsupportedOperationException("Expression: " + o);
 	}
 
+	public Expression booleanExpression()
+	{
+		return new BinaryExpression(
+				BinaryExpression.Operator.NOT_EQUALS,
+				this,
+				new ConstantExpression(0));
+	}
+
 	public abstract int hashCode();
 	public abstract boolean equals(Object other);
 	public abstract String toString();
