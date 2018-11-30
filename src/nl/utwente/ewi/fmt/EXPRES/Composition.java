@@ -29,6 +29,7 @@ public class Composition implements MarkableLTS
 	private TreeSet<String> hideLabels;
 	private TreeMap<String, Integer> markLabels;
 	private TreeMap<String, int[]> globalVars; /* Argument: lower bit, upper bit (both inclusive), initial value, lower bound */
+	private TreeMap<String, Expression> transientGlobals; /* Maps the variable name to its initial value. */
 	/* From a partial state to the targets of the needed automata */
 	private LinkedHashMap<PartialState, int[]> transitionCache;
 	private int[] noTransitionPossible = new int[0];
@@ -499,6 +500,7 @@ public class Composition implements MarkableLTS
 					int[] target = Arrays.copyOf(from, from.length);
 					target[i] = automata[i].getTransitionTarget(from[i], j);
 					Map<String, Expression> assigns = automata[i].getAssignments(from[i], j);
+					doAssigns(target, transientGlobals);
 					if (assigns != null)
 						doAssigns(target, assigns);
 					ret.add(new LTS.Transition(l, target, ConstantExpression.TRUE, Map.of()));
@@ -533,7 +535,7 @@ public class Composition implements MarkableLTS
 				continue;
 				*/
 			int[] target;
-			TreeMap<String, Expression> assigns = new TreeMap<>();
+			TreeMap<String, Expression> assigns = new TreeMap<>(transientGlobals);
 
 			for (j = needed.length - 1; j >= 0; j--)
 			{
@@ -758,6 +760,9 @@ public class Composition implements MarkableLTS
 				int[] data = globalVars.get(var);
 				int uBound = data[3] + (1 << (data[1] - data[0])) - 1;
 				out.print("\t{\"name\":\"" + var + "\", "
+					+ (transientGlobals.containsKey(var)
+				               ? "\"transient\": true, "
+					       : "")
 					+ "\"type\":{\"base\":\"int\", "
 					+ "\"kind\":\"bounded\", "
 					+ "\"lower-bound\":" + data[3] + ", "
@@ -1028,6 +1033,7 @@ public class Composition implements MarkableLTS
 			throws IOException
 	{
 		globalVars = new TreeMap<>();
+		transientGlobals = new TreeMap<>();
 		Object jani = JSONParser.readJsonFromFile(filename);
 		if (!(jani instanceof Map))
 			throw new IllegalArgumentException("JANI file root is not an object.");
@@ -1099,6 +1105,8 @@ public class Composition implements MarkableLTS
 				if (initial > bounds[1])
 					bounds[1] = (int)initial;
 				int[] vals = new int[]{0,bounds[1],(int)initial, bounds[0]};
+				if (vm.get("transient") == Boolean.TRUE)
+					transientGlobals.put(name, new ConstantExpression(initial));
 				globalVars.put(name, vals);
 			}
 		}

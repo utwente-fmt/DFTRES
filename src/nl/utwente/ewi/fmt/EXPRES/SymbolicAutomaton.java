@@ -32,6 +32,8 @@ public class SymbolicAutomaton implements LTS {
 	 */
 	private SymbolicAutomaton(Map janiData, Map<String, Number> constants)
 	{
+		HashMap<Integer, HashMap<String, Expression>> transients;
+		transients = new HashMap<>();
 		Object variables = janiData.get("variables");
 		HashMap<String, Integer> initValues = new HashMap<>();
 		if (variables != null) {
@@ -78,9 +80,28 @@ public class SymbolicAutomaton implements LTS {
 				throw new IllegalArgumentException("Unnamed location");
 			String name = ldata.get("name").toString();
 			if (ldata.containsKey("time-progress"))
-				throw new IllegalArgumentException("Locations with time progress conditions are not supported.");
-			if (ldata.containsKey("transient-values"))
-				throw new IllegalArgumentException("Transient values not supported.");
+				throw new UnsupportedOperationException("Locations with time progress conditions are not supported.");
+			Object tO = ldata.get("transient-values");
+			HashMap<String, Expression> transs = null;
+			if (tO != null) {
+				if (!(tO instanceof Object[]))
+					throw new IllegalArgumentException("Transient-values should be an array, not: " + tO);
+				Object[] tvs = (Object[]) tO;
+				if (tvs.length > 0)
+					transs = new HashMap<>();
+				for (Object tvO : tvs) {
+					if (!(tvO instanceof Map))
+						throw new IllegalArgumentException("Transient-value should be an Object, not: " + tvO);
+					Map tv = (Map)tvO;
+					Object rO = tv.get("ref");
+					if (!(rO instanceof String))
+						throw new IllegalArgumentException("Non-identifier transient value ref: " + rO);
+					String ref = (String)rO;
+					Expression value = Expression.fromJani(tv.get("value"));
+					transs.put(ref, value);
+				}
+			}
+			transients.put(locations.size(), transs);
 			locations.put(name, locations.size());
 		}
 		labels = new String[locations.size()][0];
@@ -175,7 +196,12 @@ public class SymbolicAutomaton implements LTS {
 			if (!(assignO instanceof Object[]))
 				throw new IllegalArgumentException("Assignments shoud be array, not: " + assignO);
 			Object[] assignments = (Object[])assignO;
-			HashMap<String, Expression> assignMap = new HashMap<>();
+			HashMap<String, Expression> ts = transients.get(target);
+			HashMap<String, Expression> assignMap;
+			if (ts == null)
+				assignMap = new HashMap<>();
+			else
+				assignMap = new HashMap<>(ts);
 			for (Object assO : assignments) {
 				if (!(assO instanceof Map))
 					throw new IllegalArgumentException("Assignment should be JSON object, not: " + assO);
