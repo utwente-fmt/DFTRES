@@ -497,6 +497,9 @@ public class Composition implements MarkableLTS
 				if (l == null)
 					break;
 				if (l.startsWith("rate ")) {
+					Expression g = automata[i].getTransitionGuard(from[i], j);
+					if (g != null && g.evaluate(getVarValues(from)).doubleValue() == 0)
+						continue;
 					int[] target = Arrays.copyOf(from, from.length);
 					target[i] = automata[i].getTransitionTarget(from[i], j);
 					Map<String, Expression> assigns = automata[i].getAssignments(from[i], j);
@@ -541,14 +544,25 @@ public class Composition implements MarkableLTS
 			{
 				Automaton a = automata[needed[j]];
 				int origin = from[needed[j]];
-				t[j] = a.getTargetFor(origin, neededL[j]);
+				int k = a.getTransitionNum(origin, neededL[j]);
+				t[j] = a.getTransitionTarget(origin, k);
 				if (t[j] < 0) {
 					rejCache[2*i] = needed[j];
 					rejCache[2*i+1] = from[needed[j]];
 					//System.err.println("Rejecting transition " + synchronizedLabels[i] + ": need " + neededL[j] + " at " + needed[j]);
 					break;
 				}
-				Map<String, Expression> as = a.getAssignmentsFor(origin, neededL[j]);
+				Expression g = a.getTransitionGuard(origin, k);
+				if (g != null) {
+					Number v = g.evaluate(getVarValues(from));
+					/* Don't cache since the cache
+					 * doesn't include global
+					 * variable values.
+					 */
+					if (v.doubleValue() != 0)
+						break;
+				}
+				Map<String, Expression> as = a.getAssignments(origin, k);
 				if (as != null)
 					assigns.putAll(as);
 			}
@@ -581,132 +595,6 @@ public class Composition implements MarkableLTS
 		}
 
 		return ret;
-	}
-
-	/** Return the result of performing all currently enabled
-	 * forced transitions. These are transitions with with following
-	 * properties:
-	 *
-	 * - Non-Markovian
-	 * - All automata involved have no other non-Markovian outgoing
-	 *   transitions.
-	 * - The automata cannot (in their current state) be involved in
-	 *   any other synchronized transitions.
-	 *
-	 * These conditions imply that any Markovian state reachable
-	 * from the current state, is also reachable from the returned
-	 * state.
-	 */
-	public int[] performForcedTransitions(int[] from)
-	{
-		int ret[] = from.clone();
-		int target[] = from.clone();
-
-		//System.err.format("Checking for forced transitions from %s\n", Arrays.toString(from));
-		for (int i = 0; i < vectorAutomata.length; i++) {
-			if (!possibleForcedTransitions[i])
-				continue;
-			int[] needed = vectorAutomata[i];
-			String[] neededL = vectorLabels[i];
-			int j;
-
-			for (j = needed.length - 1; j >= 0; j--) {
-				Automaton a = automata[needed[j]];
-				int origin = ret[needed[j]];
-				/* We require that the transition is enabled in this
-				 * automaton, and is the only enabled non-Markovian transition
-				 * in the automaton.
-				 */
-				int n = 0;
-				String label;
-				target[j] = -1;
-				while ((label = a.getTransitionLabel(origin, n)) != null) {
-					if (!label.startsWith("rate ")) {
-						if (label.equals(neededL[j]) && target[j] == -1) {
-							target[j] = a.getTransitionTarget(origin, n);
-						} else {
-							//System.err.format("Rejecting transition %d for %s from %d (need %s), target was %d\n", i, label, needed[j], neededL[j], target[j]);
-							target[j] = -1;
-							break;
-						}
-					}
-					n++;
-				}
-				if (target[j] == -1)
-					break;
-			}
-			if (j >= 0) {
-				/* Not a valid forced transition */
-				continue;
-			}
-
-			/* We have found a forced transition. */
-			for (int s : needed)
-				ret[s] = target[s];
-
-			Integer m;
-			m = markLabels.get(synchronizedLabels[i]);
-			if (m != null)
-				ret[automata.length] = m;
-		}
-		if (Arrays.equals(ret, from)) {
-			//System.err.println("No forced transitions");
-			return from;
-		}
-		//System.err.format("Forced transition(s) to %s\n", Arrays.toString(ret));
-		return ret;
-	}
-
-	/** Obtain one long non-Markovian transition that composes
-	 * several independent transitions.
-	 */
-	public int[] getBigTransition(int[] from)
-	{
-		int state[] = Arrays.copyOf(from, from.length);
-		int t[] = new int[automata.length];
-
-		for (int i = 0; i < vectorAutomata.length; i++) {
-			int[] needed = vectorAutomata[i];
-			String[] neededL = vectorLabels[i];
-			int j;
-
-			for (j = needed.length - 1; j >= 0; j--)
-			{
-				Automaton a = automata[needed[j]];
-				int origin = state[needed[j]];
-				int k = -1;
-				String label;
-				t[j] = -1;
-				do {
-					k++;
-					label = a.getTransitionLabel(origin, k);
-					if (neededL[j].equals(label)) {
-						if (t[j] >= 0) {
-							System.err.format("Internal nondeterminism found is automaton %d label %s from state %d, spurious cycles may occur.\n", needed[j], label, origin);
-						}
-						t[j] = a.getTransitionTarget(origin, k);
-					}
-				} while (label != null);
-				if (t[j] < 0)
-					break;
-			}
-			if (j >= 0)
-				continue;
-
-			/* Transition possible, we assume no internal
-			 * nondeterminism.
-			 */
-
-			Integer m;
-			m = markLabels.get(synchronizedLabels[i]);
-			if (m != null)
-				state[automata.length] = m;
-			for (j = 0; j < needed.length; j++) {
-				state[needed[j]] = t[j];
-			}
-		}
-
-		return state;
 	}
 
 	public void printAutomata()

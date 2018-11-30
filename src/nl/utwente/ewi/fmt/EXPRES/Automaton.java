@@ -24,6 +24,7 @@ public class Automaton implements LTS {
 	 * transition. */
 	private int targets[][];
 	private String labels[][];
+	private Expression guards[][];
 	private Map<String, Expression> assignments[][];
 	private HashMap<String, Integer> transitions[];
 	private final static boolean VERBOSE = false;
@@ -85,10 +86,24 @@ public class Automaton implements LTS {
 				targets[num][i] = tgtNum;
 				labels[num][i] = t.label;
 				Expression guard = t.guard;
-				if (guard.evaluate(Map.of()) == null)
-					throw new UnsupportedOperationException("Guard cannot be evaluated locally.");
-				if (guard.evaluate(Map.of()).doubleValue() == 0)
-					throw new IllegalArgumentException("Symbolic automaton returned transition with FALSE guard.");
+				try {
+					guard.evaluate(Map.of());
+				} catch (IllegalArgumentException e) {
+					System.err.println("Error evaluating: " + guard);
+					throw e;
+				}
+				if (guard.evaluate(Map.of()) != null) {
+					if (guard.evaluate(Map.of()).doubleValue() == 0)
+						throw new IllegalArgumentException("Symbolic automaton returned transition with FALSE guard.");
+				} else {
+					if (guards == null)
+						guards = new Expression[num][];
+					if (guards.length <= num)
+						guards = Arrays.copyOf(guards, num + 1);
+					if (guards[num] == null)
+						guards[num] = new Expression[ts.size()];
+					guards[num][i] = t.guard;
+				}
 				assignments[num][i] = t.assignments;
 				i++;
 			}
@@ -102,7 +117,7 @@ public class Automaton implements LTS {
 				if (transitions[i].containsKey(labels[i][j])) {
 					System.err.format("Warning: internal nondeterminism currently not supported (Transition %s in state %d).\n", labels[i][j], i);
 				}
-				transitions[i].put(labels[i][j], targets[i][j]);
+				transitions[i].put(labels[i][j], j);
 			}
 		}
 		initState = 0;
@@ -203,11 +218,10 @@ public class Automaton implements LTS {
 					if (transitions[i].containsKey(labels[i][j])) {
 						System.err.println("Warning: internal nondeterminism currently not supported.");
 					}
-					transitions[i].put(labels[i][j], targets[i][j]);
+					transitions[i].put(labels[i][j], j);
 				}
 			}
 		}
-
 	}
 
 	private int readBcg(String filename) throws IOException
@@ -280,7 +294,7 @@ public class Automaton implements LTS {
 				if (transitions[i].containsKey(labels[i][j])) {
 					System.err.format("Warning: internal nondeterminism currently not supported (Transition %s in state %d).\n", labels[i][j], i);
 				}
-				transitions[i].put(labels[i][j], targets[i][j]);
+				transitions[i].put(labels[i][j], j);
 			}
 		}
 		return ret;
@@ -298,7 +312,7 @@ public class Automaton implements LTS {
 	}
 
 	/**
-	 * @return The target of the n'th transition from state 'from',
+	 * @return The label of the n'th transition from state 'from',
 	 * or null if 'from' has fewer than n transitions.
 	 */
 	public String getTransitionLabel(int from, int n)
@@ -309,10 +323,23 @@ public class Automaton implements LTS {
 	}
 
 	/**
-	 * @return The target of the names transition, or -1 if no such
+	 * @return The guard of the n'th transition from state 'from',
+	 * or null if 'from' has fewer than n transitions.
+	 */
+	public Expression getTransitionGuard(int from, int n)
+	{
+		if (guards == null || guards.length <= from)
+			return null;
+		if (guards[from].length <= n)
+			return null;
+		return guards[from][n];
+	}
+
+	/**
+	 * @return The number of the named transition, or -1 if no such
 	 * transition exists.
 	 */
-	public int getTargetFor(int from, String transition)
+	public int getTransitionNum(int from, String transition)
 	{
 		Integer r = transitions[from].get(transition);
 		if (r == null)
@@ -327,15 +354,6 @@ public class Automaton implements LTS {
 		if (assignments[from].length <= n)
 			return null;
 		return assignments[from][n];
-	}
-
-	public Map<String, Expression> getAssignmentsFor(int from, String act)
-	{
-		for (int i = 0; i < labels[from].length; i++) {
-			if (labels[from][i].equals(act))
-				return getAssignments(from, i);
-		}
-		return null;
 	}
 
 	public Map<String, Integer> getVarValues(int[] state)

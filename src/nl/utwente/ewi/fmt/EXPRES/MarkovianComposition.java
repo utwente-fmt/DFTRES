@@ -69,9 +69,7 @@ public class MarkovianComposition extends Composition
 			TreeSet<int[]> visited)
 	{
 		visited.add(from);
-		int[] farForward = original.getBigTransition(from);
-		visited.add(farForward);
-		Set<Transition> orig = original.getTransitions(farForward);
+		Set<Transition> orig = original.getTransitions(from);
 		//System.err.format("Original transitions from %s: %s\n", Arrays.toString(from), orig);
 		Set<Transition> reduced = new TreeSet<Transition>();
 		for (Transition t : orig) {
