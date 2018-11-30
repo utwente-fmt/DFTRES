@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.Set;
 import models.StateSpace;
 
+import nl.utwente.ewi.fmt.EXPRES.expression.BinaryExpression.Operator;
+
 public abstract class Expression
 {
 	/** Get the set of variables that must be included in the
@@ -40,6 +42,29 @@ public abstract class Expression
 			return new VariableExpression((String)o);
 		if (o instanceof Boolean)
 			return new ConstantExpression(((Boolean)o) ? 1 : 0);
+		if (o instanceof Map) {
+			Map e = (Map)o;
+			Object op = e.get("op");
+			Object l = e.get("left");
+			Object r = e.get("right");
+			Object exp = e.get("exp");
+			if (!(op instanceof String))
+				throw new IllegalArgumentException("Operator: " + op + " in " + o + " should be string");
+			for (Operator cand : Operator.values()) {
+				if (cand.symbol.equals(op)) {
+					return new BinaryExpression(
+						cand,
+						Expression.fromJani(l),
+						Expression.fromJani(r));
+				}
+			}
+			if ("¬".equals(op)) {
+				return new BinaryExpression(
+						Operator.XOR,
+						new ConstantExpression(1),
+						Expression.fromJani(exp));
+			}
+		}
 		throw new UnsupportedOperationException("Expression: " + o);
 	}
 

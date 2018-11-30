@@ -13,7 +13,16 @@ public class BinaryExpression extends Expression
 {
 	public static enum Operator {
 	       EQUALS("=", true),
-	       NOT_EQUALS("≠", true)
+	       NOT_EQUALS("≠", true),
+	       LESS("<", true),
+	       LESS_OR_EQUAL("≤", true),
+	       GREATER("<", true),
+	       GREATER_OR_EQUAL("≥", true),
+	       AND("∧", true),
+	       OR("∨", true),
+	       XOR("xor", true),
+	       ADD("+", false),
+	       SUBTRACT("-", false),
 		       ;
 
 	       public final String symbol;
@@ -42,25 +51,94 @@ public class BinaryExpression extends Expression
 		return variables;
 	}
 
+	private static long checkedInteger(Number v)
+	{
+		if ((v instanceof Long) || (v instanceof Integer))
+			return v.longValue();
+		throw new IllegalArgumentException("Expected integer type, found : " + v);
+	}
+
 	public Number evaluate(Map<String, ? extends Number> valuation) {
 		Number l = left.evaluate(valuation);
 		Number r = right.evaluate(valuation);
+		Number vL = null, vR = null;
+		if (l != null && (l instanceof Long || l instanceof Integer))
+			vL = l;
+		if (r != null && (r instanceof Long || r instanceof Integer))
+			vR = r;
+		Boolean boolL = null, boolR = null;
+		if (l != null)
+			boolL = l.doubleValue() != 0;
+		if (r != null)
+			boolR = r.doubleValue() != 0;
+
+		Boolean bRet = null;
 		switch (op) {
 			case EQUALS:
-				if (l.longValue() != r.longValue())
-					return 0;
-				if (l.doubleValue() != r.doubleValue())
-					return 0;
-				return 1;
+				if (vL == null || vR == null)
+					return null;
+				bRet = vL.longValue() == vR.longValue();
+				break;
 			case NOT_EQUALS:
-				if (l.longValue() != r.longValue())
-					return 1;
-				if (l.doubleValue() != r.doubleValue())
-					return 1;
-				return 0;
+				if (vL == null || vR == null)
+					return null;
+				bRet = vL.longValue() != vR.longValue();
+				break;
+			case LESS:
+				if (vL == null || vR == null)
+					return null;
+				bRet = vL.longValue() < vR.longValue();
+				break;
+			case LESS_OR_EQUAL:
+				if (vL == null || vR == null)
+					return null;
+				bRet = vL.longValue() <= vR.longValue();
+				break;
+			case GREATER:
+				if (vL == null || vR == null)
+					return null;
+				bRet = vL.longValue() > vR.longValue();
+				break;
+			case GREATER_OR_EQUAL:
+				if (vL == null || vR == null)
+					return null;
+				bRet = vL.longValue() >= vR.longValue();
+				break;
+			case ADD:
+				if (vL == null || vR == null)
+					return null;
+				return vL.longValue() + vR.longValue();
+			case SUBTRACT:
+				if (vL == null || vR == null)
+					return null;
+				return vL.longValue() - vR.longValue();
+			case AND:
+				if (boolL == null && vR == null)
+					return null;
+				if (boolL == null)
+					return boolR ? null : 0;
+				if (boolR == null)
+					return boolL ? null : 0;
+				bRet = boolL && boolR;
+				break;
+			case OR:
+				if (boolL == null && boolR == null)
+					return null;
+				if (boolL == null)
+					return boolR ? 1 : null;
+				if (boolR == null)
+					return boolL ? 1 : null;
+				bRet = boolL || boolR;
+				break;
+			case XOR:
+				if (boolL == null || boolR == null)
+					return null;
+				bRet = boolR ^ boolR;
+				break;
 			default:
 				throw new UnsupportedOperationException("Unknown operator: " + op.symbol);
 		}
+		return bRet ? 1 : 0;
 	}
 
 	public void writeJani(PrintStream out, int indent) {
@@ -102,5 +180,40 @@ public class BinaryExpression extends Expression
 		if (op.returnsBoolean)
 			return this;
 		return super.booleanExpression();
+	}
+
+	public Expression simplify(Map<String, ? extends Number> valuation) {
+		Number maybeConstant = evaluate(valuation);
+		if (maybeConstant != null)
+			return new ConstantExpression(maybeConstant);
+		Number constL = left.evaluate(valuation);
+		Number constR = right.evaluate(valuation);
+		Expression simplerL = left.simplify(valuation);
+		Expression simplerR = right.simplify(valuation);
+		if (constL != null || constR != null) {
+			switch (op) {
+			case AND:
+				if (constL != null && constL.doubleValue() == 0)
+					return new ConstantExpression(0);
+				if (constR != null && constR.doubleValue() == 0)
+					return new ConstantExpression(0);
+				break;
+			case OR:
+				if (constL != null && constL.doubleValue() != 0)
+					return new ConstantExpression(1);
+				if (constR != null && constR.doubleValue() != 0)
+					return new ConstantExpression(1);
+				break;
+			case NOT_EQUALS:
+				if (constL != null && constL.doubleValue() == 0)
+					return simplerR;
+				if (constR != null && constR.doubleValue() == 0)
+					return simplerL;
+				break;
+			}
+		}
+		if (simplerL != left || simplerR != right)
+			return new BinaryExpression(op, simplerL, simplerR);
+		return this;
 	}
 }
