@@ -38,9 +38,13 @@ public abstract class Expression
 			return new ConstantExpression((Number)o);
 		if (o instanceof String)
 			return new VariableExpression((String)o);
+		if (o instanceof Boolean)
+			return new ConstantExpression(((Boolean)o) ? 1 : 0);
 		throw new UnsupportedOperationException("Expression: " + o);
 	}
 
+	public abstract int hashCode();
+	public abstract boolean equals(Object other);
 	public abstract String toString();
 	public abstract void writeJani(PrintStream out, int indent);
 }

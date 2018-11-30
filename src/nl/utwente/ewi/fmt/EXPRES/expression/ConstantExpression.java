@@ -10,6 +10,8 @@ import models.StateSpace;
 
 public class ConstantExpression extends Expression
 {
+	public final static ConstantExpression TRUE = new ConstantExpression(1);
+	public final static ConstantExpression FALSE = new ConstantExpression(0);
 	public final Number value;
 
 	public ConstantExpression(Number val) {

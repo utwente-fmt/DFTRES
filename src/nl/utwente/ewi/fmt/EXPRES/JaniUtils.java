@@ -47,4 +47,29 @@ class JaniUtils {
 			throw new UnsupportedOperationException("Expected constant integer literal, found: " + exp);
 		}
 	}
+
+	public static int typeLowerBound(Object t)
+	{
+		if ("bool".equals(t))
+			return 0;
+		if ("int".equals(t))
+			return 0;
+		if (t instanceof Map) {
+			Map tm = (Map)t;
+			Object base = tm.get("base");
+			if (!"int".equals(base))
+				throw new IllegalArgumentException(base.toString() + " type variables are currently not supported.");
+			if (!"bounded".equals(tm.get("kind")))
+				throw new IllegalArgumentException("Bounded type without 'bounded' kind not supported.");
+			Object lb = tm.get("lower-bound");
+			if (lb instanceof Long) {
+				long l = (Long) lb;
+				if (l < Integer.MIN_VALUE || l > Integer.MAX_VALUE)
+					throw new IllegalArgumentException("Type bound should fit in 32 bits.");
+				return (int)l;
+			}
+		}
+		throw new IllegalArgumentException("Type " + t.toString() + " is not supported.");
+	}
+
 }

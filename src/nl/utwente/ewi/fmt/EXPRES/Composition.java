@@ -15,6 +15,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.LinkedHashMap;
 import nl.ennoruijters.util.JSONParser;
+import nl.utwente.ewi.fmt.EXPRES.expression.ConstantExpression;
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 
 public class Composition implements MarkableLTS
@@ -363,11 +364,13 @@ public class Composition implements MarkableLTS
 		for (Automaton a : automata) {
 			for (int i = a.getNumStates() - 1; i >= 0; i--) {
 				int n = 0;
-				Map<String, Integer> assigns;
+				Map<String, Expression> assigns;
 				while ( (assigns = a.getAssignments(i, n)) != null) {
-					for (Map.Entry<String, Integer> e : assigns.entrySet()) {
+					for (Map.Entry<String, Expression> e : assigns.entrySet()) {
 						String v = e.getKey();
-						Integer val = e.getValue();
+						Expression exp = e.getValue();
+						Number eval = exp.evaluate(Map.of());
+						int val = eval.intValue();
 						Integer cMin = mins.get(v);
 						if (cMin == null || val < cMin)
 							mins.put(v, val);
@@ -447,11 +450,12 @@ public class Composition implements MarkableLTS
 		return val;
 	}
 
-	private void doAssigns(int[] state, Map<String, Integer> assigns)
+	private void doAssigns(int[] state, Map<String, Expression> assigns)
 	{
-		for (Map.Entry<String, Integer> e : assigns.entrySet()) {
-			int[] vData = globalVars.get(e.getKey());
-			int val = e.getValue();
+		for (String name : assigns.keySet()) {
+			Expression exp = assigns.get(name);
+			int val = exp.evaluate(getVarValues(state)).intValue();
+			int vData[] = globalVars.get(name);
 			val -= vData[2]; /* Remove lower bound */
 			int origVals = state[state.length - 1];
 			val <<= vData[0];
@@ -480,10 +484,10 @@ public class Composition implements MarkableLTS
 				if (l.startsWith("rate ")) {
 					int[] target = Arrays.copyOf(from, from.length);
 					target[i] = automata[i].getTransitionTarget(from[i], j);
-					Map<String, Integer> assigns = automata[i].getAssignments(from[i], j);
+					Map<String, Expression> assigns = automata[i].getAssignments(from[i], j);
 					if (assigns != null)
 						doAssigns(target, assigns);
-					ret.add(new LTS.Transition(l, target));
+					ret.add(new LTS.Transition(l, target, ConstantExpression.TRUE, Map.of()));
 				}
 			}
 		}
@@ -515,7 +519,7 @@ public class Composition implements MarkableLTS
 				continue;
 				*/
 			int[] target;
-			TreeMap<String, Integer> assigns = new TreeMap<>();
+			TreeMap<String, Expression> assigns = new TreeMap<>();
 
 			for (j = needed.length - 1; j >= 0; j--)
 			{
@@ -528,7 +532,7 @@ public class Composition implements MarkableLTS
 					//System.err.println("Rejecting transition " + synchronizedLabels[i] + ": need " + neededL[j] + " at " + needed[j]);
 					break;
 				}
-				Map<String, Integer> as = a.getAssignmentsFor(origin, neededL[j]);
+				Map<String, Expression> as = a.getAssignmentsFor(origin, neededL[j]);
 				if (as != null)
 					assigns.putAll(as);
 			}
@@ -557,7 +561,7 @@ public class Composition implements MarkableLTS
 			}
 			doAssigns(target, assigns);
 			//System.err.println("Transition possible: " + synchronizedLabels[i]);
-			ret.add(new Transition(synchronizedLabels[i], target));
+			ret.add(new Transition(synchronizedLabels[i], target, ConstantExpression.TRUE, Map.of()));
 		}
 
 		return ret;
@@ -891,30 +895,6 @@ public class Composition implements MarkableLTS
 		out.println("}");
 	}
 
-	private static int typeLowerBound(Object t)
-	{
-		if ("bool".equals(t))
-			return 0;
-		if ("int".equals(t))
-			return 0;
-		if (t instanceof Map) {
-			Map tm = (Map)t;
-			Object base = tm.get("base");
-			if (!"int".equals(base))
-				throw new IllegalArgumentException(base.toString() + " type variables are currently not supported.");
-			if (!"bounded".equals(tm.get("kind")))
-				throw new IllegalArgumentException("Bounded type without 'bounded' kind not supported.");
-			Object lb = tm.get("lower-bound");
-			if (lb instanceof Long) {
-				long l = (Long) lb;
-				if (l < Integer.MIN_VALUE || l > Integer.MAX_VALUE)
-					throw new IllegalArgumentException("Type bound should fit in 32 bits.");
-				return (int)l;
-			}
-		}
-		throw new IllegalArgumentException("Type " + t.toString() + " is not supported.");
-	}
-
 	private static Property parseJaniProperty(Map prop, Map<String, Number> constants)
 	{
 		Object nameO = prop.get("name");
@@ -1094,7 +1074,7 @@ public class Composition implements MarkableLTS
 					throw new IllegalArgumentException("Unexpected type of variable name: Expected string, found " + vo.toString());
 				String name = (String)no;
 				Object to = vm.get("type");
-				int lowerBound = typeLowerBound(to);
+				int lowerBound = JaniUtils.typeLowerBound(to);
 				Object io = vm.get("initial-value");
 				long initial = 0;
 				initial = JaniUtils.getConstantLong(io, constants);

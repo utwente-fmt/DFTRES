@@ -14,7 +14,6 @@ public class MarkovReducedLTS implements LTS
 {
 	private final LTS original;
 	private final int[] initialState;
-	private final static boolean CHECK_FORCED_TRANSITIONS = false;
 	
 	public MarkovReducedLTS(LTS original)
 	{
@@ -48,23 +47,15 @@ public class MarkovReducedLTS implements LTS
 		stack.add(node);
 		data[2] = 1;
 		Set<LTS.Transition> outgoing = null;
-		if (CHECK_FORCED_TRANSITIONS && original instanceof Composition)
-		{
-			Composition comp = (Composition)original;
-			int[] tmp = node.state;
-			int forcedTarget[] = comp.performForcedTransitions(tmp);
-			if (forcedTarget != tmp) {
-				LTS.Transition t;
-				t = new LTS.Transition("forced", forcedTarget);
-				outgoing = Collections.singleton(t);
-				//System.err.format("Forced from %s to %s\n", Arrays.toString(tmp), Arrays.toString(forcedTarget));
-			}
-		}
 		if (outgoing == null)
 			outgoing = original.getTransitions(node.state);
 		for (LTS.Transition t : outgoing) {
 			if (t.label.startsWith("rate "))
 				continue;
+			if (t.guard.evaluate(getVarValues(node.state)).doubleValue() == 0)
+				continue;
+			if (!t.assignments.isEmpty())
+				throw new UnsupportedOperationException("Assignments remain in Markov reduction step.");
 			LTS.StateWrapper targ = new LTS.StateWrapper(t.target);
 			int[] nData = bookkeeping.get(targ);
 			if (nData == null) {
@@ -140,7 +131,7 @@ public class MarkovReducedLTS implements LTS
 				continue;
 			int[] endState = markovTerminal(t.target);
 			if (endState != null)
-				ret.add(new LTS.Transition(t.label, endState));
+				ret.add(new LTS.Transition(t.label, endState, null, null));
 			else
 				throw new UnsupportedOperationException("Model has not-obviously-spurious nondeterminism.");
 		}

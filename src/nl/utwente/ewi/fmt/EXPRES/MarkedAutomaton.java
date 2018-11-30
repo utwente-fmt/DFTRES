@@ -52,7 +52,7 @@ public class MarkedAutomaton implements MarkableLTS
 			Integer mark = markLabels.get(label);
 			if (mark != null)
 				t[1] = mark;
-			ret.add(new LTS.Transition(label, t));
+			ret.add(new LTS.Transition(label, t, null, null));
 			i++;
 		}
 		return ret;

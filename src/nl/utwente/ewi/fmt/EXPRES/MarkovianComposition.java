@@ -107,8 +107,13 @@ public class MarkovianComposition extends Composition
 		for (Transition s : outgoing) {
 			if (s.label.startsWith("rate "))
 				continue;
+			if (s.guard.evaluate(getVarValues(t.target)).doubleValue() == 0)
+				continue;
+			if (!s.assignments.isEmpty())
+				throw new UnsupportedOperationException("Assignments remain in Markovian composition.");
 			if (!visited.contains(s.target)) {
-				s = new Transition(t.label, s.target);
+				s = new Transition(t.label, s.target,
+				                   null, null);
 				return forward(s, visited);
 			}
 		}
