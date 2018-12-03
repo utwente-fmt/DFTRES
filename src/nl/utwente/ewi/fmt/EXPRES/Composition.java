@@ -815,7 +815,7 @@ public class Composition implements MarkableLTS
 		if (!"filter".equals(expr.get("op")))
 			throw new UnsupportedOperationException("I don't know what to do property operation '" + expr.get("op") + "'");
 		Object fun = expr.get("fun");
-		if (!("max".equals(fun) || "min".equals(fun) || "avg".equals("fun")))
+		if (!("max".equals(fun) || "min".equals(fun) || "avg".equals(fun) || "values".equals(fun)))
 			throw new UnsupportedOperationException("Unsupported property function: " + fun);
 		if (!Collections.singletonMap("op", "initial").equals(expr.get("states")))
 			throw new UnsupportedOperationException("Only properties over initial states currently supported.");
