@@ -10,6 +10,7 @@ import nl.utwente.ewi.fmt.EXPRES.Property;
 
 public class Simulator {
 	private final static int MIN_MAX_CACHE_SIZE = 100000;
+	private final static long MAX_MEM_USE = 4*1024L*1024L*1024L;
 	public final static boolean VERBOSE = false;
 	public final static int REL_ERR_RATE = 8;
 	public static int coresToUse;
@@ -18,6 +19,12 @@ public class Simulator {
 	
 	static {
 		coresToUse = Runtime.getRuntime().availableProcessors();
+	}
+
+	private static long getMemUsed()
+	{
+		Runtime r = Runtime.getRuntime();
+		return r.totalMemory() - r.freeMemory();
 	}
 
 	private static class ProgressPrinter extends Thread {
@@ -50,7 +57,7 @@ public class Simulator {
 			secsLeft -= minsLeft * 60;
 			int hoursLeft = minsLeft / 60;
 			minsLeft -= hoursLeft * 60;
-			long mem = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+			long mem = getMemUsed();
 			if (d != maxN) {
 				System.err.format (" (est. %d:%02d:%02d remaining, used %d MB)", hoursLeft, minsLeft, secsLeft, mem / 1048576);
 				return false;
@@ -123,7 +130,7 @@ public class Simulator {
 			public void run() {
 				for (long i = 0; i < N; i++) {
 					// keep the cache from exploding
-					if(gen.scheme.model.size() > maxCache)
+					if(getMemUsed() > MAX_MEM_USE)
 						gen.resetModelCache();
 					gen.sample();
 					p.doneOne();
@@ -190,7 +197,7 @@ public class Simulator {
 			long trialSimTime = start + msec / 100;
 			while (System.currentTimeMillis() < trialSimTime) {
 				// keep the cache from exploding
-				if(tg.scheme.model.size() > maxCacheSize)
+				if(getMemUsed() > MAX_MEM_USE)
 					tg.resetModelCache();
 				tg.sample();
 				N++;
