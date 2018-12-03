@@ -65,11 +65,15 @@ public class SearchAlgorithm {
 		// What follows is actually not the exact implementation described lines 1-16 of Algorithm 2 in the paper - we do not do A 
 		// and B at the same time as in lines 4-8, but rather first A and then B. This may result in the algorithm not terminating 
 		// within finite time if A is infinite.
+		if (Simulator.showProgress)
+			System.err.print("\nRemoving HPC.");
 		
 		while(pot_A.size()>0) {
 			//System.out.println("A: "+A+", pot_A:"+pot_A);
 			for(int j=pot_A.size()-1;j>=0;j--) {
 				int x = pot_A.remove(j);
+				if (Simulator.showProgress && (A.size() % 32768) == 0)
+					System.err.format("\rRemoving HPC, A: %d", A.size());
 				A.add(x);
 				for (int z : model.successors.get(x)) {
 					if(model.getOrder(x,z) == 0
@@ -92,6 +96,8 @@ public class SearchAlgorithm {
 			for(int j=pot_B.size()-1;j>=0;j--) {
 				Integer z = pot_B.remove(j);
 				B.add(z);
+				if (Simulator.showProgress && (B.size() % 32768) == 0)
+					System.err.format("\rRemoving HPC, A: %d, B %d", A.size(), B.size());
 				for (int x : predecessors.get(z)) {
 					if(model.getOrder(x,z) != 0)
 					      continue;
@@ -112,12 +118,19 @@ public class SearchAlgorithm {
 		if(trace) System.out.println("A: "+A);
 		if(trace) System.out.println("B: "+B);
 		if(trace) System.out.println("pred: "+predecessors);
-		Ls = A; A = null;
-		Ls.retainAll(B); B = null;
+		Ls = A;
+		Ls.retainAll(B);
 		if(trace) System.out.println("L: "+Ls);
-		if(Ls.size() == 1) return false; // false alarm: HPC consists of one state only
+		if(Ls.size() == 1) {
+			if (Simulator.showProgress)
+				System.err.format("\r%d Found not to be HPC.\n", s);
+			return false; // false alarm: HPC consists of one state only
+		}
+		if (Simulator.showProgress)
+			System.err.format("\rRemoving HPC from %d, A: %d, B %d (final)\n", s, A.size(), B.size());
 		if(Ls.size() > 5 && trace) System.out.println("HPC starting in state "+s+", size "+Ls.size());
 		else if (trace) {System.out.println("HPC in states "+Ls);}
+		A = B = null;
 		for(Integer x : Ls) {
 			for(Integer z : model.successors.get(x)) {
 				if(!Ls.contains(z) && z > -1) {
@@ -267,6 +280,8 @@ public class SearchAlgorithm {
 						nbs = model.successors.get(x);
 						i = -1;
 					}
+					if (Simulator.showProgress)
+						System.err.format("\rForward search: %d states (distance %d)", model.size(), curDp);
 				}
 			}
 			if (!current.isEmpty()) {
@@ -290,8 +305,12 @@ public class SearchAlgorithm {
 			}
 			if (trace && x >= 0)
 				System.out.format("fwd (%d): %d\n", dp[x], x);
+			if (Simulator.showProgress && ((model.size() % 32768) == 0))
+				System.err.format("\rForward search: %d states (distance %d)", model.size(), curDp);
 		}
 
+		if (Simulator.showProgress)
+			System.err.println("\nForward search completed.");
 		Gamma = new HashSet<Integer>();
 		Lambda = new HashSet<Integer>();
 		//assumes that the only states with a listing in X so far are either in Lambda or Gamma:
