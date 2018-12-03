@@ -8,6 +8,7 @@ import java.util.Set;
 import models.StateSpace;
 
 import nl.utwente.ewi.fmt.EXPRES.expression.BinaryExpression.Operator;
+import nl.utwente.ewi.fmt.EXPRES.LTS;
 
 public abstract class Expression
 {
@@ -28,6 +29,16 @@ public abstract class Expression
 		HashMap<String, Number> vals = new HashMap<>();
 		for (String v : getReferencedVariables()) {
 			Number val = s.getVarValue(v, state);
+			if (val != null)
+				vals.put(v, val);
+		}
+		return evaluate(vals);
+	}
+
+	public Number evaluate(LTS lts, int[] state) {
+		HashMap<String, Number> vals = new HashMap<>();
+		for (String v : getReferencedVariables()) {
+			Number val = lts.getVarValue(v, state);
 			if (val != null)
 				vals.put(v, val);
 		}
