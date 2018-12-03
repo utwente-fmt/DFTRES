@@ -28,7 +28,7 @@ public class Composition implements MarkableLTS
 	private Automaton[] automata;
 	private TreeSet<String> hideLabels;
 	private TreeMap<String, Integer> markLabels;
-	private TreeMap<String, int[]> globalVars; /* Argument: lower bit, upper bit (both inclusive), initial value, lower bound */
+	private Map<String, int[]> globalVars; /* Argument: lower bit, upper bit (both inclusive), initial value, lower bound */
 	private TreeMap<String, Expression> transientGlobals; /* Maps the variable name to its initial value. */
 	/* From a partial state to the targets of the needed automata */
 	private LinkedHashMap<PartialState, int[]> transitionCache;
@@ -252,7 +252,7 @@ public class Composition implements MarkableLTS
 		ArrayList<String[]> vectorLabels = new ArrayList<String[]>();
 		ArrayList<String> syncLabels = new ArrayList<String>();
 		int i;
-		globalVars = new TreeMap<>();
+		globalVars = Map.of();
 		String line = "";
 		while (!line.equals("hide"))
 			line = input.readLine().trim();
@@ -405,39 +405,64 @@ public class Composition implements MarkableLTS
 				bits++;
 				range >>>= 1;
 			}
+			if (bits > 32)
+				throw new IllegalArgumentException("Out of bits for global variables");
+			if (uBit / 32 != (uBit + bits) / 32)
+				uBit = (uBit / 32 + 1) * 32;
 			data[0] = uBit;
 			uBit += bits;
-			if (uBit > 31)
-				throw new IllegalArgumentException("Out of bits for global variables");
-			data[1] = uBit;
+			data[1] = uBit - 1;
+			if (bits == 0)
+				data[0] = data[1] = 0;
 		}
 	}
 
 	/** @return The initial state of this composed automaton */
 	public int[] getInitialState() {
-		int ret[] = new int[automata.length + 1];
+		int ret[] = new int[stateSize()];
 		for (int i = automata.length - 1; i >= 0; i--)
 			ret[i] = automata[i].initState;
+		if (!globalVars.isEmpty()) {
+			TreeMap<String, Expression> assigns = new TreeMap<>();
+			for (String n : globalVars.keySet()) {
+				int init = globalVars.get(n)[2];
+				assigns.put(n, new ConstantExpression(init));
+			}
+			doAssigns(ret, assigns);
+		}
 		return ret;
 	}
 
 	public int stateSize()
 	{
-		return automata.length + 1;
+		int size = automata.length;
+		if (globalVars.isEmpty()) {
+			size += 1;
+		} else {
+			int maxBit = 0;
+			for (int[] vals : globalVars.values()) {
+				if (vals[1] > maxBit)
+					maxBit = vals[1];
+			}
+			size += maxBit / 32 + 1;
+		}
+		return size;
 	}
 
 	public Map<String, Integer> getVarValues(int[] state)
 	{
-		int vals = state[state.length - 1];
 		TreeMap<String, Integer> ret = new TreeMap<>();
 		if (globalVars.isEmpty()) {
-			ret.put("marked", vals);
+			ret.put("marked", state[state.length - 1]);
 			return ret;
 		}
 		for (Map.Entry<String, int[]> e : globalVars.entrySet()) {
 			int vData[] = e.getValue();
-			int val = vals >> vData[0];
-			val &= ((-1) >>> (32 - vData[1]));
+			int word = vData[0] / 32 + automata.length;
+			int vals = state[word];
+			int lowBit = vData[0] % 32;
+			int val = vals >> lowBit;
+			val &= ((-1) >>> (31 - (vData[1] - vData[0])));
 			val += vData[3];
 			ret.put(e.getKey(), val);
 		}
@@ -446,16 +471,18 @@ public class Composition implements MarkableLTS
 
 	public int getVarValue(String var, int[] state)
 	{
-		int vals = state[state.length - 1];
 		TreeMap<String, Integer> ret = new TreeMap<>();
 		if (var.equals("marked") && globalVars.isEmpty()) {
-			return vals;
+			return state[state.length - 1];
 		}
 		int[] vData = globalVars.get(var);
 		if (vData == null)
 			throw new IllegalArgumentException("Attempt to read value of undeclared variable '" + var + "'");
-		int val = vals >> vData[0];
-		val &= ((-1) >>> (32 - vData[1]));
+		int word = vData[0] / 32 + automata.length;
+		int vals = state[word];
+		int lowBit = vData[0] % 32;
+		int val = vals >> lowBit;
+		val &= ((-1) >>> (31 - (vData[1] - vData[0])));
 		val += vData[3];
 		return val;
 	}
@@ -464,21 +491,26 @@ public class Composition implements MarkableLTS
 	{
 		for (String name : assigns.keySet()) {
 			Expression exp = assigns.get(name);
-			int val = exp.evaluate(getVarValues(state)).intValue();
+			int val = exp.evaluate(this, state).intValue();
 			int vData[] = globalVars.get(name);
-			val -= vData[2]; /* Remove lower bound */
+			int word = vData[0] / 32 + automata.length;
+			int vals = state[word];
+			int lowBit = vData[0] % 32, highBit = vData[1] % 32;
+			val -= vData[3]; /* Remove lower bound */
 			if (val < 0)
 				throw new IllegalArgumentException("Value " + exp.evaluate(getVarValues(state)).intValue() + " below lower bound (" + vData[2] + ") of variable " + name);
 			int max = 1 << (vData[1] - vData[0]);
-			if (val > max)
-				throw new IllegalArgumentException("Value " + exp.evaluate(getVarValues(state)).intValue() + " exceeds upper bound of variable " + name);
-			int origVals = state[state.length - 1];
-			val <<= vData[0];
+			if (val > max) {
+				System.err.println("Current values: " + getVarValues(state));
+				throw new IllegalArgumentException("Value " + exp.evaluate(getVarValues(state)).intValue() + " exceeds upper bound of variable " + name + " in " + exp.toString());
+			}
+			int origVals = state[word];
+			val <<= lowBit;
 			int mask = -1;
-			mask <<= vData[0];
-			mask &= ((-1) >>> (32 - vData[1]));
+			mask <<= lowBit;
+			mask &= ((-1) >>> (31 - highBit));
 			origVals &= ~mask;
-			state[state.length - 1] = origVals | val;
+			state[word] = origVals | val;
 		}
 	}
 
@@ -498,7 +530,16 @@ public class Composition implements MarkableLTS
 					break;
 				if (l.startsWith("rate ")) {
 					Expression g = automata[i].getTransitionGuard(from[i], j);
-					if (g != null && g.evaluate(getVarValues(from)).doubleValue() == 0)
+					boolean guardOK = true;
+					if (g != null) {
+						Number v = g.evaluate(this, from);
+						if (v == null) {
+							System.err.println("Values: " + getVarValues(from));
+							throw new UnsupportedOperationException("Unevaluatable expression: " + g.toString());
+						}
+						guardOK = v.doubleValue() != 0;
+					}
+					if (!guardOK)
 						continue;
 					int[] target = Arrays.copyOf(from, from.length);
 					target[i] = automata[i].getTransitionTarget(from[i], j);
@@ -855,7 +896,11 @@ public class Composition implements MarkableLTS
 				expO = expr.get("exp");
 				reachTarget = Expression.fromJani(expO);
 			} else {
-				throw new UnsupportedOperationException("The only currently supported formulae are variables and formulae 'F variable' or 'true U variable' (with time bound)");
+				try {
+					reachTarget = Expression.fromJani(expO);
+				} catch (UnsupportedOperationException e) {
+					throw new UnsupportedOperationException("The only currently supported formulae are variables and formulae 'F variable' or 'true U variable' (with time bound); Ignoring property '" + name + "'");
+				}
 			}
 			Object boundO = expr.get("time-bounds");
 			if (boundO == null) {
