@@ -108,18 +108,7 @@ public class Automaton implements LTS {
 				i++;
 			}
 		}
-		transitions = createTransitionArray();
-		for (int i = labels.length - 1; i >= 0; i--) {
-			transitions[i] = new HashMap<String, Integer>();
-			for (int j = labels[i].length - 1; j >= 0; j--) {
-				if (labels[i][j].startsWith("rate "))
-					continue;
-				if (transitions[i].containsKey(labels[i][j])) {
-					System.err.format("Warning: internal nondeterminism currently not supported (Transition %s in state %d).\n", labels[i][j], i);
-				}
-				transitions[i].put(labels[i][j], j);
-			}
-		}
+		createTransitionArray();
 		initState = 0;
 	}
 
@@ -169,9 +158,21 @@ public class Automaton implements LTS {
 	}
 
 	@SuppressWarnings("unchecked")
-	private HashMap<String, Integer>[] createTransitionArray()
+	private void createTransitionArray()
 	{
-		return (HashMap<String, Integer>[]) new HashMap[labels.length];
+		transitions = (HashMap<String, Integer>[]) new HashMap[labels.length];
+		for (int i = labels.length - 1; i >= 0; i--) {
+			transitions[i] = new HashMap<String, Integer>();
+			for (int j = labels[i].length - 1; j >= 0; j--) {
+				if (labels[i][j].startsWith("rate "))
+					continue;
+				if (transitions[i].containsKey(labels[i][j])) {
+					transitions[i] = null;
+					break;
+				}
+				transitions[i].put(labels[i][j], j);
+			}
+		}
 	}
 
 	@SuppressWarnings("unchecked")
@@ -211,16 +212,7 @@ public class Automaton implements LTS {
 			labels = orig.labels;
 			transitions = orig.transitions;
 		} else {
-			transitions = createTransitionArray();
-			for (int i = labels.length - 1; i >= 0; i--) {
-				transitions[i] = new HashMap<String, Integer>();
-				for (int j = labels[i].length - 1; j >= 0; j--) {
-					if (transitions[i].containsKey(labels[i][j])) {
-						System.err.println("Warning: internal nondeterminism currently not supported.");
-					}
-					transitions[i].put(labels[i][j], j);
-				}
-			}
+			createTransitionArray();
 		}
 	}
 
@@ -238,6 +230,48 @@ public class Automaton implements LTS {
 			} catch (InterruptedException e) {
 			}
 		}
+		return ret;
+	}
+
+	public Automaton removeInternalNondet(Map<String, String> renames)
+	{
+		boolean needsChanges = false;
+		TreeSet<String> presentActions = new TreeSet<>();
+		for(int i = 0; i < targets.length; i++) {
+			TreeSet<String> stateActions = new TreeSet<>();
+			for (int j = 0; j < targets[i].length; j++) {
+				String act = labels[i][j];
+				if (act.startsWith("rate "))
+					continue;
+				presentActions.add(act);
+				if (!stateActions.add(act))
+					needsChanges = true;
+			}
+		}
+		if (!needsChanges)
+			return this;
+
+		Automaton ret = new Automaton(this, Map.of());
+		for(int i = 0; i < targets.length; i++) {
+			TreeSet<String> stateActions = new TreeSet<>();
+			int k = 0;
+			for (int j = 0; j < labels[i].length; j++) {
+				String act = labels[i][j];
+				if (act.startsWith("rate "))
+					continue;
+				if (stateActions.add(act))
+					continue;
+				act = renames.get(act);
+				if (act == null)
+					act = "a" + (k++);
+				while (presentActions.contains(act))
+					act = "a" + (k++);
+				renames.put(labels[i][j], act);
+				ret.labels[i] = ret.labels[i].clone();
+				ret.labels[i][j] = act;
+			}
+		}
+		ret.createTransitionArray();
 		return ret;
 	}
 
@@ -285,18 +319,7 @@ public class Automaton implements LTS {
 			targets[from][targets[from].length - 1] = to;
 			labels[from][targets[from].length - 1] = parts[1].intern();
 		}
-		transitions = createTransitionArray();
-		for (i = labels.length - 1; i >= 0; i--) {
-			transitions[i] = new HashMap<String, Integer>();
-			for (int j = labels[i].length - 1; j >= 0; j--) {
-				if (labels[i][j].startsWith("rate "))
-					continue;
-				if (transitions[i].containsKey(labels[i][j])) {
-					System.err.format("Warning: internal nondeterminism currently not supported (Transition %s in state %d).\n", labels[i][j], i);
-				}
-				transitions[i].put(labels[i][j], j);
-			}
-		}
+		createTransitionArray();
 		return ret;
 	}
 
@@ -341,6 +364,8 @@ public class Automaton implements LTS {
 	 */
 	public int getTransitionNum(int from, String transition)
 	{
+		if (transitions[from] == null)
+			throw new UnsupportedOperationException("Internal nondeterminism in context expecting determinised model.");
 		Integer r = transitions[from].get(transition);
 		if (r == null)
 			return -1;
