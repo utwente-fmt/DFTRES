@@ -82,18 +82,13 @@ public class ExpModel extends StateSpace
 		}
 
 		double totProb = 0;
-		int minOrder = Integer.MAX_VALUE;
 		int n = probs.length;
 
-		for(i = 0; i < n; i++) {
+		for(i = 0; i < n; i++)
 			totProb += probs[i];
-			minOrder = Math.min(minOrder, orders[i]);
-		}
-		for(i = 0; i < n; i++) {
+		for(i = 0; i < n; i++)
 			probs[i] /= totProb;
-			orders[i] -= minOrder;
-		}
-		
+
 		successors.set(s, neighbours);
 		this.orders.set(s, orders);
 		this.probs.set(s, probs);
