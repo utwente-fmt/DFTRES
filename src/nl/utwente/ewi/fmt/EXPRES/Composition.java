@@ -21,7 +21,6 @@ import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 public class Composition implements MarkableLTS
 {
 	public static int statesExplored;
-	private boolean[] possibleForcedTransitions;
 	private int[][] vectorAutomata;
 	private String[][] vectorLabels;
 	private String[] synchronizedLabels;
@@ -148,7 +147,6 @@ public class Composition implements MarkableLTS
 				return size() > 10000000;
 			}
 		};
-		initForcedTransitions();
 	}
 
 	public Composition(String filename, String type) throws IOException
@@ -165,30 +163,6 @@ public class Composition implements MarkableLTS
 				return size() > 1000000;
 			}
 		};
-	}
-
-	private final void initForcedTransitions()
-	{
-		TreeMap<String, Integer> transitions = new TreeMap<>();
-
-		boolean ret[] = new boolean[vectorAutomata.length];
-		for (int i = 0; i < ret.length; i++)
-			ret[i] = true;
-
-		for (int i = 0; i < ret.length; i++) {
-			int[] auts = vectorAutomata[i];
-			for (int j = 0; j < auts.length; j++) {
-				String t = auts[j] + "-" + vectorLabels[i][j];
-				Integer prev = transitions.get(t);
-				if (prev != null) {
-					ret[prev] = false;
-					ret[i] = false;
-				} else {
-					transitions.put(t, i);
-				}
-			}
-		}
-		possibleForcedTransitions = ret;
 	}
 
 	public void markStatesAfter(String label, int val)
@@ -514,8 +488,43 @@ public class Composition implements MarkableLTS
 		}
 	}
 
+	private Set<LTS.Transition> getUnsynchronizedTransitions(int[] from)
+	{
+		Map<String, Integer> values = getVarValues(from);
+		TreeSet<LTS.Transition> ret = new TreeSet<LTS.Transition>();
+		for (int i = 0; i < automata.length; i++) {
+			for (int j = 0; true; j++) {
+				String l = automata[i].getTransitionLabel(from[i], j);
+				if (l == null)
+					break;
+				Expression g = automata[i].getTransitionGuard(from[i], j);
+				boolean guardOK = true;
+				if (g != null) {
+					Number v = g.evaluate(values);
+					if (v == null) {
+						System.err.println("Values: " + getVarValues(from));
+						throw new UnsupportedOperationException("Unevaluatable expression: " + g.toString());
+					}
+					guardOK = v.doubleValue() != 0;
+				}
+				if (!guardOK)
+					continue;
+				int[] target = Arrays.copyOf(from, from.length);
+				target[i] = automata[i].getTransitionTarget(from[i], j);
+				Map<String, Expression> assigns = automata[i].getAssignments(from[i], j);
+				doAssigns(target, transientGlobals);
+				if (assigns != null)
+					doAssigns(target, assigns);
+				ret.add(new LTS.Transition(l, target, ConstantExpression.TRUE, Map.of()));
+			}
+		}
+		return ret;
+	}
+
 	public Set<LTS.Transition> getTransitions(int[] from)
 	{
+		if (vectorAutomata == null)
+			return getUnsynchronizedTransitions(from);
 		TreeSet<LTS.Transition> ret = new TreeSet<LTS.Transition>();
 		int t[] = new int[automata.length];
 		//PartialState part = new PartialState(this);
@@ -586,13 +595,13 @@ public class Composition implements MarkableLTS
 				Automaton a = automata[needed[j]];
 				int origin = from[needed[j]];
 				int k = a.getTransitionNum(origin, neededL[j]);
-				t[j] = a.getTransitionTarget(origin, k);
-				if (t[j] < 0) {
+				if (k < 0) {
 					rejCache[2*i] = needed[j];
 					rejCache[2*i+1] = from[needed[j]];
 					//System.err.println("Rejecting transition " + synchronizedLabels[i] + ": need " + neededL[j] + " at " + needed[j]);
 					break;
 				}
+				t[j] = a.getTransitionTarget(origin, k);
 				Expression g = a.getTransitionGuard(origin, k);
 				if (g != null) {
 					Number v = g.evaluate(getVarValues(from));
@@ -1092,9 +1101,9 @@ public class Composition implements MarkableLTS
 		}
 		Object synco = sysComp.get("syncs");
 		if (synco == null) {
-			vectorAutomata = new int[0][0];
-			vectorLabels = new String[0][0];
-			synchronizedLabels = new String[0];
+			vectorAutomata = null;
+			vectorLabels = null;
+			synchronizedLabels = null;
 		} else {
 			if (!(synco instanceof Object[]))
 				throw new IllegalArgumentException("Synchronization specification should be array, not: " + synco);
