@@ -25,6 +25,8 @@ import ec.util.MersenneTwisterFast;
 import nl.ennoruijters.interval.XoroShiro128RandomSource;
 import nl.utwente.ewi.fmt.EXPRES.Automaton;
 import nl.utwente.ewi.fmt.EXPRES.MarkedAutomaton;
+import nl.utwente.ewi.fmt.EXPRES.MarkovReducedLTS;
+import nl.utwente.ewi.fmt.EXPRES.MarkovianComposition;
 import nl.utwente.ewi.fmt.EXPRES.Composition;
 import nl.utwente.ewi.fmt.EXPRES.LTS;
 import nl.utwente.ewi.fmt.EXPRES.MakeJani;
@@ -46,6 +48,7 @@ class Main {
 	static Double forceBound = null;
 	static boolean mc = false, zvad = false, zvav = false, unif = false;
 	static boolean jsonOutput = false;
+	static boolean unsafeComposition = false;
 	static LTS model;
 	static TreeSet<Property> properties = new TreeSet<>();
 
@@ -431,6 +434,8 @@ class Main {
 				janiOutputFile = args[++i];
 			else if (args[i].equals("--export-tralab"))
 				traLabOutputFile = args[++i];
+			else if (args[i].equals("--unsafe-scheduling"))
+				unsafeComposition = true;
 			else
 				System.err.format("Unknown option '%s', ignoring\n", args[i]);
 		}
@@ -448,6 +453,11 @@ class Main {
 		if (traLabOutputFile != null) {
 			MakeTraLab mtl = new MakeTraLab(model);
 			mtl.convert(traLabOutputFile);
+		}
+		if (model instanceof Composition && unsafeComposition) {
+			model = new MarkovianComposition((Composition)model);
+		} else {
+			model = new MarkovReducedLTS(model);
 		}
 		if (Double.isNaN(relErr)
 		    && maxTime == 0

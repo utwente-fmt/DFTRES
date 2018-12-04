@@ -2,6 +2,7 @@ package nl.utwente.ewi.fmt.EXPRES;
 
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -13,7 +14,7 @@ import java.util.TreeSet;
  * - If non-Markovian transitions are nondeterminstic, it is undefined
  *   which action is taken, but only one action will be.
  */
-public class MarkovianComposition extends Composition
+public class MarkovianComposition implements LTS
 {
 	private class StateComparator implements Comparator<int[]>
 	{
@@ -35,9 +36,9 @@ public class MarkovianComposition extends Composition
 		}
 	}
 
-	private final Composition original;
+	private final LTS original;
 
-	public MarkovianComposition(Composition c)
+	public MarkovianComposition(LTS c)
 	{
 		original = c;
 	}
@@ -148,5 +149,13 @@ public class MarkovianComposition extends Composition
 		}
 		//System.err.format("Final transition set %d, explored %d states\n", ret.size(), Composition.statesExplored);
 		return ret;
+	}
+
+	@Override public int stateSize() { return original.stateSize(); }
+	@Override public int getVarValue(String v, int[] s) {
+		return original.getVarValue(v, s);
+	}
+	@Override public Map<String, Integer> getVarValues(int[] s) {
+		return original.getVarValues(s);
 	}
 }

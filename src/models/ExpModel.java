@@ -4,13 +4,12 @@ import java.util.Map;
 import java.util.Set;
 import nl.utwente.ewi.fmt.EXPRES.Composition;
 import nl.utwente.ewi.fmt.EXPRES.LTS;
-import nl.utwente.ewi.fmt.EXPRES.MarkovReducedLTS;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 
 public class ExpModel extends StateSpace
 {
-	private final MarkovReducedLTS comp;
+	private final LTS comp;
 	private final int initialState[];
 	private final static boolean VERBOSE = false;
 	private final double logEpsilon;
@@ -40,7 +39,7 @@ public class ExpModel extends StateSpace
 		this(epsilon, model, null);
 	}
 
-	public ExpModel (double epsilon, MarkovReducedLTS model, Property prop)
+	public ExpModel (double epsilon, LTS model, Property prop)
 	{
 		super(epsilon, model.getInitialState());
 		logEpsilon = Math.log(epsilon);
@@ -50,11 +49,6 @@ public class ExpModel extends StateSpace
 		if (VERBOSE)
 			System.err.format("Initial state: %s\n", java.util.Arrays.toString(initialState));
 		this.prop = prop;
-	}
-
-	public ExpModel (double epsilon, LTS model, Property prop)
-	{
-		this(epsilon, new MarkovReducedLTS(model), prop);
 	}
 
 	public int getDimension()
