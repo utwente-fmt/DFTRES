@@ -39,9 +39,19 @@ public class BinaryExpression extends Expression
 
 	public BinaryExpression(Operator op, Expression left, Expression right)
 	{
-		this.op = op;
-		this.left = left;
-		this.right = right;
+		if (op == Operator.GREATER) {
+			this.op = Operator.LESS;
+			this.left = right;
+			this.right = left;
+		} else if (op == Operator.GREATER_OR_EQUAL) {
+			this.op = Operator.LESS_OR_EQUAL;
+			this.left = right;
+			this.right = left;
+		} else {
+			this.op = op;
+			this.left = left;
+			this.right = right;
+		}
 		TreeSet<String> vs = new TreeSet<>(left.getReferencedVariables());
 		vs.addAll(right.getReferencedVariables());
 		variables = Set.copyOf(vs);
@@ -59,6 +69,27 @@ public class BinaryExpression extends Expression
 	}
 
 	public Number evaluate(Map<String, ? extends Number> valuation) {
+		if (op == Operator.AND) {
+			Number l = left.evaluate(valuation);
+			if (l != null && l.doubleValue() == 0)
+				return 0;
+			Number r = right.evaluate(valuation);
+			if (r != null && r.doubleValue() == 0)
+				return 0;
+			if (l != null && r != null)
+				return 1;
+			return null;
+		} else if (op == Operator.OR) {
+			Number l = left.evaluate(valuation);
+			if (l != null && l.doubleValue() != 0)
+				return 1;
+			Number r = right.evaluate(valuation);
+			if (r != null && r.doubleValue() != 0)
+				return 1;
+			if (l != null && r != null)
+				return 0;
+			return null;
+		}
 		Number l = left.evaluate(valuation);
 		Number r = right.evaluate(valuation);
 		Number vL = null, vR = null;
@@ -94,16 +125,6 @@ public class BinaryExpression extends Expression
 					return null;
 				bRet = vL.longValue() <= vR.longValue();
 				break;
-			case GREATER:
-				if (vL == null || vR == null)
-					return null;
-				bRet = vL.longValue() > vR.longValue();
-				break;
-			case GREATER_OR_EQUAL:
-				if (vL == null || vR == null)
-					return null;
-				bRet = vL.longValue() >= vR.longValue();
-				break;
 			case ADD:
 				if (vL == null || vR == null)
 					return null;
@@ -112,28 +133,10 @@ public class BinaryExpression extends Expression
 				if (vL == null || vR == null)
 					return null;
 				return vL.longValue() - vR.longValue();
-			case AND:
-				if (boolL == null && vR == null)
-					return null;
-				if (boolL == null)
-					return boolR ? null : 0;
-				if (boolR == null)
-					return boolL ? null : 0;
-				bRet = boolL && boolR;
-				break;
-			case OR:
-				if (boolL == null && boolR == null)
-					return null;
-				if (boolL == null)
-					return boolR ? 1 : null;
-				if (boolR == null)
-					return boolL ? 1 : null;
-				bRet = boolL || boolR;
-				break;
 			case XOR:
 				if (boolL == null || boolR == null)
 					return null;
-				bRet = boolR ^ boolR;
+				bRet = boolL ^ boolR;
 				break;
 			default:
 				throw new UnsupportedOperationException("Unknown operator: " + op.symbol);
