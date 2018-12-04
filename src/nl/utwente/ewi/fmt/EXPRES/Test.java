@@ -89,6 +89,7 @@ public class Test {
 			}
 			System.err.format("Number of state %s: %d\n",
 					  Arrays.toString(state), stateNums.size() - 1);
+			System.err.format("Current variables: %s\n", c.getVarValues(state));
 			if (state[state.length - 1] != 0) {
 				System.err.format("Marked state: %d\n",
 				                  stateNums.size() - 1);
