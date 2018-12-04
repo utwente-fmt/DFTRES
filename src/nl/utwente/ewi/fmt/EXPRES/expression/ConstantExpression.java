@@ -42,7 +42,7 @@ public class ConstantExpression extends Expression
 		return otherV.longValue() == value.longValue();
 	}
 
-	public Number evaluate(StateSpace s, int state) {
+	public Number evaluate(StateSpace s, StateSpace.State state) {
 		return value;
 	}
 

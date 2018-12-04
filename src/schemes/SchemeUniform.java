@@ -23,13 +23,14 @@ public class SchemeUniform extends Scheme {
 		return false;
 	}
 
-	public void prepareState(int state) {
-		super.prepareState(state);
+	public StateSpace.ExploredState prepareState(int state) {
+		StateSpace.ExploredState ret = super.prepareState(state);
 		if (myStateWeights.length < probs.length)
 			myStateWeights = new double[probs.length];
 		stateWeightsIS = myStateWeights;
 		totalStateWeightIS = 1;
 		for(int i=0;i<probs.length;i++)
 			stateWeightsIS[i] = 1.0 / probs.length;
+		return ret;
 	}
 }

@@ -63,12 +63,14 @@ public class ReachabilityTracer extends TraceGenerator
 
 	private double computeProb(int[] path)
 	{
-		double[] exitRates = scheme.model.exitRates;
 		double unifRate = Double.NEGATIVE_INFINITY;
 		int totalCount = 0;
 		for (int i = 0; i < path.length; i++) {
 			if (path[i] > 0) {
-				Double rate = exitRates[i];
+				StateSpace.State s = scheme.model.getState(i);
+				if (!(s instanceof StateSpace.ExploredState))
+					throw new AssertionError("Unexplored state in path.");
+				double rate = ((StateSpace.ExploredState)s).exitRate;
 				if (rate > unifRate)
 					unifRate = rate;
 				totalCount += path[i];
@@ -83,7 +85,11 @@ public class ReachabilityTracer extends TraceGenerator
 		int k = 0;
 		for (int i = 0; i < path.length; i++) {
 			if (path[i] > 0) {
-				double rate = exitRates[i] / unifRate;
+				StateSpace.State s = scheme.model.getState(i);
+				if (!(s instanceof StateSpace.ExploredState))
+					throw new AssertionError("Unexplored state in path.");
+				double rate = ((StateSpace.ExploredState)s).exitRate;
+				rate /= unifRate;
 				while (path[i] --> 0)
 					rates[k++] = rate;
 			}
@@ -110,13 +116,13 @@ public class ReachabilityTracer extends TraceGenerator
 
 	public void sample()
 	{
-		int state = 0;
 		double time = 0;
 		double likelihood = 1;
 		int path[] = null;
 		StateSpace model = scheme.model;
+		StateSpace.State state = model.getInitialState();
 		if (forceBound < 0 && Double.isFinite(prop.timeBound))
-			path = new int[model.exitRates.length];
+			path = new int[model.size()];
 
 		do {
 			state = drawNextState(state);

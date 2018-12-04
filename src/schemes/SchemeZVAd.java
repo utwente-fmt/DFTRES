@@ -39,13 +39,13 @@ public class SchemeZVAd extends Scheme {
 		haveLeftLambda = false;
 	}
 	
-	public void prepareState(int state) {
-		super.prepareState(state);
+	public StateSpace.ExploredState prepareState(int state) {
+		StateSpace.ExploredState ret = super.prepareState(state);
 		if(state >= v.length || v[state] == 1) haveLeftLambda = true; // this seems to be an easy way to check whether gamma has been reached (or whether it doesn't matter anymore, because the probability of ending up in the goal state is 1 anyway).
 		if (state == 0)
 			haveLeftLambda = false;
 		if (haveLeftLambda)
-			return;
+			return ret;
 		if (myStateWeights.length < probs.length)
 			myStateWeights = new double[probs.length];
 		stateWeightsIS = myStateWeights;
@@ -56,5 +56,6 @@ public class SchemeZVAd extends Scheme {
 				totalStateWeightIS += stateWeightsIS[i];
 			}
 		}
+		return ret;
 	}
 }

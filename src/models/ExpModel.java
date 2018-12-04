@@ -53,18 +53,20 @@ public class ExpModel extends StateSpace
 
 	public int getDimension()
 	{
-		return getInitialState().length;
+		return initialState.length;
 	}
 
-	public void findNeighbours(int s)
+	public ExploredState findNeighbours(State s)
 	{
-		int[] state = states.get(s);
+		if (s instanceof ExploredState)
+			return (ExploredState)s;
+		int[] state = s.state;
 
 		Composition.statesExplored = 0;
 		//System.err.format("Neighbours from state %d (%s)\n", s, java.util.Arrays.toString(state));
 		Set<LTS.Transition> transitions = comp.getTransitions(state);
 		int[] neighbours = new int[transitions.size()];
-		int[] orders = new int[transitions.size()];
+		short[] orders = new short[transitions.size()];
 		double[] probs = new double[transitions.size()];
 
 		int i = 0;
@@ -74,9 +76,11 @@ public class ExpModel extends StateSpace
 			int order = (int)Math.ceil(Math.log(rate) / logEpsilon);
 			if (order < 0)
 				order = 0;
-			int z = findOrCreate(t.target.clone());
-			neighbours[i] = z;
-			orders[i] = order;
+			if (order > Short.MAX_VALUE)
+				throw new IllegalArgumentException("Order does not fit in 16 bits.");
+			State z = findOrCreate(t.target.clone());
+			neighbours[i] = z.number;
+			orders[i] = (short)order;
 			probs[i] = rate;
 			i++;
 		}
@@ -89,14 +93,13 @@ public class ExpModel extends StateSpace
 		for(i = 0; i < n; i++)
 			probs[i] /= totProb;
 
-		successors.set(s, neighbours);
-		this.orders.set(s, orders);
-		this.probs.set(s, probs);
-		exitRates[s] = totProb;
+		ExploredState ret = explored(s, neighbours, orders, probs,
+		                             totProb);
+		return ret;
 	}
 
-	public Number getVarValue(String variable, int state)
+	public Number getVarValue(String variable, State state)
 	{
-		return comp.getVarValue(variable, states.get(state));
+		return comp.getVarValue(variable, state.state);
 	}
 }

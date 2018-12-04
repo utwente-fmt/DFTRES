@@ -65,13 +65,13 @@ public class ExpectedValueTracer extends TraceGenerator
 
 	public void sample()
 	{
-		int state = 0;
+		StateSpace.State state = scheme.model.getInitialState();
 		double time = 0, reward = 0;
 		double likelihood = 1;
 		StateSpace model = scheme.model;
 
 		do {
-			int prevState = state;
+			StateSpace.State prevState = state;
 			state = drawNextState(state);
 			if (prop.timeBound < Double.POSITIVE_INFINITY) {
 				double delta = drawDelta(prop.timeBound - time);
@@ -149,7 +149,7 @@ public class ExpectedValueTracer extends TraceGenerator
 		return getResult(alpha);
 	}
 
-	private double evaluate(Expression exp, int state)
+	private double evaluate(Expression exp, StateSpace.State state)
 	{
 		return exp.evaluate(scheme.model, state).doubleValue();
 	}

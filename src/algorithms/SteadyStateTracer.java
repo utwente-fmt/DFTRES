@@ -90,15 +90,15 @@ public class SteadyStateTracer extends TraceGenerator
 	public void sample()
 	{
 		boolean deadlocked = false;
-                int state = 0;
                 double likelihood = 1;
                 double timeInRed = 0;
 		StateSpace model = scheme.model;
+                StateSpace.State state = model.getInitialState();
 		SteadyStateTracer tracer = this;
 
 		/* Do a cycle with IS to measure red time */
                 do {
-			int prevState = state;
+			StateSpace.State prevState = state;
                         state = tracer.drawNextState(state);
 			if (prop.isRed(model, prevState)) {
 				timeInRed += tracer.drawMeanTransitionTime();
@@ -137,11 +137,11 @@ public class SteadyStateTracer extends TraceGenerator
 
 		/* Now do a cycle without IS to measure cycle duration. */
 		deadlocked = false;
-		state = 0;
+		state = model.getInitialState();
 		double totalTime = 0;
 		do {
 			double delta;
-			int prevState = state;
+			StateSpace.State prevState = state;
 			state = mcTracer.drawNextState(state);
 			totalTime += mcTracer.drawMeanTransitionTime();
 			if (state == prevState)

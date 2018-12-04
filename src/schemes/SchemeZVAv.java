@@ -3,6 +3,7 @@ package schemes;
 import algorithms.Scheme;
 import algorithms.SearchAlgorithm;
 import models.StateSpace;
+import models.StateSpace.ExploredState;
 import java.util.Random;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 
@@ -29,16 +30,18 @@ public class SchemeZVAv extends Scheme {
 		double v[] = new SearchAlgorithm(model, prop).runAlgorithm();
 		double weights[][] = new double[v.length][];
 		double sums[] = new double[v.length];
-		for (int state = 0; state < model.successors.size(); state++) {
-			int neighbours[] = model.successors.get(state);
-			boolean outOfLambda = false;
-			if (neighbours == null)
+		for (int state = 0; state < model.size(); state++) {
+			StateSpace.State st = model.getState(state);
+			if (!(st instanceof ExploredState))
 				continue;
+			ExploredState es = (ExploredState)st;
+			int neighbours[] = es.neighbours;
+			boolean outOfLambda = false;
 			if (v[state] == 1)
 				outOfLambda = true;
 			if (outOfLambda)
 				continue;
-			double probs[] = model.probs.get(state);
+			double probs[] = es.probs;
 			double sum = 0;
 			weights[state] = new double[probs.length];
 			for(int i = 0; i < probs.length; i++) {
@@ -59,13 +62,14 @@ public class SchemeZVAv extends Scheme {
 		return false;
 	}
 
-	public void prepareState(int state) {
-		super.prepareState(state);
+	public ExploredState prepareState(int state) {
+		ExploredState ret = super.prepareState(state);
 		if (state < cachedWeightsIS.length) {
 			if (cachedWeightsIS[state] != null) {
 				stateWeightsIS = cachedWeightsIS[state];
 				totalStateWeightIS = cachedWeightSums[state];
 			}
 		}
+		return ret;
 	}
 }

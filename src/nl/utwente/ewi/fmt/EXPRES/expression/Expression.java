@@ -25,7 +25,7 @@ public abstract class Expression
 	}
 
 	public abstract Number evaluate(Map<String, ? extends Number> valuation);
-	public Number evaluate(StateSpace s, int state) {
+	public Number evaluate(StateSpace s, StateSpace.State state) {
 		HashMap<String, Number> vals = new HashMap<>();
 		for (String v : getReferencedVariables()) {
 			Number val = s.getVarValue(v, state);

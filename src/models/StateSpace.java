@@ -15,8 +15,80 @@ import java.util.Map;
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 
 public abstract class StateSpace {
-	static class StateWrapper
-	{
+	public class State {
+		public final int[] state;
+		public final int number;
+
+		public State(int[] s, int num)
+		{
+			state = s;
+			number = num;
+		}
+
+		public boolean equals(Object o)
+		{
+			if (o instanceof State)
+				return ((State)o).number == number;
+			if (!(o instanceof StateWrapper))
+				return false;
+			return Arrays.equals(state, ((StateWrapper)o).state);
+		}
+
+		public int hashCode()
+		{
+			return Arrays.hashCode(state);
+		}
+
+		public String toString()
+		{
+			return Arrays.toString(state);
+		}
+	}
+	public class ExploredState extends State {
+		public final int[] neighbours;
+		public final short[] orders;
+		public final double[] probs;
+		public final double exitRate;
+
+		public ExploredState(int[] s, int[] n, short[] o, double[] p,
+		                     double R, int num)
+		{
+			super(s, num);
+			neighbours = n;
+			orders = o;
+			probs = p;
+			exitRate = R;
+		}
+
+		private ExploredState(ExploredState other)
+		{
+			this(other, other.neighbours, other.orders,
+			     other.probs, other.exitRate);
+		}
+
+		public ExploredState(State other, int[] n, short[] o,
+		                     double[] p, double R)
+		{
+			this(other.state, n, o, p, R, other.number);
+		}
+
+		public double getProbTo(int state)
+		{
+			for (int i = 0; i < neighbours.length; i++)
+				if (neighbours[i] == state)
+					return probs[i];
+			return 0;
+		}
+
+		public short getOrderTo(int state)
+		{
+			for (int i = 0; i < neighbours.length; i++)
+				if (neighbours[i] == state)
+					return orders[i];
+			return Short.MAX_VALUE;
+		}
+	}
+	private static class StateWrapper {
 		public int[] state;
 
 		public StateWrapper(int[] s)
@@ -26,6 +98,8 @@ public abstract class StateSpace {
 
 		public boolean equals(Object o)
 		{
+			if (o instanceof State)
+				return Arrays.equals(state, ((State)o).state);
 			if (!(o instanceof StateWrapper))
 				return false;
 			return Arrays.equals(state, ((StateWrapper)o).state);
@@ -41,6 +115,16 @@ public abstract class StateSpace {
 			return new StateWrapper(state);
 		}
 	}
+	public class HPCState extends ExploredState {
+		public final int[] origNeighbours;
+		public final double[] origProbs;
+		public HPCState(ExploredState orig, int[] ns, short[] os, double[] ps)
+		{
+			super(orig.state, ns, os, ps, orig.exitRate, orig.number);
+			origNeighbours = orig.neighbours;
+			origProbs = orig.probs;
+		}
+	}
 
 	/* Regarding the public fields, only the following modifications
 	 * may be made:
@@ -53,90 +137,31 @@ public abstract class StateSpace {
 	 *
 	 * Any other modifications may mess up snapshotting.
 	 */
-	private HashMap<StateWrapper, Integer> knownStates;
+	private HashMap<State, State> knownStates;
 	private final StateSpace parent;
-	public List<int[]> states;
-
+	private List<State> states;
 	public final double epsilon;
 
-	public double exitRates[];
-	public List<int[]> successors;
-	public List<int[]> orders;
-	public List<double[]> probs;
-	public BitSet inHPC;
-
-	public class HPCState {
-		public int num;
-		public int[] successors;
-		public double[] probs;
-		
-		public HPCState clone()
-		{
-			HPCState ret = new HPCState();
-			ret.successors = successors.clone();
-			ret.probs = probs.clone();
-			ret.num = num;
-			return ret;
-		}
-	}
-	public HashMap<Integer, HPCState> hpcs;
-	
-	public int getOrder(int s, int z) {
-		int[] nbs = successors.get(s);
-		for(int i=0;i<nbs.length;i++) {
-			if(nbs[i] == z) return orders.get(s)[i];
-		}
-		return Integer.MAX_VALUE;
-	}
-	
-	public double getProb(int s, int z) {
-		int[] nbs = successors.get(s);
-		for(int i=0;i<nbs.length;i++) {
-			if(nbs[i] == z) return probs.get(s)[i];
-		}
-		return 0;
-	}
-
-	private void reserve(int[] x) {
-		knownStates.put(new StateWrapper(x), states.size());
-		states.add(x);
-		int p = states.size();
-		if (exitRates.length < p)
-			exitRates = Arrays.copyOf(exitRates, p * 2);
-		successors.add(null);
-		orders.add(null);
-		probs.add(null);
+	private State reserve(int[] x) {
+		State ret = new State(x, states.size());
+		knownStates.put(ret, ret);
+		states.add(ret);
+		return ret;
 	}
 
 	public StateSpace(double epsilon, int[] initialState) {
 		this.epsilon = epsilon;
-		knownStates = new HashMap<StateWrapper, Integer>();
-		states = new ArrayList<int[]>();
-		successors = new ArrayList<int[]>();
-		orders = new ArrayList<int[]>();
-		probs = new ArrayList<double[]>();
-		exitRates = new double[1024];
-		inHPC = new BitSet();
-		hpcs = new HashMap<Integer, HPCState>();
+		knownStates = new HashMap<State, State>();
+		states = new ArrayList<>();
 		parent = null;
-
 		reserve(initialState);
 	}
 
 	/** Follows the behaviour of snapshot() */
 	protected StateSpace(StateSpace other) {
 		parent = other;
-		exitRates = other.exitRates.clone();
 		knownStates = new HashMap<>(other.knownStates);
 		states = new ArrayList<>(other.states);
-		successors = new ArrayList<>(other.successors);
-		orders = new ArrayList<>(other.orders);
-		probs = new ArrayList<>(other.probs);
-		inHPC = (BitSet)other.inHPC.clone();
-
-		hpcs = new HashMap<Integer, HPCState>();
-		for (Map.Entry<Integer, HPCState> e : other.hpcs.entrySet())
-			hpcs.put(e.getKey(), e.getValue().clone());
 		epsilon = other.epsilon;
 	}
 
@@ -158,44 +183,55 @@ public abstract class StateSpace {
 		return states.size();
 	}
 
-	public void addHPC(int x) {
-		if(!inHPC.get(x)) {
-			inHPC.set(x);
-			HPCState s = new HPCState();
-			// deep copy [Enno: Not sure why]
-			s.successors = successors.get(x).clone();
-			s.probs = probs.get(x).clone();
-			s.num = hpcs.size();
-			hpcs.put(x, s);
-		}
+	public State getState(int s)
+	{
+		return states.get(s);
+	}
+
+	public void addHPC(ExploredState orig, int[] newNeighbours,
+	                   short[] newOrders, double[] newProbs)
+	{
+		if (orig instanceof HPCState)
+			return;
+		HPCState n = new HPCState(orig, newNeighbours, newOrders, 
+		                          newProbs);
+		knownStates.remove(orig);
+		knownStates.put(n, n);
+		states.set(n.number, n);
 	}
 
 	private ThreadLocal<StateWrapper> cachedWrapper = new ThreadLocal<>();
 
-	public int find(int[] x) {
+	public State find(int[] x) {
 		StateWrapper w = cachedWrapper.get();
 		if (w == null) {
 			w = new StateWrapper(x);
 			cachedWrapper.set(w);
 		}
 		w.state = x;
-		Integer z = knownStates.get(w);
-		if (z != null)
-			return z;
-		else
-			return -1;
+		return knownStates.get(w);
 	}
 
-	protected int findOrCreate(int[] x) {
-		int s = find(x);
-		if(s == -1) {
-			reserve(x);
-			return size()-1;
-		}
+	protected State findOrCreate(int[] x) {
+		State s = find(x);
+		if(s == null)
+			s = reserve(x);
 		return s;
 	}
 
-	public int[] getInitialState()
+	protected ExploredState explored(State s, int[] neighbours,
+	                                 short[] orders, double[] probs,
+	                                 double exitRate)
+	{
+		ExploredState ret = new ExploredState(s, neighbours, orders,
+		                                      probs, exitRate);
+		knownStates.remove(s);
+		knownStates.put(ret, ret);
+		states.set(ret.number, ret);
+		return ret;
+	}
+
+	public State getInitialState()
 	{
 		return states.get(0);
 	}
@@ -206,13 +242,13 @@ public abstract class StateSpace {
 	 * orders, and probs with correctly filled arrays, and set
 	 * exitRates[s] to the correct value.
 	 */
-	public abstract void findNeighbours(int x);
+	public abstract ExploredState findNeighbours(State x);
 
 	public String stateString(int state) {
-		return "state "+ state +", ="+Arrays.toString(states.get(state));
+		return "state "+ state +", ="+states.get(state).toString();
 	}
 
-	public Number getVarValue(String variable, int state) {
+	public Number getVarValue(String variable, State state) {
 		return null;
 	}
 }

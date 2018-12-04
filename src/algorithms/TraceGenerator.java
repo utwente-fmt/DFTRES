@@ -22,7 +22,7 @@ public abstract class TraceGenerator
 	private long startTime;
 
 	private int chosen;
-	private int prevState;
+	private StateSpace.ExploredState prevState;
 	private double delta;
 	private double lastDeltaLikelihood;
 	private double[] pReachSink = new double[1];
@@ -83,13 +83,12 @@ public abstract class TraceGenerator
 	/**
 	 * Get the weights of the transitions for the current state.
 	 */
-	public int drawNextState(int state) {
-		prevState = state;
+	public StateSpace.State drawNextState(StateSpace.State state) {
 		lastDeltaLikelihood = 1;
-		scheme.prepareState(state);
+		prevState = scheme.prepareState(state.number);
 		if (scheme.neighbours.length == 1) {
 			chosen = 0;
-			return scheme.neighbours[0];
+			return scheme.model.getState(scheme.neighbours[0]);
 		}
 		if (scheme.neighbours.length == 0) {
 			chosen = -1;
@@ -101,12 +100,14 @@ public abstract class TraceGenerator
 			sumProb += scheme.stateWeightsIS[i];
 			if(u < sumProb) {
 				chosen = i;
-				return scheme.neighbours[i];
+				return scheme.model.getState(scheme.neighbours[i]);
 			}
 		}
-		System.err.println("WARNING: State selection problem, probably due to floating-point roundoff error.");
+		System.err.println("WARNING: State selection problem from state " + prevState.number + ", probably due to floating-point roundoff error.");
+		System.err.println("Probabilities: " + Arrays.toString(scheme.stateWeightsIS));
+		System.err.println("Original: " + Arrays.toString(scheme.probs));
 		chosen = 0;
-		return scheme.neighbours[chosen];
+		return scheme.model.getState(scheme.neighbours[chosen]);
 	}
 
 	protected double likelihood()
@@ -134,23 +135,32 @@ public abstract class TraceGenerator
 	{
 		StateSpace model = scheme.model;
 		int sink = scheme.neighbours[chosen];
-		StateSpace.HPCState s = model.hpcs.get(state);
-		int[] succ = s.successors;
+		StateSpace.State origState = model.getState(state);
+		if (!(origState instanceof StateSpace.HPCState))
+			throw new AssertionError("Attempt to get HPC successor of non-HPC state.");
+		StateSpace.HPCState s = (StateSpace.HPCState)origState;
+		int[] succ = s.origNeighbours;
 		if (pReachSink.length < succ.length)
 			pReachSink = new double[succ.length];
-		double[] probs = s.probs;
+		double[] probs = s.origProbs;
 		double sumP = 0;
 		for (int i = 0; i < succ.length; i++) {
 			double p;
+			StateSpace.ExploredState ns;
+			StateSpace.State tmp;
 			state = succ[i];
+			tmp = model.getState(state);
+			if (!(tmp instanceof StateSpace.ExploredState))
+				throw new AssertionError("Unexplored state in HPC");
+			ns = (StateSpace.ExploredState)tmp;
 			if (state == sink)
 				p = 1;
-			else if (!model.inHPC.get(state))
+			else if (!(ns instanceof StateSpace.HPCState))
 				p = 0;
-			else if (state == prevState)
+			else if (ns == prevState)
 				p = scheme.probs[chosen];
 			else
-				p = scheme.model.getProb(state, sink);
+				p = ns.getProbTo(sink);
 			sumP = Math.fma(p, probs[i], sumP);
 			pReachSink[i] = sumP;
 		}
@@ -162,13 +172,13 @@ public abstract class TraceGenerator
 
 	public int[] extendPath(int[] path)
 	{
-		if(!scheme.model.inHPC.get(prevState)) {
-			if (path.length <= prevState)
-				path = Arrays.copyOf(path, prevState + 1);
-			path[prevState]++;
+		if(!(prevState instanceof StateSpace.HPCState)) {
+			if (path.length <= prevState.number)
+				path = Arrays.copyOf(path, prevState.number+1);
+			path[prevState.number]++;
 			return path;
 		}
-		int k = prevState;
+		int k = prevState.number;
 		long count = 0;
 		int sink = scheme.neighbours[chosen];
 
@@ -219,13 +229,13 @@ public abstract class TraceGenerator
 	 * @return sojourn time.
 	 */
 	public double drawDelta(double timeBound) {
-		int k = prevState;
+		int k = prevState.number;
 		if (chosen == -1) {
 			lastDeltaLikelihood = 1;
 			return Double.POSITIVE_INFINITY;
 		}
-		if(!scheme.model.inHPC.get(k)) {
-			double rate = scheme.model.exitRates[k];
+		if(!(prevState instanceof StateSpace.HPCState)) {
+			double rate = prevState.exitRate;
 			lastDeltaLikelihood = 1;
 			delta = drawExponential(rate, timeBound);
 			return delta;
@@ -235,7 +245,10 @@ public abstract class TraceGenerator
 		int sink = scheme.neighbours[chosen];
 		delta = 0;
 		while(k != sink) {
-			double rate = scheme.model.exitRates[k];
+			StateSpace.State s = scheme.model.getState(k);
+			if (!(s instanceof StateSpace.HPCState))
+				throw new AssertionError("Found non-HPC state in HPC");
+			double rate = ((StateSpace.HPCState)s).exitRate;
 			delta += drawExponential(rate, timeBound);
 			if (delta > timeBound)
 				return Double.POSITIVE_INFINITY;
@@ -249,21 +262,24 @@ public abstract class TraceGenerator
 	}
 
 	public double drawMeanTransitionTime() {
-		int k = prevState;
 		if (chosen == -1) {
 			lastDeltaLikelihood = 1;
 			return Double.POSITIVE_INFINITY;
 		}
-		if(!scheme.model.inHPC.get(k))
-			return 1 / scheme.model.exitRates[k];
+		if(!(prevState instanceof StateSpace.HPCState))
+			return 1 / prevState.exitRate;
 
+		int k = prevState.number;
 		double[] pReachSink = new double[1];
 		long count = 0;
 		int sink = scheme.neighbours[chosen];
 		double ret = 0;
 
 		while(k != sink) {
-			ret += 1 / scheme.model.exitRates[k];
+			StateSpace.State s = scheme.model.getState(k);
+			if (!(s instanceof StateSpace.ExploredState))
+				throw new AssertionError("Unexplored state in HPC");
+			ret += 1 / ((StateSpace.ExploredState)s).exitRate;
 
 			count++;
 			if (count % 1048576 == 0)

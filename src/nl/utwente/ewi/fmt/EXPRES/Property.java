@@ -123,8 +123,8 @@ public class Property implements Comparable<Property>
 		return compareExprs(transientReward, other.transientReward) == 0;
 	}
 
-	public boolean isRed(StateSpace ss, int state)
-       {
+	public boolean isRed(StateSpace ss, StateSpace.State state)
+	{
 		if (reachTarget == null)
 			return false;
 		Number n = reachTarget.evaluate(ss, state);
@@ -133,13 +133,12 @@ public class Property implements Comparable<Property>
 		return n.doubleValue() != 0;
 	}
 	
-	public boolean isBlue(StateSpace ss, int state)
+	public boolean isBlue(StateSpace ss, StateSpace.State state)
 	{
 		if (type != Type.STEADY_STATE)
 			return false;
-		int[] vals = ss.states.get(state);
-		int[] init = ss.getInitialState();
-		return Arrays.equals(vals, init);
+		StateSpace.State init = ss.getInitialState();
+		return state.equals(init);
 	}
 
 	public void printJani(PrintStream out, int indent)

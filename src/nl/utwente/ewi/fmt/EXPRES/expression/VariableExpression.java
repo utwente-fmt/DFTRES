@@ -48,7 +48,7 @@ public class VariableExpression extends Expression
 		return ((VariableExpression)expr).variable.equals(variable);
 	}
 
-	public Number evaluate(StateSpace s, int state) {
+	public Number evaluate(StateSpace s, StateSpace.State state) {
 		return s.getVarValue(variable, state);
 	}
 

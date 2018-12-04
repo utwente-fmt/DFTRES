@@ -2,6 +2,7 @@ package algorithms;
 import models.StateSpace;
 import java.util.Arrays;
 import java.util.Map;
+import models.StateSpace;
 
 // general outlay of a general importance sampling scheme - extensions of this class are to be used
 // by actual simulators.
@@ -17,7 +18,7 @@ public class Scheme
 	public double totalStateWeightIS;
 	public int[] neighbours;
 
-	protected int[] orders;
+	protected short[] orders;
 	protected double[] probs;
 
 	public Scheme(StateSpace model) {
@@ -39,17 +40,15 @@ public class Scheme
 		return true;
 	}
 
-	public void prepareState(int state) {
-		neighbours = model.successors.get(state);
-		if(neighbours == null) {
-			model.findNeighbours(state);
-			neighbours = model.successors.get(state);
-		}
-		orders = model.orders.get(state);
-		probs = model.probs.get(state);
+	public StateSpace.ExploredState prepareState(int state) {
+		StateSpace.ExploredState s = model.findNeighbours(model.getState(state));
+		neighbours = s.neighbours;
+		orders = s.orders;
+		probs = s.probs;
 
 		stateWeightsIS = probs;
 		totalStateWeightIS = 1;
+		return s;
 	}
 	
 	public void resetModelCache() {
