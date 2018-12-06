@@ -4,13 +4,14 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Comparator;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 
@@ -126,43 +127,51 @@ public abstract class StateSpace {
 		}
 	}
 
-	/* Regarding the public fields, only the following modifications
-	 * may be made:
-	 * - Changing any of the bitsets.
-	 * - FULLY replacing any array in successors, orders, or probs.
-	 * - Adding new states (extending the length of every List and
-	 *   the size of knownStates) via reserve().
-	 * - Modifying the value of exitRates[i] for any i for which
-	 *   successors.get(i) == null.
-	 *
-	 * Any other modifications may mess up snapshotting.
-	 */
 	private HashMap<State, State> knownStates;
-	private final StateSpace parent;
-	private List<State> states;
+	private volatile State[] states;
+	private volatile int nStates;
 	public final double epsilon;
+	/* Locks are public since HPC removal needs synchronization
+	 * across multiple state updates.
+	 */
+	public Lock writeLock, readLock;
 
 	private State reserve(int[] x) {
-		State ret = new State(x, states.size());
-		knownStates.put(ret, ret);
-		states.add(ret);
+		State ret;
+		try {
+			writeLock.lock();
+			ret = new State(x, nStates);
+			nStates++;
+			if (ret.number >= states.length)
+				states = Arrays.copyOf(states, states.length*2);
+			states[ret.number] = ret;
+			knownStates.put(ret, ret);
+		} finally {
+			writeLock.unlock();
+		}
 		return ret;
 	}
 
 	public StateSpace(double epsilon, int[] initialState) {
 		this.epsilon = epsilon;
 		knownStates = new HashMap<State, State>();
-		states = new ArrayList<>();
-		parent = null;
+		states = new State[1024];
+		nStates = 0;
+		ReentrantReadWriteLock locks = new ReentrantReadWriteLock();
+		writeLock = locks.writeLock();
+		readLock = locks.readLock();
 		reserve(initialState);
 	}
 
 	/** Follows the behaviour of snapshot() */
 	protected StateSpace(StateSpace other) {
-		parent = other;
 		knownStates = new HashMap<>(other.knownStates);
-		states = new ArrayList<>(other.states);
+		states = other.states.clone();
+		nStates = other.nStates;
 		epsilon = other.epsilon;
+		ReentrantReadWriteLock locks = new ReentrantReadWriteLock();
+		writeLock = locks.writeLock();
+		readLock = locks.readLock();
 	}
 
 	/**
@@ -180,12 +189,12 @@ public abstract class StateSpace {
 	public abstract StateSpace snapshot();
 
 	public int size() {
-		return states.size();
+		return nStates;
 	}
 
 	public State getState(int s)
 	{
-		return states.get(s);
+		return states[s];
 	}
 
 	public void addHPC(ExploredState orig, int[] newNeighbours,
@@ -193,11 +202,16 @@ public abstract class StateSpace {
 	{
 		if (orig instanceof HPCState)
 			return;
-		HPCState n = new HPCState(orig, newNeighbours, newOrders, 
-		                          newProbs);
-		knownStates.remove(orig);
-		knownStates.put(n, n);
-		states.set(n.number, n);
+		try {
+			writeLock.lock();
+			HPCState n = new HPCState(orig, newNeighbours,
+			                          newOrders, newProbs);
+			knownStates.remove(orig);
+			knownStates.put(n, n);
+			states[n.number] = n;
+		} finally {
+			writeLock.unlock();
+		}
 	}
 
 	private ThreadLocal<StateWrapper> cachedWrapper = new ThreadLocal<>();
@@ -209,13 +223,27 @@ public abstract class StateSpace {
 			cachedWrapper.set(w);
 		}
 		w.state = x;
-		return knownStates.get(w);
+		try {
+			readLock.lock();
+			return knownStates.get(w);
+		} finally {
+			readLock.unlock();
+		}
 	}
 
 	protected State findOrCreate(int[] x) {
-		State s = find(x);
-		if(s == null)
-			s = reserve(x);
+		State s;
+		s = find(x);
+		if(s == null) {
+			try {
+				writeLock.lock();
+				s = find(x);
+				if (s == null)
+					s = reserve(x);
+			} finally {
+				writeLock.unlock();
+			}
+		}
 		return s;
 	}
 
@@ -225,15 +253,23 @@ public abstract class StateSpace {
 	{
 		ExploredState ret = new ExploredState(s, neighbours, orders,
 		                                      probs, exitRate);
-		knownStates.remove(s);
-		knownStates.put(ret, ret);
-		states.set(ret.number, ret);
+		try {
+			writeLock.lock();
+			State prev = knownStates.get(s);
+			if (prev instanceof ExploredState)
+				return (ExploredState)prev;
+			knownStates.remove(s);
+			knownStates.put(ret, ret);
+			states[ret.number] = ret;
+		} finally {
+			writeLock.unlock();
+		}
 		return ret;
 	}
 
 	public State getInitialState()
 	{
-		return states.get(0);
+		return states[0];
 	}
 
 	/** Instantiate the relevant fields for the specified state.
@@ -245,7 +281,7 @@ public abstract class StateSpace {
 	public abstract ExploredState findNeighbours(State x);
 
 	public String stateString(int state) {
-		return "state "+ state +", ="+states.get(state).toString();
+		return "state "+ state +", ="+states[state].toString();
 	}
 
 	public Number getVarValue(String variable, State state) {

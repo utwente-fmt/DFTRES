@@ -81,9 +81,9 @@ public class SteadyStateTracer extends TraceGenerator
 		hasDeadlocks = false;
 	}
 
-	public void resetModelCache()
+	public void resetModelCache(StateSpace model)
 	{
-		super.resetModelCache();
+		super.resetModelCache(model);
 		mcTracer.scheme.model = scheme.model;
 	}
 

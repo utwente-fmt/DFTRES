@@ -9,13 +9,14 @@ import java.util.concurrent.atomic.LongAdder;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 
 public class Simulator {
-	private final static int MIN_MAX_CACHE_SIZE = 100000;
-	private final static long MAX_MEM_USE = 4*1024L*1024L*1024L;
+	private final static long MIN_FREE_MEM = 512*1024L*1024L;
 	public final static boolean VERBOSE = false;
 	public final static int REL_ERR_RATE = 8;
 	public static int coresToUse;
 	public static boolean showProgress = false;
+	private final StateSpace initialModel;
 	private final TraceGenerator gen;
+	private static final Runtime r = Runtime.getRuntime();
 	
 	static {
 		coresToUse = Runtime.getRuntime().availableProcessors();
@@ -23,8 +24,12 @@ public class Simulator {
 
 	private static long getMemUsed()
 	{
-		Runtime r = Runtime.getRuntime();
 		return r.totalMemory() - r.freeMemory();
+	}
+
+	private static long getMemFree()
+	{
+		return r.freeMemory();
 	}
 
 	private static class ProgressPrinter extends Thread {
@@ -97,6 +102,7 @@ public class Simulator {
 				gen = null;
 				assert(false);
 		}
+		initialModel = gen.scheme.model.snapshot();
 	}
 
 	private TraceGenerator[] multiCoreSim(long maxN, int threads)
@@ -106,10 +112,6 @@ public class Simulator {
 			ret[i] = gen.copy();
 		if (maxN == 0)
 			return ret;
-		int cacheSize = gen.scheme.model.size() * 2;
-		if (cacheSize < MIN_MAX_CACHE_SIZE)
-			cacheSize = MIN_MAX_CACHE_SIZE;
-		final int maxCache = cacheSize;
 		ProgressPrinter p;
 		if (showProgress) {
 			p = new ProgressPrinter(maxN);
@@ -119,6 +121,7 @@ public class Simulator {
 			};
 		}
 		final ProgressPrinter progress = p;
+		final StateSpace[] toReset = new StateSpace[threads];
 
 		class Tracer implements Runnable {
 			public final TraceGenerator gen;
@@ -127,11 +130,41 @@ public class Simulator {
 				gen = g;
 				N = nSims;
 			}
+			private void resetAndWait() {
+				System.err.format("Resetting: %d MB avail\n", getMemFree() / (1024 * 1024));
+				synchronized (toReset) {
+					int i, n = 0;
+					StateSpace ours = null;
+					for (i = 0; i < toReset.length; i++) {
+						if (toReset[i] != null) {
+							ours = toReset[i];
+							toReset[i] = null;
+							n = i;
+						}
+					}
+					if (ours == null) {
+						ours = initialModel.snapshot();
+						Arrays.fill(toReset, ours);
+						toReset[0] = null;
+					}
+					gen.resetModelCache(ours);
+					if (n == toReset.length - 1) {
+						/* We were the last. */
+						toReset.notifyAll();
+					} else {
+						/* Wait for the last one. */
+						try {
+							toReset.wait();
+						} catch (Exception e) {
+						}
+					}
+				}
+			}
 			public void run() {
 				for (long i = 0; i < N; i++) {
 					// keep the cache from exploding
-					if(getMemUsed() > MAX_MEM_USE)
-						gen.resetModelCache();
+					if (getMemFree() < MIN_FREE_MEM)
+						resetAndWait();
 					gen.sample();
 					p.doneOne();
 				}
@@ -175,9 +208,6 @@ public class Simulator {
 	public SimulationResult sim(int msec, long maxN, double alpha)
 	{
 		long start = System.currentTimeMillis();
-		int maxCacheSize = gen.scheme.model.size() * 2;
-		if (maxCacheSize < MIN_MAX_CACHE_SIZE)
-			maxCacheSize = MIN_MAX_CACHE_SIZE;
 
 		if (maxN == 0)
 			maxN = Long.MAX_VALUE;
@@ -197,12 +227,13 @@ public class Simulator {
 			long trialSimTime = start + msec / 100;
 			while (System.currentTimeMillis() < trialSimTime) {
 				// keep the cache from exploding
-				if(getMemUsed() > MAX_MEM_USE)
-					tg.resetModelCache();
+				if(getMemFree() < MIN_FREE_MEM)
+					tg.resetModelCache(initialModel.snapshot());
 				tg.sample();
 				N++;
 			}
 
+			gen.resetModelCache(tg.scheme.model);
 			if (showProgress)
 				System.err.println("Estimating simulation rate.");
 			/* Spend about another 1% estimating the time
@@ -249,9 +280,6 @@ public class Simulator {
 		long maxN = 1000;
 		double curRelErr;
 		int initSize = gen.scheme.model.size();
-		int maxCacheSize = initSize * 2;
-		if (maxCacheSize < MIN_MAX_CACHE_SIZE)
-			maxCacheSize = MIN_MAX_CACHE_SIZE;
 		SimulationResult result;
 		long startTime = System.nanoTime();
 
@@ -278,9 +306,6 @@ public class Simulator {
 		double lbound = 0, ubound = 1, mean;
 		double curRelErr;
 		int initSize = gen.scheme.model.size();
-		int maxCacheSize = initSize * 2;
-		if (maxCacheSize < MIN_MAX_CACHE_SIZE)
-			maxCacheSize = MIN_MAX_CACHE_SIZE;
 		SimulationResult result;
 		long startTime = System.nanoTime();
 

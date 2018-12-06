@@ -10,8 +10,6 @@ import models.StateSpace;
 public class Scheme
 {
 	public final String name;
-	private final StateSpace initialModel;
-
 	public StateSpace model;
 
 	public double[] stateWeightsIS;
@@ -26,14 +24,13 @@ public class Scheme
 	}
 
 	public Scheme(StateSpace model, String name) {
-		this.initialModel = model;
-		this.model = model.snapshot();
+		this.model = model;
 		this.name = name;
 	}
 
 	public Scheme clone()
 	{
-		return new Scheme(initialModel);
+		return new Scheme(model);
 	}
 
 	public boolean isBinomial() {
@@ -51,9 +48,9 @@ public class Scheme
 		return s;
 	}
 	
-	public void resetModelCache() {
+	public void resetModelCache(StateSpace initial) {
 		System.err.println("Resetting cache");
-		this.model = initialModel.snapshot();
+		this.model = initial;
 	}
 	
 	/**

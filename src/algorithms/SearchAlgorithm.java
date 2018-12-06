@@ -223,12 +223,17 @@ public class SearchAlgorithm {
 		if (trace)
 			System.err.println("Minimal order: " + minOrder);
 
-		for (i = 0; i < La.length; i++) {
-			ExploredState l = La[i];
-			double[] prbs = new double[D.length];
-			for(int j=0;j<D.length;j++)
-				prbs[j] = T[i][L.length + j];
-			model.addHPC(l, D, orders, prbs);
+		try {
+			model.writeLock.lock();
+			for (i = 0; i < La.length; i++) {
+				ExploredState l = La[i];
+				double[] prbs = new double[D.length];
+				for(int j=0;j<D.length;j++)
+					prbs[j] = T[i][L.length + j];
+				model.addHPC(l, D, orders, prbs);
+			}
+		} finally {
+			model.writeLock.unlock();
 		}
 		return true;
 	}

@@ -289,9 +289,9 @@ public abstract class TraceGenerator
 		return ret;
 	}
 
-	public void resetModelCache()
+	public void resetModelCache(StateSpace newModel)
 	{
-		scheme.resetModelCache();
+		scheme.resetModelCache(newModel);
 	}
 
 	public void reset()
