@@ -270,7 +270,6 @@ public abstract class TraceGenerator
 			return 1 / prevState.exitRate;
 
 		int k = prevState.number;
-		double[] pReachSink = new double[1];
 		long count = 0;
 		int sink = scheme.neighbours[chosen];
 		double ret = 0;

@@ -28,6 +28,7 @@ public class Composition implements MarkableLTS
 	private TreeSet<String> hideLabels;
 	private TreeMap<String, Integer> markLabels;
 	private Map<String, int[]> globalVars; /* Argument: lower bit, upper bit (both inclusive), initial value, lower bound */
+	private String[] globalVarNames;
 	private TreeMap<String, Expression> transientGlobals; /* Maps the variable name to its initial value. */
 	/* From a partial state to the targets of the needed automata */
 	private LinkedHashMap<PartialState, int[]> transitionCache;
@@ -333,12 +334,15 @@ public class Composition implements MarkableLTS
 		TreeMap<String, Integer> mins = new TreeMap<>();
 		TreeMap<String, Integer> maxs = new TreeMap<>();
 		TreeSet<String> unspecifieds = new TreeSet<>();
+		globalVarNames = new String[globalVars.size()];
+		int i = 0;
 		for (Map.Entry<String, int[]> e : globalVars.entrySet()) {
 			mins.put(e.getKey(), e.getValue()[2]);
 			maxs.put(e.getKey(), e.getValue()[2]);
+			globalVarNames[i++] = e.getKey();
 		}
 		for (Automaton a : automata) {
-			for (int i = a.getNumStates() - 1; i >= 0; i--) {
+			for (i = a.getNumStates() - 1; i >= 0; i--) {
 				int n = 0;
 				Map<String, Expression> assigns;
 				while ( (assigns = a.getAssignments(i, n)) != null) {
@@ -425,27 +429,35 @@ public class Composition implements MarkableLTS
 
 	public Map<String, Integer> getVarValues(int[] state)
 	{
-		TreeMap<String, Integer> ret = new TreeMap<>();
-		if (globalVars.isEmpty()) {
-			ret.put("marked", state[state.length - 1]);
-			return ret;
-		}
-		for (Map.Entry<String, int[]> e : globalVars.entrySet()) {
-			int vData[] = e.getValue();
+		if (globalVars.isEmpty())
+			return Map.of("marked", state[state.length - 1]);
+		if (globalVars.size() == 1) {
+			String v = globalVarNames[0];
+			int vData[] = globalVars.get(v);
 			int word = vData[0] / 32 + automata.length;
 			int vals = state[word];
 			int lowBit = vData[0] % 32;
 			int val = vals >> lowBit;
 			val &= ((-1) >>> (31 - (vData[1] - vData[0])));
 			val += vData[3];
-			ret.put(e.getKey(), val);
+			return Map.of(v, val);
+		}
+		TreeMap<String, Integer> ret = new TreeMap<>();
+		for (String name : globalVarNames) {
+			int vData[] = globalVars.get(name);
+			int word = vData[0] / 32 + automata.length;
+			int vals = state[word];
+			int lowBit = vData[0] % 32;
+			int val = vals >> lowBit;
+			val &= ((-1) >>> (31 - (vData[1] - vData[0])));
+			val += vData[3];
+			ret.put(name, val);
 		}
 		return ret;
 	}
 
 	public int getVarValue(String var, int[] state)
 	{
-		TreeMap<String, Integer> ret = new TreeMap<>();
 		if (var.equals("marked") && globalVars.isEmpty()) {
 			return state[state.length - 1];
 		}
