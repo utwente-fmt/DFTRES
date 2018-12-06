@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.PrimitiveIterator;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.concurrent.LinkedBlockingDeque;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 
 public class SearchAlgorithm {
@@ -223,17 +224,12 @@ public class SearchAlgorithm {
 		if (trace)
 			System.err.println("Minimal order: " + minOrder);
 
-		try {
-			model.writeLock.lock();
-			for (i = 0; i < La.length; i++) {
-				ExploredState l = La[i];
-				double[] prbs = new double[D.length];
-				for(int j=0;j<D.length;j++)
-					prbs[j] = T[i][L.length + j];
-				model.addHPC(l, D, orders, prbs);
-			}
-		} finally {
-			model.writeLock.unlock();
+		for (i = 0; i < La.length; i++) {
+			ExploredState l = La[i];
+			double[] prbs = new double[D.length];
+			for(int j=0;j<D.length;j++)
+				prbs[j] = T[i][L.length + j];
+			model.addHPC(l, D, orders, prbs);
 		}
 		return true;
 	}
@@ -243,23 +239,55 @@ public class SearchAlgorithm {
 		ReachabilitySolver solv = new ReachabilitySolver(T);
 		return solv.solve(maxIts);
 	}
-	
+
+	private void startExplorers(LinkedBlockingDeque<Object> q)
+	{
+		int cores = Simulator.coresToUse - 1;
+		Runnable explorer = new Runnable() {
+			public void run() {
+				Object o = null;
+				while (true) {
+					StateSpace.State s;
+					try {
+						o = q.take();
+					} catch (InterruptedException e) {
+					}
+					if (o instanceof StateSpace.State) {
+						s = (StateSpace.State)o;
+						model.findNeighbours(s);
+					} else {
+						q.push(o);
+						return;
+					}
+				}
+			}
+		};
+		for (int i = 0; i < cores; i++)
+			new Thread(explorer).start();
+	}
+
 	private void forwardPhase() {
 		ArrayDeque<StateSpace.State> current = new ArrayDeque<>();
+		LinkedBlockingDeque<Object> needsExploration = null;
 		StateSpace.State x = model.getInitialState();
+		BitSet done = new BitSet();
 		int dReach = Integer.MAX_VALUE, dCur = 0;
 		int minUnexpl = 0;
 		int[] skipNeighbours = new int[0];
 
+		if (Simulator.coresToUse > 1) {
+			needsExploration = new LinkedBlockingDeque<>();
+			startExplorers(needsExploration);
+		}
+
 		while(x != null && dCur <= dReach) {
 			ExploredState es = null;
-			int[] nbs;
-			if (!(x instanceof ExploredState)) {
+			int[] nbs = skipNeighbours;
+			if (!done.get(x.number)) {
 				x = es = findNeighbours(x);
 				nbs = es.neighbours;
-			} else {
-				nbs = skipNeighbours;
 			}
+			done.set(x.number);
 
 			for (int i = 0; i < nbs.length; i++) {
 				StateSpace.State nb = model.getState(nbs[i]);
@@ -271,17 +299,19 @@ public class SearchAlgorithm {
 					dp[z] = dZ;
 				else
 					dZ = dp[z];
-				if (dZ == dCur)
+				if (dZ == dCur) {
+					if (needsExploration != null)
+						needsExploration.push(nb);
 					current.add(nb);
+				}
 				if (dZ < dReach && prop.isRed(model, nb))
 					dReach = dZ;
-				if ((nb instanceof ExploredState) && dZ == dCur)
-				{
+				if (done.get(nb.number) && dZ == dCur) {
+					assert(nb instanceof ExploredState);
 					/* Possible HPC */
 					if (removeHpc((ExploredState)nb)) {
 						x = model.getState(x.number);
-						if (!(x instanceof ExploredState))
-							throw new AssertionError("Explored state suddenly became unexplored");
+						assert(x instanceof ExploredState);
 						es = (ExploredState)x;
 						nbs = es.neighbours;
 						i = -1;
@@ -293,26 +323,31 @@ public class SearchAlgorithm {
 			if (!current.isEmpty()) {
 				x = current.poll();
 			} else {
-				dCur = Integer.MAX_VALUE;
-				for (int i = minUnexpl; i < model.size(); i++) {
-					StateSpace.State zz = model.getState(i);
-					if (zz instanceof ExploredState)
-						minUnexpl++;
-					else
-						break;
-				}
-				for (int i = minUnexpl; i < model.size(); i++) {
-					StateSpace.State zz = model.getState(i);
-					if (zz instanceof ExploredState)
-						continue;
+				ArrayList<StateSpace.State> toExplore = null;
+				if (needsExploration != null)
+					toExplore = new ArrayList<>();
+				needsExploration.clear();
+				dCur = dReach;
+				int i = done.nextClearBit(minUnexpl);
+				minUnexpl = i;
+				while (i < model.size()) {
 					int dZ = dp[i];
 					if (dZ < dCur) {
+						if (toExplore != null)
+							toExplore.clear();
 						current.clear();
 						dCur = dZ;
 					}
-					if (dZ == dCur)
+					if (dZ == dCur) {
+						StateSpace.State zz = model.getState(i);
+						if (toExplore != null)
+							toExplore.add(zz);
 						current.add(zz);
+					}
+					i = done.nextClearBit(i + 1);
 				}
+				if (toExplore != null)
+					needsExploration.addAll(toExplore);
 				if (current.isEmpty())
 					x = null;
 				else
@@ -322,6 +357,11 @@ public class SearchAlgorithm {
 				System.out.format("fwd (%d): %s\n", dp[x.number], x);
 			if (Simulator.showProgress && ((model.size() % 32768) == 0))
 				System.err.format("\rForward search: %d states (distance %d)", model.size(), dCur);
+		}
+
+		if (Simulator.coresToUse > 1) {
+			needsExploration.clear();
+			needsExploration.push(0);
 		}
 
 		if (Simulator.showProgress)
