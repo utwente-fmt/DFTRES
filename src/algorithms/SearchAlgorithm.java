@@ -365,7 +365,7 @@ public class SearchAlgorithm {
 		}
 
 		if (Simulator.showProgress)
-			System.err.println("\nForward search completed, minimal distance " + dReach);
+			System.err.println("\nForward search completed, explored " + model.size() + " states, minimal distance " + dReach);
 		Gamma = new HashSet<Integer>();
 		Lambda = new HashSet<Integer>();
 		//assumes that the only states with a listing in X so far are either in Lambda or Gamma:

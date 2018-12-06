@@ -1,5 +1,6 @@
 package nl.utwente.ewi.fmt.EXPRES;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
@@ -65,55 +66,28 @@ public class MarkovianComposition implements LTS
 		return ret;
 	}
 
-	private Set<Transition> getTransitions(
-			int[] from,
-			TreeSet<int[]> visited)
-	{
-		visited.add(from);
-		Set<Transition> orig = original.getTransitions(from);
-		//System.err.format("Original transitions from %s: %s\n", Arrays.toString(from), orig);
-		Set<Transition> reduced = new TreeSet<Transition>();
-		for (Transition t : orig) {
-			if (t.label.startsWith("rate "))
-				reduced.add(t);
-			if (!visited.contains(t.target))
-				reduced.add(t);
-		}
-		//System.err.format("Reduced transitions from %s: %s\n", Arrays.toString(from), orig);
-		if (reduced.isEmpty())
-			return reduced;
-		Transition nonMarkov = null;
-		for (Transition t : reduced) {
-			if (!t.label.startsWith("rate ")) {
-				nonMarkov = t;
-				break;
-			}
-		}
-		if (nonMarkov == null) {
-			return reduced;
-		}
-		//System.err.format("Taking transition %s\n", nonMarkov.label);
-		return getTransitions(nonMarkov.target, visited);
-	}
-
 	/* Return a state at some maximal distance from this transition */
-	private Transition forward(Transition t, Set<int[]> visited)
+	private Transition forward(Transition t)
 	{
-		visited.add(t.target);
-		Set<Transition> outgoing = original.getTransitions(t.target);
-		//System.err.format("Original forward outgoing transitions from %s: %s\n", Arrays.toString(t.target), outgoing);
-		Set<Transition> reduced = new TreeSet<Transition>();
-		for (Transition s : outgoing) {
-			if (s.label.startsWith("rate "))
-				continue;
-			if (s.guard.evaluate(getVarValues(t.target)).doubleValue() == 0)
-				continue;
-			if (!s.assignments.isEmpty())
-				throw new UnsupportedOperationException("Assignments remain in Markovian composition.");
-			if (!visited.contains(s.target)) {
-				s = new Transition(t.label, s.target,
-				                   null, null);
-				return forward(s, visited);
+		TreeSet<int[]> visited = new TreeSet<>(new StateComparator());
+		Transition next = t;
+		while (next != null) {
+			t = next;
+			next = null;
+			visited.add(t.target);
+			Set<Transition> outgoing = original.getTransitions(t.target);
+			for (Transition s : outgoing) {
+				if (s.label.startsWith("rate "))
+					continue;
+				if (s.guard.evaluate(original, t.target).doubleValue() == 0)
+					continue;
+				if (!s.assignments.isEmpty())
+					throw new UnsupportedOperationException("Assignments remain in Markovian composition.");
+				if (!visited.contains(s.target)) {
+					next = new Transition(t.label, s.target,
+							null, null);
+					break;
+				}
 			}
 		}
 		/* No more outgoing transitions */
@@ -127,8 +101,7 @@ public class MarkovianComposition implements LTS
 
 	private Set<Transition> getTransitions(int[] from, boolean checkEmpty)
 	{
-		TreeSet<int[]> visited = new TreeSet<int[]>(new StateComparator());
-		Set<Transition> direct = getTransitions(from, visited);
+		Set<Transition> direct = original.getTransitions(from);
 		Set<Transition> ret = new TreeSet<Transition>();
 		if (checkEmpty)
 			return direct;
@@ -137,7 +110,7 @@ public class MarkovianComposition implements LTS
 				System.err.format("No further transitions from %s\n", Arrays.toString(t.target));
 				ret.add(t);
 			} else {
-				Transition f = forward(t, visited);
+				Transition f = forward(t);
 				/*
 				System.err.format("Forward transitions from %s go %s\n", Arrays.toString(t.target), Arrays.toString(f.target));
 				System.err.println("Visited:");
