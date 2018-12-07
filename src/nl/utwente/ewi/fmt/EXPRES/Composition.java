@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -176,6 +177,88 @@ public class Composition implements MarkableLTS
 	public void hideLabel(String label)
 	{
 		hideLabels.add(label);
+	}
+
+	private static String mult(String r1, String r2)
+	{
+		if (r1.charAt(0) != 'r' || r1.charAt(0) != 'r')
+			throw new IllegalArgumentException("Attempt to multiply non-rates: '" + r1 + "' and '" + r2 + "'");
+
+		BigDecimal v1 = new BigDecimal(r1.substring(1));
+		BigDecimal v2 = new BigDecimal(r2.substring(1));
+		BigDecimal result = v1.multiply(v2);
+		return 'r' + result.toString();
+	}
+
+	private void fixCombinedActions()
+	{
+		ArrayList<int[]> vAuts = new ArrayList<>();
+		ArrayList<String[]> vLabels = new ArrayList<>();
+		ArrayList<String> sLabels = new ArrayList<>();
+		for (int i = 0; i < vectorAutomata.length; i++) {
+			vAuts.add(vectorAutomata[i]);
+			vLabels.add(vectorLabels[i]);
+			sLabels.add(synchronizedLabels[i]);
+		}
+		for (int i = 0; i < automata.length; i++) {
+			TreeSet<String> actions = new TreeSet<>();
+			Automaton a = automata[i];
+			for (int j = a.getNumStates() - 1; j >= 0; j--) {
+				int k = 0;
+				String l;
+				while ((l = a.getTransitionLabel(j, k++)) != null) {
+					if (l.charAt(0) != 'r')
+						actions.add(l);
+				}
+			}
+			for (int j = vLabels.size() - 1; j >= 0; j--) {
+				int k;
+				int[] auts = vAuts.get(j);
+				for (k = auts.length - 1; k >= 0; k--)
+					if (k == i)
+						break;
+				if (k < 0)
+					continue;
+				String[] labels = vLabels.get(j);
+				String ilabel = labels[k];
+				String label = ilabel.substring(1);
+				boolean keepInteractive = false;
+				for (String action : actions) {
+					if (action.equals(ilabel)) {
+						keepInteractive = true;
+						continue;
+					}
+					if (action.charAt(0) != 'c')
+						continue;
+					String[] parts = action.split(";", 2);
+					if (!parts[1].equals(label))
+						continue;
+					String rateStr = parts[0].substring(1);
+					String sLabel = sLabels.get(j);
+					if (sLabel == null) {
+						sLabel = 'r' + rateStr;
+					} else if (sLabel.charAt(0) == 'r') {
+						sLabel = mult(sLabel, parts[0]);
+					} else {
+						System.err.format("Caution: discarding synchronization result label '%s' in Markovian synchronization.");
+						sLabel = 'r' + rateStr;
+					}
+					String[] newLabels = labels.clone();
+					newLabels[k] = action;
+					vAuts.add(auts);
+					vLabels.add(newLabels);
+					sLabels.add(sLabel);
+				}
+				if (!keepInteractive) {
+					vAuts.remove(j);
+					vLabels.remove(j);
+					sLabels.remove(j);
+				}
+			}
+		}
+		vectorAutomata = vAuts.toArray(new int[0][]);
+		vectorLabels = vLabels.toArray(new String[0][]);
+		synchronizedLabels = sLabels.toArray(new String[0]);
 	}
 
 	/** Process a line describing a set of renames and a filename.
@@ -1021,7 +1104,7 @@ public class Composition implements MarkableLTS
 		if (!Long.valueOf(1).equals(janiVers))
 			System.err.println("Jani version != 1 may not be supported (file is version " + janiVers + ").");
 		Object type = root.get("type");
-		if (!"ma".equals(type))
+		if (!"ma".equals(type) && !"ctmc".equals(type))
 			throw new IllegalArgumentException("Only Markov Automata are currently supported.");
 		TreeMap<String, Number> constants = new TreeMap<>(overrideConsts);
 		Object constsO = root.get("constants");

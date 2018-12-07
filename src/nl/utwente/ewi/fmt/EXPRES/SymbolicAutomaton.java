@@ -144,19 +144,23 @@ public class SymbolicAutomaton implements LTS {
 				throw new IllegalArgumentException("Unknown location as source of edge: " + src);
 			String action = null;
 			Object ao = edge.get("action");
-			if (ao != null)
-				action = 'i' + ao.toString();
 			Object ro = edge.get("rate");
-			if (ro == null && ao == null)
+			if (ro == null && ao == null) {
 				action = "i";
-			if (ro != null && ao != null)
-				throw new IllegalArgumentException("An edge cannot have both an action and a rate.");
-			if (ro != null) {
+			} else if (ao != null && ro == null) {
+				action = 'i' + ao.toString();
+			} else if (ao == null && ro != null) {
 				if (!(ro instanceof Map))
 					throw new IllegalArgumentException("Edge rates must be JSON objects, not: " + ro);
 				Map rateMap = (Map)ro;
 				double rate = JaniUtils.getConstantDouble(rateMap.get("exp"), constants);
 				action = "r" + rate;
+			} else { /* both action and rate specified */
+				if (!(ro instanceof Map))
+					throw new IllegalArgumentException("Edge rates must be JSON objects, not: " + ro);
+				Map rateMap = (Map)ro;
+				double rate = JaniUtils.getConstantDouble(rateMap.get("exp"), constants);
+				action = "c" + rate + ";" + ao.toString();
 			}
 			labels[srci] = Arrays.copyOf(labels[srci], labels[srci].length + 1);
 			labels[srci][labels[srci].length - 1] = action;

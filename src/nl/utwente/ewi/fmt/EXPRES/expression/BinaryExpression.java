@@ -16,13 +16,16 @@ public class BinaryExpression extends Expression
 	       NOT_EQUALS("≠", true),
 	       LESS("<", true),
 	       LESS_OR_EQUAL("≤", true),
-	       GREATER("<", true),
+	       GREATER(">", true),
 	       GREATER_OR_EQUAL("≥", true),
 	       AND("∧", true),
 	       OR("∨", true),
 	       XOR("xor", true),
 	       ADD("+", false),
 	       SUBTRACT("-", false),
+	       DIVIDE("/", false),
+	       MULTIPLY("*", false),
+	       POWER("pow", false),
 		       ;
 
 	       public final String symbol;
@@ -133,6 +136,22 @@ public class BinaryExpression extends Expression
 				if (vL == null || vR == null)
 					return null;
 				return vL.longValue() - vR.longValue();
+			case DIVIDE:
+				if (l == null || r == null)
+					return null;
+				return l.doubleValue() / r.doubleValue();
+			case MULTIPLY:
+				if (l == null || r == null)
+					return null;
+				if (l instanceof Double || r instanceof Double){
+					return l.doubleValue() * r.doubleValue();
+				} else {
+					return Math.multiplyExact(l.longValue(), r.longValue());
+				}
+			case POWER:
+				if (l == null || r == null)
+					return null;
+				return Math.pow(l.doubleValue(), r.doubleValue());
 			case XOR:
 				if (boolL == null || boolR == null)
 					return null;

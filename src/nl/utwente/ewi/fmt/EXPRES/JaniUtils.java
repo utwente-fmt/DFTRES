@@ -1,5 +1,6 @@
 package nl.utwente.ewi.fmt.EXPRES;
 import java.util.Map;
+import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 
 class JaniUtils {
 	public static final int DEFAULT_INT_BITS = 7;
@@ -25,7 +26,13 @@ class JaniUtils {
 					return Math.E;
 				throw new UnsupportedOperationException("Unknown constant value: " + m.get("constant"));
 			}
-			throw new UnsupportedOperationException("Expected constant literal, found: " + exp);
+			if (m.containsKey("exp"))
+				exp = m.get("exp");
+			Expression e = Expression.fromJani(exp);
+			Number val = e.evaluate(constants);
+			if (val != null)
+				return val.doubleValue();
+			throw new UnsupportedOperationException("Unable to evaluate " + e + " in " + constants);
 		} else {
 			throw new UnsupportedOperationException("Expected constant literal, found: " + exp);
 		}
