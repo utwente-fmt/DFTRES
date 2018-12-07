@@ -71,7 +71,7 @@ public class ExpModel extends StateSpace
 
 		int i = 0;
 		for (LTS.Transition t : comp.getTransitions(state)) {
-			String rlabel = t.label.substring(5);
+			String rlabel = t.label.substring(1);
 			double rate = Double.parseDouble(rlabel);
 			int order = (int)Math.ceil(Math.log(rate) / logEpsilon);
 			if (order < 0)

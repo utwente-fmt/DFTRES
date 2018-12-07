@@ -145,7 +145,7 @@ public class SymbolicAutomaton implements LTS {
 			String action = null;
 			Object ao = edge.get("action");
 			if (ao != null)
-				action = ao.toString();
+				action = 'i' + ao.toString();
 			Object ro = edge.get("rate");
 			if (ro == null && ao == null)
 				action = "i";
@@ -156,7 +156,7 @@ public class SymbolicAutomaton implements LTS {
 					throw new IllegalArgumentException("Edge rates must be JSON objects, not: " + ro);
 				Map rateMap = (Map)ro;
 				double rate = JaniUtils.getConstantDouble(rateMap.get("exp"), constants);
-				action = "rate " + rate;
+				action = "r" + rate;
 			}
 			labels[srci] = Arrays.copyOf(labels[srci], labels[srci].length + 1);
 			labels[srci][labels[srci].length - 1] = action;

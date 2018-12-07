@@ -55,7 +55,7 @@ public class MarkovianComposition implements LTS
 			for (Transition t : outgoing) {
 				if (visited.contains(t.target))
 					continue;
-				if (!t.label.startsWith("rate ")) {
+				if (t.label.charAt(0) != 'r') {
 					done = false;
 					visited.add(ret);
 					ret = t.target;
@@ -77,7 +77,7 @@ public class MarkovianComposition implements LTS
 			visited.add(t.target);
 			Set<Transition> outgoing = original.getTransitions(t.target);
 			for (Transition s : outgoing) {
-				if (s.label.startsWith("rate "))
+				if (s.label.charAt(0) == 'r')
 					continue;
 				if (s.guard.evaluate(original, t.target).doubleValue() == 0)
 					continue;

@@ -29,7 +29,7 @@ public class Composition implements MarkableLTS
 	private TreeMap<String, Integer> markLabels;
 	private Map<String, int[]> globalVars; /* Argument: lower bit, upper bit (both inclusive), initial value, lower bound */
 	private String[] globalVarNames;
-	private TreeMap<String, Expression> transientGlobals; /* Maps the variable name to its initial value. */
+	private Map<String, Expression> transientGlobals; /* Maps the variable name to its initial value. */
 	/* From a partial state to the targets of the needed automata */
 	private LinkedHashMap<PartialState, int[]> transitionCache;
 	private int[] noTransitionPossible = new int[0];
@@ -170,7 +170,7 @@ public class Composition implements MarkableLTS
 	{
 		if (!globalVars.isEmpty())
 			throw new UnsupportedOperationException("Combination of marking states and global variables currently not supported.");
-		markLabels.put(label, val);
+		markLabels.put('i' + label, val);
 	}
 
 	public void hideLabel(String label)
@@ -197,11 +197,21 @@ public class Composition implements MarkableLTS
 			String[] s = parts[i].split("\\s*->\\s*");
 			if (s[0].charAt(0) == '"')
 				s[0] = s[0].substring(1, s[0].length() - 1);
-			s[0] = s[0].intern();
+			String oldName = s[0];
+			if (oldName.startsWith("rate "))
+				oldName = 'r' + oldName.substring(5);
+			else
+				oldName = 'i' + oldName;
+			oldName = oldName.intern();
 			if (s[1].charAt(0) == '"')
 				s[1] = s[1].substring(1, s[1].length() - 1);
-			s[1] = s[1].intern();
-			ret.put(s[0], s[1]);
+			String newName = s[1];
+			if (newName.startsWith("rate "))
+				newName = 'r' + newName.substring(5);
+			else
+				newName = 'i' + newName;
+			newName = newName.intern();
+			ret.put(oldName, newName);
 		}
 		return line;
 	}
@@ -215,12 +225,17 @@ public class Composition implements MarkableLTS
 			String label = line;
 			if (label.charAt(label.length() - 1) == ',')
 				label = label.substring(0, label.length() - 1);
+			if (label.startsWith("rate "))
+				label = 'r' + label.substring(5);
+			else
+				label = 'i' + label;
 			hideLabels.add(label);
 		} while (line.charAt(line.length() - 1) == ',');
 	}
 
 	private void readExpFile(String filename) throws IOException
 	{
+		transientGlobals = Map.of();
 		BufferedReader input = new BufferedReader(new FileReader(filename));
 		int numAutomata = 0;
 		ArrayList<int[]> vectorAutomata = new ArrayList<int[]>();
@@ -257,7 +272,12 @@ public class Composition implements MarkableLTS
 					}
 					if (!parts[i].equals("_")) {
 						automs[vectorPos] = i;
-						labels[vectorPos] = parts[i].intern();
+						String l = parts[i];
+						if (l.startsWith("rate "))
+							l = 'r'+l.substring(5);
+						else
+							l = 'i'+l;
+						labels[vectorPos] = l.intern();
 						vectorPos++;
 					}
 				}
@@ -322,7 +342,7 @@ public class Composition implements MarkableLTS
 					String l = automata[i].getTransitionLabel(j, k);
 					if (l == null)
 						break;
-					if (l.startsWith("rate ")) {
+					if (l.charAt(0) == 'r') {
 						haveRateTransitions = Arrays.copyOf(haveRateTransitions, haveRateTransitions.length + 1);
 						haveRateTransitions[haveRateTransitions.length - 1] = i;
 						j = Integer.MAX_VALUE - 1;
@@ -553,7 +573,7 @@ public class Composition implements MarkableLTS
 				String l = automata[i].getTransitionLabel(from[i], j);
 				if (l == null)
 					break;
-				if (l.startsWith("rate ")) {
+				if (l.charAt(0) == 'r') {
 					Expression g = automata[i].getTransitionGuard(from[i], j);
 					boolean guardOK = true;
 					if (g != null) {
@@ -677,7 +697,7 @@ public class Composition implements MarkableLTS
 				int j = 0;
 				String l;
 				while ((l = a.getTransitionLabel(i, j++)) != null) {
-					if (!l.startsWith("rate "))
+					if (l.charAt(0) != 'r')
 						ret.add(l);
 				}
 			}
@@ -738,19 +758,20 @@ public class Composition implements MarkableLTS
 			localHides.addAll(actions);
 			actions.clear();
 		}
-		actions.add("τ"); /* Needed for Storm compatibility */
+		actions.add("iτ"); /* Needed for Storm compatibility */
 		for (String[] ls : vectorLabels) {
 			for (String l : ls)
 				actions.add(l);
 		}
 		actions.addAll(getAllTransitionLabels());
-		actions.add("mark");
-		actions.add("unmark");
+		actions.add("imark");
+		actions.add("iunmark");
 		boolean first = true;
 		for (String l : actions) {
 			if (!first)
 				out.println(",");
 			first = false;
+			l = l.substring(1);
 			out.print("\t{\"name\":\""+l+"\"}");
 		}
 		out.println("\n],");
@@ -801,7 +822,7 @@ public class Composition implements MarkableLTS
 			out.print("\t{\"automaton\":\"" + autNames[i] + "\"}");
 		}
 		if (!markLabels.isEmpty())
-			out.println("\t{\"automaton\":\"monitor\"}");
+			out.println(",\n\t{\"automaton\":\"monitor\"}");
 		else
 			out.println();
 		out.println("\t],");
@@ -820,7 +841,7 @@ public class Composition implements MarkableLTS
 				if (labels[j] == null)
 					out.print("null");
 				else
-					out.print("\""+labels[j]+"\"");
+					out.print("\""+labels[j].substring(1)+"\"");
 			}
 			if (!markLabels.isEmpty()) {
 				Integer markResult = markLabels.get(synchronizedLabels[i]);
@@ -1147,7 +1168,7 @@ public class Composition implements MarkableLTS
 				for (Object o : syncLine) {
 					if (o != null) {
 						vectorAutomata[i][numAutomata] = j;
-						vectorLabels[i][numAutomata] = o.toString();
+						vectorLabels[i][numAutomata] = 'i' + o.toString();
 						numAutomata++;
 					}
 					j++;

@@ -164,7 +164,7 @@ public class Automaton implements LTS {
 		for (int i = labels.length - 1; i >= 0; i--) {
 			transitions[i] = new HashMap<String, Integer>();
 			for (int j = labels[i].length - 1; j >= 0; j--) {
-				if (labels[i][j].startsWith("rate "))
+				if (labels[i][j].charAt(0) == 'r')
 					continue;
 				if (transitions[i].containsKey(labels[i][j])) {
 					transitions[i] = null;
@@ -241,7 +241,7 @@ public class Automaton implements LTS {
 			TreeSet<String> stateActions = new TreeSet<>();
 			for (int j = 0; j < targets[i].length; j++) {
 				String act = labels[i][j];
-				if (act.startsWith("rate "))
+				if (act.charAt(0) == 'r')
 					continue;
 				presentActions.add(act);
 				if (!stateActions.add(act))
@@ -257,7 +257,7 @@ public class Automaton implements LTS {
 			int k = 0;
 			for (int j = 0; j < labels[i].length; j++) {
 				String act = labels[i][j];
-				if (act.startsWith("rate "))
+				if (act.charAt(0) == 'r')
 					continue;
 				if (stateActions.add(act))
 					continue;
@@ -317,7 +317,13 @@ public class Automaton implements LTS {
 			labels[from] = Arrays.copyOf(labels[from],
 			                             labels[from].length + 1);
 			targets[from][targets[from].length - 1] = to;
-			labels[from][targets[from].length - 1] = parts[1].intern();
+			String label;
+			if (parts[1].startsWith("rate ")) {
+				label = 'r' + parts[1].substring(5);
+			} else {
+				label = 'i' + parts[1];
+			}
+			labels[from][targets[from].length - 1] = label.intern();
 		}
 		createTransitionArray();
 		return ret;
@@ -472,10 +478,10 @@ public class Automaton implements LTS {
 					out.println("\t\t\t]");
 					out.println("\t\t }],");
 				}
-				if (labels[i][j].startsWith("rate ")) {
-					out.println("\t\t \"rate\":{\"exp\":"+labels[i][j].substring(5)+"}");
+				if (labels[i][j].charAt(0) == 'r') {
+					out.println("\t\t \"rate\":{\"exp\":"+labels[i][j].substring(1)+"}");
 				} else {
-					out.println("\t\t \"action\":\""+labels[i][j]+"\"");
+					out.println("\t\t \"action\":\""+labels[i][j].substring(1)+"\"");
 				}
 				if (i != targets.length - 1 || j != targets[i].length - 1)
 					out.println("\t\t},");

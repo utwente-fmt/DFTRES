@@ -50,7 +50,7 @@ public class MarkovReducedLTS implements LTS
 		if (outgoing == null)
 			outgoing = original.getTransitions(node.state);
 		for (LTS.Transition t : outgoing) {
-			if (t.label.startsWith("rate "))
+			if (t.label.charAt(0) == 'r')
 				continue;
 			if (t.guard.evaluate(getVarValues(node.state)).doubleValue() == 0)
 				continue;
@@ -83,7 +83,7 @@ public class MarkovReducedLTS implements LTS
 			Set<LTS.Transition> out = original.getTransitions(tmp);
 			LTS.StateWrapper tb = null;
 			for (LTS.Transition t : out) {
-				if (t.label.startsWith("rate "))
+				if (t.label.charAt(0) == 'r')
 					continue;
 				tb = new LTS.StateWrapper(t.target);
 				if (!newSCC.contains(tb)) {
@@ -110,7 +110,7 @@ public class MarkovReducedLTS implements LTS
 			Set<LTS.Transition> out = original.getTransitions(tmp);
 			HashSet<LTS.Transition> markovian = new HashSet<>();
 			for (LTS.Transition t : out)
-				if (t.label.startsWith("rate "))
+				if (t.label.charAt(0) == 'r')
 					markovian.add(t);
 			if (finalTransitions == null)
 				finalTransitions = markovian;
@@ -127,7 +127,7 @@ public class MarkovReducedLTS implements LTS
 		Set<LTS.Transition> outgoing = original.getTransitions(from);
 
 		for (LTS.Transition t : outgoing) {
-			if (!t.label.startsWith("rate "))
+			if (t.label.charAt(0) != 'r')
 				continue;
 			int[] endState = markovTerminal(t.target);
 			if (endState != null)
