@@ -592,10 +592,11 @@ public class Composition implements MarkableLTS
 			val -= vData[3]; /* Remove lower bound */
 			if (val < 0)
 				throw new IllegalArgumentException("Value " + exp.evaluate(getVarValues(state)).intValue() + " below lower bound (" + vData[2] + ") of variable " + name);
-			int max = 1 << (vData[1] - vData[0]);
+			int max = (1 << (vData[1] - vData[0] + 1)) - 1;
 			if (val > max) {
 				System.err.println("Current values: " + getVarValues(state));
-				throw new IllegalArgumentException("Value " + exp.evaluate(getVarValues(state)).intValue() + " exceeds upper bound of variable " + name + " in " + exp.toString());
+				System.err.println("Bits: " + vData[0] + " - " + vData[1]);
+				throw new IllegalArgumentException("Value " + exp.evaluate(getVarValues(state)).intValue() + " exceeds upper bound (" + max + ") of variable " + name + " in " + exp.toString());
 			}
 			int origVals = state[word];
 			val <<= lowBit;
@@ -724,11 +725,13 @@ public class Composition implements MarkableLTS
 				Expression g = a.getTransitionGuard(origin, k);
 				if (g != null) {
 					Number v = g.evaluate(getVarValues(from));
+					if (v == null)
+						throw new UnsupportedOperationException("Unable to evaluate guard: " + g);
 					/* Don't cache since the cache
 					 * doesn't include global
 					 * variable values.
 					 */
-					if (v.doubleValue() != 0)
+					if (v.doubleValue() == 0)
 						break;
 				}
 				Map<String, Expression> as = a.getAssignments(origin, k);
@@ -1052,6 +1055,8 @@ public class Composition implements MarkableLTS
 		} else {
 			throw new IllegalArgumentException("Property expression should be identifier or expression.");
 		}
+		if (reachTarget != null)
+			reachTarget = reachTarget.simplify(constants);
 		if (propType == Property.Type.EXPECTED_VALUE) {
 			timeBound = Double.POSITIVE_INFINITY;
 			if (values.containsKey("step-instant"))
@@ -1156,7 +1161,7 @@ public class Composition implements MarkableLTS
 					throw new IllegalArgumentException("Unexpected type of variable name: Expected string, found " + vo.toString());
 				String name = (String)no;
 				Object to = vm.get("type");
-				int[] bounds = JaniUtils.typeBounds(to);
+				int[] bounds = JaniUtils.typeBounds(to, constants);
 				Object io = vm.get("initial-value");
 				long initial = 0;
 				initial = JaniUtils.getConstantLong(io, constants);
@@ -1258,7 +1263,7 @@ public class Composition implements MarkableLTS
 				}
 				Object resultAction = syncMap.get("result");
 				if (resultAction != null)
-					synchronizedLabels[i] = resultAction.toString();
+					synchronizedLabels[i] = "i" + resultAction.toString();
 			}
 		}
 		HashSet<Property> ret = new HashSet<>();

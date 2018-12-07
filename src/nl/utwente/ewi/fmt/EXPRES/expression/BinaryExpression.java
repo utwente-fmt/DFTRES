@@ -26,6 +26,8 @@ public class BinaryExpression extends Expression
 	       DIVIDE("/", false),
 	       MULTIPLY("*", false),
 	       POWER("pow", false),
+	       MINIMUM("min", false),
+	       MAXIMUM("max", false),
 		       ;
 
 	       public final String symbol;
@@ -129,12 +131,18 @@ public class BinaryExpression extends Expression
 				bRet = vL.longValue() <= vR.longValue();
 				break;
 			case ADD:
-				if (vL == null || vR == null)
-					return null;
+				if (vL == null || vR == null) {
+					if (l == null || r == null)
+						return null;
+					return l.doubleValue() + r.doubleValue();
+				}
 				return vL.longValue() + vR.longValue();
 			case SUBTRACT:
-				if (vL == null || vR == null)
-					return null;
+				if (vL == null || vR == null) {
+					if (l == null || r == null)
+						return null;
+					return l.doubleValue() - r.doubleValue();
+				}
 				return vL.longValue() - vR.longValue();
 			case DIVIDE:
 				if (l == null || r == null)
@@ -152,6 +160,30 @@ public class BinaryExpression extends Expression
 				if (l == null || r == null)
 					return null;
 				return Math.pow(l.doubleValue(), r.doubleValue());
+			case MINIMUM:
+				if (l == null || r == null)
+					return null;
+				if (l.doubleValue() < r.doubleValue())
+					return l;
+				if (l.doubleValue() > r.doubleValue())
+					return r;
+				if (l.longValue() < r.longValue())
+					return l;
+				if (l.longValue() > r.longValue())
+					return r;
+				return l;
+			case MAXIMUM:
+				if (l == null || r == null)
+					return null;
+				if (l.doubleValue() < r.doubleValue())
+					return r;
+				if (l.doubleValue() > r.doubleValue())
+					return l;
+				if (l.longValue() < r.longValue())
+					return r;
+				if (l.longValue() > r.longValue())
+					return l;
+				return l;
 			case XOR:
 				if (boolL == null || boolR == null)
 					return null;

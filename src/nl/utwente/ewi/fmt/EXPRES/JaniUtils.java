@@ -53,12 +53,18 @@ class JaniUtils {
 			if (!(c instanceof Long))
 				throw new UnsupportedOperationException("Expected constant, but: " + exp + " is not an integer");
 			return (Long)c;
+		} else if (exp instanceof Map) {
+			Expression e = Expression.fromJani(exp);
+			Number val = e.evaluate(constants);
+			if (val instanceof Long || val instanceof Integer)
+				return val.longValue();
+			throw new UnsupportedOperationException("Expected constant integer literal, found: " + exp);
 		} else {
 			throw new UnsupportedOperationException("Expected constant integer literal, found: " + exp);
 		}
 	}
 
-	public static int[] typeBounds(Object t)
+	public static int[] typeBounds(Object t, Map<String, Number> consts)
 	{
 		if ("bool".equals(t))
 			return new int[]{0, 1};
@@ -73,15 +79,15 @@ class JaniUtils {
 			if (!"bounded".equals(tm.get("kind")))
 				throw new IllegalArgumentException("Bounded type without 'bounded' kind not supported.");
 			Object lb = tm.get("lower-bound");
-			if (lb instanceof Long) {
-				long l = (Long) lb;
+			if (lb != null) {
+				long l = getConstantLong(lb, consts);
 				if (l < Integer.MIN_VALUE || l > Integer.MAX_VALUE)
 					throw new IllegalArgumentException("Type bound should fit in 32 bits.");
 				ret[0] = (int)l;
 			}
 			Object ub = tm.get("upper-bound");
-			if (ub instanceof Long) {
-				long u = (Long) ub;
+			if (ub != null) {
+				long u = getConstantLong(ub, consts);
 				if (u < Integer.MIN_VALUE || u > Integer.MAX_VALUE)
 					throw new IllegalArgumentException("Type bound should fit in 32 bits.");
 				ret[1] = (int)u;

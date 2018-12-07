@@ -56,7 +56,7 @@ public class SymbolicAutomaton implements LTS {
 				 * states lower bound, we just want to
 				 * validate the type.
 				 */
-				JaniUtils.typeBounds(to);
+				JaniUtils.typeBounds(to, constants);
 				Object io = vm.get("initial-value");
 				long initial = 0;
 				initial = JaniUtils.getConstantLong(io, constants);
@@ -171,6 +171,7 @@ public class SymbolicAutomaton implements LTS {
 					throw new IllegalArgumentException("Guard should be {\"exp\": ...}, not: " + gO);
 				Map g = (Map)gO;
 				guard = Expression.fromJani(g.get("exp"));
+				guard = guard.simplify(constants);
 			}
 			guards[srci] = Arrays.copyOf(guards[srci], guards[srci].length + 1);
 			guards[srci][guards[srci].length - 1] = guard;
@@ -216,7 +217,7 @@ public class SymbolicAutomaton implements LTS {
 				String ref = (String)refO;
 				Object valO = assignment.get("value");
 				Expression val = Expression.fromJani(valO);
-				assignMap.put(ref, val);
+				assignMap.put(ref, val.simplify(constants));
 			}
 			this.assignments[srci] = Arrays.copyOf(this.assignments[srci], labels[srci].length);
 			this.assignments[srci][labels[srci].length - 1] = assignMap;

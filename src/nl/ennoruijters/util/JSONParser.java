@@ -253,6 +253,8 @@ public class JSONParser {
 			/* Forbidden by java spec */
 		}
 		int[] pos = new int[] { 0 };
+		if (data.charAt(0) == 0xFEFF)
+			pos[0] = 1; /* Unicode byte-order mark */
 		try {
 			while (isWhiteSpace(data.charAt(pos[0])))
 				pos[0]++;

@@ -359,7 +359,7 @@ public class Automaton implements LTS {
 	{
 		if (guards == null || guards.length <= from)
 			return null;
-		if (guards[from].length <= n)
+		if (guards[from] == null || guards[from].length <= n)
 			return null;
 		return guards[from][n];
 	}
