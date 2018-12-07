@@ -213,6 +213,27 @@ public class SearchAlgorithm {
 
 		int MAX_ITS = Integer.MAX_VALUE;
 		solveEventualProbabilities(MAX_ITS, T);
+
+		double[][] meanTimes = null;
+		if (La.length == 2) {
+			meanTimes = new double[2][D.length];
+			for (i = 0; i < D.length; i++) {
+				double v;
+				double m0 = 1 / La[0].exitRate;
+				double m1 = 1 / La[1].exitRate;
+				double P01 = La[0].getProbTo(La[1].number);
+				double P10 = La[1].getProbTo(La[0].number);
+				double P0sink = T[0][L.length + i];
+				double P1sink = T[1][L.length + i];
+				v = m0 + P01 * P1sink * m1 / P0sink;
+				v /= (1 - P01 * P10);
+				meanTimes[0][i] = v;
+
+				v = m1 + P10 * P0sink * m0 / P1sink;
+				v /= (1 - P10 * P01);
+				meanTimes[1][i] = v;
+			}
+		}
 		
 		// We then reroute the transitions within the states in L
 		
@@ -227,9 +248,12 @@ public class SearchAlgorithm {
 		for (i = 0; i < La.length; i++) {
 			ExploredState l = La[i];
 			double[] prbs = new double[D.length];
+			double[] mt = null;
+			if (meanTimes != null)
+				mt = meanTimes[i];
 			for(int j=0;j<D.length;j++)
 				prbs[j] = T[i][L.length + j];
-			model.addHPC(l, D, orders, prbs);
+			model.addHPC(l, D, orders, prbs, mt);
 		}
 		return true;
 	}

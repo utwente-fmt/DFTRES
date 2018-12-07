@@ -268,6 +268,9 @@ public abstract class TraceGenerator
 		}
 		if(!(prevState instanceof StateSpace.HPCState))
 			return 1 / prevState.exitRate;
+		StateSpace.HPCState h = (StateSpace.HPCState)prevState;
+		if (h.meanTimes != null)
+			return h.meanTimes[chosen];
 
 		int k = prevState.number;
 		long count = 0;

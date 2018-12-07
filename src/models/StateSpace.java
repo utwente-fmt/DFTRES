@@ -119,11 +119,18 @@ public abstract class StateSpace {
 	public class HPCState extends ExploredState {
 		public final int[] origNeighbours;
 		public final double[] origProbs;
+		public final double[] meanTimes;
 		public HPCState(ExploredState orig, int[] ns, short[] os, double[] ps)
+		{
+			this(orig, ns, os, ps, null);
+		}
+
+		public HPCState(ExploredState orig, int[] ns, short[] os, double[] ps, double[] mt)
 		{
 			super(orig.state, ns, os, ps, orig.exitRate, orig.number);
 			origNeighbours = orig.neighbours;
 			origProbs = orig.probs;
+			meanTimes = mt;
 		}
 	}
 
@@ -198,14 +205,16 @@ public abstract class StateSpace {
 	}
 
 	public void addHPC(ExploredState orig, int[] newNeighbours,
-	                   short[] newOrders, double[] newProbs)
+	                   short[] newOrders, double[] newProbs,
+			   double[] meanTimes)
 	{
 		if (orig instanceof HPCState)
 			return;
 		try {
 			writeLock.lock();
 			HPCState n = new HPCState(orig, newNeighbours,
-			                          newOrders, newProbs);
+			                          newOrders, newProbs,
+			                          meanTimes);
 			knownStates.remove(orig);
 			knownStates.put(n, n);
 			states[n.number] = n;
