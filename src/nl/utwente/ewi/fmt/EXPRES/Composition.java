@@ -442,7 +442,11 @@ public class Composition implements MarkableLTS
 			val += vData[3];
 			return Map.of(v, val);
 		}
-		TreeMap<String, Integer> ret = new TreeMap<>();
+		Map<String, Integer> ret;
+		if (globalVarNames.length > 8)
+			ret = new HashMap<>();
+		else
+			ret = new TreeMap<>();
 		for (String name : globalVarNames) {
 			int vData[] = globalVars.get(name);
 			int word = vData[0] / 32 + automata.length;

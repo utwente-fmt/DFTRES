@@ -341,7 +341,7 @@ public class Simulator {
 			/* Estimate number of samples still needed to
 			 * reach desired error */
 			double Z = SimulationResult.CIwidth(alpha);
-			long newN = (long)(1.2 * result.var * Z * Z / (err * err * mean * mean));
+			long newN = (long)(2 * result.var * Z * Z / (err * err * mean * mean));
 			if (showProgress) {
 				System.err.format("Current alpha: %g\n", alpha);
 				System.err.format("Consumed alpha after this step: %g\n", consumedAlpha);
