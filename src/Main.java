@@ -436,6 +436,8 @@ class Main {
 				traLabOutputFile = args[++i];
 			else if (args[i].equals("--unsafe-scheduling"))
 				unsafeComposition = true;
+			else if (args[i].equals("--no-forcing"))
+				forceBound = Double.POSITIVE_INFINITY;
 			else
 				System.err.format("Unknown option '%s', ignoring\n", args[i]);
 		}
