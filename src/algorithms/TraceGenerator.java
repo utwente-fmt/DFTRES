@@ -146,21 +146,16 @@ public abstract class TraceGenerator
 		double sumP = 0;
 		for (int i = 0; i < succ.length; i++) {
 			double p;
-			StateSpace.ExploredState ns;
-			StateSpace.State tmp;
 			state = succ[i];
-			tmp = model.getState(state);
-			if (!(tmp instanceof StateSpace.ExploredState))
-				throw new AssertionError("Unexplored state in HPC");
-			ns = (StateSpace.ExploredState)tmp;
+			StateSpace.State tmp = model.getState(state);
 			if (state == sink)
 				p = 1;
-			else if (!(ns instanceof StateSpace.HPCState))
+			else if (!(tmp instanceof StateSpace.HPCState))
 				p = 0;
-			else if (ns == prevState)
+			else if (tmp == prevState)
 				p = scheme.probs[chosen];
 			else
-				p = ns.getProbTo(sink);
+				p = ((StateSpace.HPCState)tmp).getProbTo(sink);
 			sumP = Math.fma(p, probs[i], sumP);
 			pReachSink[i] = sumP;
 		}

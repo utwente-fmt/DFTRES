@@ -348,9 +348,10 @@ public class SearchAlgorithm {
 				x = current.poll();
 			} else {
 				ArrayList<StateSpace.State> toExplore = null;
-				if (needsExploration != null)
+				if (needsExploration != null) {
 					toExplore = new ArrayList<>();
-				needsExploration.clear();
+					needsExploration.clear();
+				}
 				dCur = dReach;
 				int i = done.nextClearBit(minUnexpl);
 				minUnexpl = i;
