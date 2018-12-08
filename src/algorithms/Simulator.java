@@ -118,6 +118,7 @@ public class Simulator {
 		} else {
 			p = new ProgressPrinter(Long.MAX_VALUE) {
 				public void doneOne() { }
+				public void run() { }
 			};
 		}
 		final ProgressPrinter progress = p;
@@ -333,7 +334,8 @@ public class Simulator {
 		mean = (ubound + lbound) / 2;
 		double halfWidth = (ubound - lbound) / 2;
 		curRelErr = halfWidth / mean;
-		System.err.format("Consumed alpha so far: %g\n", consumedAlpha);
+		if (showProgress)
+			System.err.format("Consumed alpha so far: %g\n", consumedAlpha);
 		alpha = (totalAlpha - consumedAlpha) / (1 - consumedAlpha);
 		alpha = (alpha * (REL_ERR_RATE - 1)) / REL_ERR_RATE;
 		consumedAlpha += alpha - (alpha * consumedAlpha);
