@@ -49,7 +49,6 @@ public class Scheme
 	}
 	
 	public void resetModelCache(StateSpace initial) {
-		System.err.println("Resetting cache");
 		this.model = initial;
 	}
 	

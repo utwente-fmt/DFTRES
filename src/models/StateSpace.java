@@ -16,7 +16,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 
 public abstract class StateSpace {
-	public class State {
+	public static class State {
 		public final int[] state;
 		public final int number;
 
@@ -45,7 +45,7 @@ public abstract class StateSpace {
 			return Arrays.toString(state);
 		}
 	}
-	public class ExploredState extends State {
+	public static class ExploredState extends State {
 		public final int[] neighbours;
 		public final short[] orders;
 		public final double[] probs;
@@ -116,7 +116,7 @@ public abstract class StateSpace {
 			return new StateWrapper(state);
 		}
 	}
-	public class HPCState extends ExploredState {
+	public static class HPCState extends ExploredState {
 		public final int[] origNeighbours;
 		public final double[] origProbs;
 		public final double[] meanTimes;
