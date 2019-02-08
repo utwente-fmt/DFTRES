@@ -122,8 +122,8 @@ public class MakeTraLab {
 			TreeMap<Integer, String> ts = transitions.get(i);
 			for (Integer target : ts.keySet()) {
 				String label = ts.get(target);
-				if (label.startsWith("rate "))
-					label = label.substring(5);
+				if (label.charAt(0) == 'r')
+					label = label.substring(1);
 				traWriter.format("%d %d %s\n",
 				                 i + 1, target + 1, label);
 			}
@@ -135,84 +135,119 @@ public class MakeTraLab {
 
 	private String addLabels(String l1, String l2)
 	{
-		if (!l1.startsWith("rate "))
+		if (l1 == null)
+			return l2;
+		if (l2 == null)
+			return l1;
+		if (l1.charAt(0) != 'r')
 			throw new UnsupportedOperationException("Tried to merge non-rate transitions.");
-		if (!l2.startsWith("rate "))
+		if (l2.charAt(0) != 'r')
 			throw new UnsupportedOperationException("Tried to merge non-rate transitions.");
-		BigDecimal r1 = new BigDecimal(l1.substring(5));
-		BigDecimal r2 = new BigDecimal(l2.substring(5));
+		BigDecimal r1 = new BigDecimal(l1.substring(1));
+		BigDecimal r2 = new BigDecimal(l2.substring(1));
 		BigDecimal rret = r1.add(r2);
-		return "rate " + rret.toString();
+		return "r" + rret.toString();
 	}
 
 	private boolean removeDuplicateStates()
 	{
-		HashMap<HashSet<Object>, Integer> states = new HashMap<>();
-		HashMap<Integer, Integer> dups = new HashMap<>();
+		HashMap<Object, Integer> states = new HashMap<>();
+		List<Set<Integer>> predecessors = new ArrayList<>(markings.size());
+		List<int[]> dups = new ArrayList<>();
 
 		int maxState = markings.size();
+		for (int i = 0; i < maxState; i++)
+			predecessors.add(new TreeSet<Integer>());
 		for (int i = 0; i < maxState; i++) {
-			HashSet<Object> stateInfo = new HashSet<>();
+			Integer s = i;
+			Object stateInfo;
 			TreeMap<Integer, String> ts = transitions.get(i);
+			for (Integer t : ts.keySet())
+				predecessors.get(t).add(s);
 			String marking = markings.get(i);
-			stateInfo.add(ts);
-			stateInfo.add(marking);
+			if (marking == null)
+				stateInfo = ts;
+			else
+				stateInfo = List.of(ts, marking);
 			Integer existing = states.get(stateInfo);
 			if (existing == null)
 				states.put(stateInfo, i);
 			else
-				dups.put(i, existing);
+				dups.add(new int[]{i, existing});
 		}
 		if (dups.isEmpty())
 			return false;
+		states = null;
 
-		TreeSet<Integer> removed = new TreeSet<>();
-		for (Map.Entry<Integer, Integer> pair : dups.entrySet()) {
-			Integer merged = pair.getValue();
-			Integer dup = pair.getKey();
-			Integer origDup = dup;
-			for (int i : removed) {
-				if (merged > i)
-					merged--;
-				if (dup > i)
-					dup--;
-			}
-			removed.add(origDup);
-			HashSet<Object> dupInfo = new HashSet<>();
+		dups.forEach((data) -> {
+			int dup = data[0], merged = data[1];
+			int repl = transitions.size() - 1;
+			Integer iRepl = repl, iDup = dup, iMerged = merged;
+
+			if (dup >= transitions.size())
+				return;
 			TreeMap<Integer, String> ts = transitions.get(dup);
 			String marking = markings.get(dup);
-			dupInfo.add(ts);
-			dupInfo.add(marking);
+			Object dupInfo;
+			if (marking == null)
+				dupInfo = ts;
+			else
+				dupInfo = List.of(ts, marking);
 
-			HashSet<Object> mergedInfo = new HashSet<>();
 			ts = transitions.get(merged);
 			marking = markings.get(merged);
-			mergedInfo.add(ts);
-			mergedInfo.add(marking);
+			Object mergedInfo;
+			if (marking == null)
+				mergedInfo = ts;
+			else
+				mergedInfo = List.of(ts, marking);
 
 			if (!mergedInfo.equals(dupInfo)) {
-				//throw new IllegalArgumentException("Not merging " + merged + " and " + dup);
-				continue;
+				System.err.println("Different: " + mergedInfo + " and " + dupInfo);
+				return;
+			}
+			Set<Integer> mPreds = predecessors.get(merged);
+			for (Integer s : predecessors.get(dup)) {
+				TreeMap<Integer, String> t = transitions.get(s);
+				String dLabel = t.remove(iDup);
+				String mLabel = t.get(iMerged);
+				String nLabel = addLabels(mLabel, dLabel);
+				if (nLabel == null)
+					throw new AssertionError("Dup error " + dLabel + " -- " + mLabel + " @ " + s + " for " + merged + "<-" + dup + "<-" + repl);
+				t.put(iMerged, nLabel);
+				mPreds.add(s);
+			}
+			for (Integer s : predecessors.get(repl)) {
+				TreeMap<Integer, String> t = transitions.get(s);
+				String rLabel = t.remove(iRepl);
+				if (rLabel == null)
+					continue;
+				t.put(iDup, rLabel);
+			}
+			/* Dup is no longer a predecessor of anything.
+			 * We don't need to add a new predecessor, since
+			 * by definition 'merged' is already a
+			 * predecessor (otherwise we couldn't have
+			 * merged them).
+			 */
+			for (Integer s : transitions.get(dup).keySet()) {
+				Set<Integer> preds = predecessors.get((int)s);
+				preds.remove(iDup);
+			}
+			for (Integer s : transitions.get(repl).keySet()) {
+				Set<Integer> preds = predecessors.get((int)s);
+				preds.remove(iRepl);
+				if (dup != repl)
+					preds.add(iDup);
 			}
 
-			for (int i = markings.size() - 1; i >= 0; i--) {
-				TreeMap<Integer, String> n = new TreeMap<>();
-				TreeMap<Integer, String> t = transitions.get(i);
-				for (Integer target : t.keySet()) {
-					String label = t.get(target);
-					if (target.equals(dup))
-						target = merged;
-					if (target > dup)
-						target--;
-					if (n.containsKey(target))
-						label = addLabels(n.get(target), label);
-					n.put(target, label);
-				}
-				transitions.set(i, n);
-			}
-			transitions.remove((int)dup);
-			markings.remove((int)dup);
-		}
+			predecessors.set(dup, predecessors.get(repl));
+			predecessors.remove(repl);
+			transitions.set(dup, transitions.get(repl));
+			transitions.remove(repl);
+			markings.set(dup, markings.get(repl));
+			markings.remove(repl);
+		});
 		return true;
 	}
 
