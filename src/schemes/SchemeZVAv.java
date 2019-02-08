@@ -3,73 +3,96 @@ package schemes;
 import algorithms.Scheme;
 import algorithms.SearchAlgorithm;
 import models.StateSpace;
-import models.StateSpace.ExploredState;
+import models.StateSpace.Neighbours;
+import models.StateSpace.State;
+import java.util.HashMap;
 import java.util.Random;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 
 // path-IS, assuming the generator contains a list of generated states with correct values for w
 
 public class SchemeZVAv extends Scheme {
-	private final double[][] cachedWeightsIS;
-	private final double[] cachedWeightSums;
+	private static class StateInfo {
+		/* The Neighbours needs to be kept in here to prevent
+		 * garbage collection of this data in the actual state,
+		 * which could lead to re-ordering of the neighbours
+		 * when it is recreated.
+		 */
+		public final Neighbours nbs;
+		public final double[] weightsIS;
+		public final double weightSum;
+		public StateInfo(Neighbours nbs, double[] weights, double sum)
+		{
+			this.nbs = nbs;
+			weightsIS = weights;
+			weightSum = sum;
+		}
+	}
+	private final HashMap<State, StateInfo> cachedInfo;
 
-	private SchemeZVAv(StateSpace model, double weights[][], double sums[])
+	private SchemeZVAv(StateSpace model, HashMap<State, StateInfo> info)
 	{
-		super(model, "Path-ZVA-Delta");
-		cachedWeightsIS = weights;
-		cachedWeightSums = sums;
+		super(model, "Path-ZVA-v");
+		cachedInfo = info;
 	}
 
 	public SchemeZVAv clone()
 	{
-		return new SchemeZVAv(model, cachedWeightsIS, cachedWeightSums);
+		return new SchemeZVAv(model, cachedInfo);
 	}
 
 	public static SchemeZVAv instantiate(StateSpace model, Property prop)
 	{
-		double v[] = new SearchAlgorithm(model, prop).runAlgorithm();
-		double weights[][] = new double[v.length][];
-		double sums[] = new double[v.length];
-		for (int state = 0; state < model.size(); state++) {
-			StateSpace.State st = model.getState(state);
-			if (!(st instanceof ExploredState))
-				continue;
-			ExploredState es = (ExploredState)st;
-			int neighbours[] = es.neighbours;
-			boolean outOfLambda = false;
-			if (v[state] == 1)
-				outOfLambda = true;
-			if (outOfLambda)
-				continue;
-			double probs[] = es.probs;
+		HashMap<State, StateInfo> info = new HashMap<>();
+		HashMap<State, Double> v;
+		v = new SearchAlgorithm(model, prop).runAlgorithm();
+		for (State s : v.keySet()) {
+			s = model.find(s);
+			Neighbours nb = s.getNeighbours();
+			State neighbours[] = nb.neighbours;
+			if (v.get(s) == 1)
+				continue; /* Out of lambda */
+			double probs[] = nb.probs;
 			double sum = 0;
-			weights[state] = new double[probs.length];
+			double weights[] = new double[probs.length];
+			if (weights.length != neighbours.length)
+				throw new AssertionError("Length mismatch");
 			for(int i = 0; i < probs.length; i++) {
-				double vi = v[neighbours[i]];
-				weights[state][i] = probs[i] * vi;
-				sum = Math.fma(probs[i], vi, sum);
+				double vi = v.get(neighbours[i]);
+				weights[i] = probs[i] * vi;
+				sum += weights[i];
 			}
-			if (sum == 0) {
-				weights[state] = null;
-				continue;
+			if (sum != 0) {
+				StateInfo si = new StateInfo(nb, weights, sum);
+				if (info.containsKey(s))
+					throw new AssertionError("Duplicate");
+				info.put(s, si);
 			}
-			sums[state] = sum;
 		}
-		return new SchemeZVAv(model, weights, sums);
+		return new SchemeZVAv(model, info);
 	}
 
 	public boolean isBinomial() {
 		return false;
 	}
 
-	public ExploredState prepareState(int state) {
-		ExploredState ret = super.prepareState(state);
-		if (state < cachedWeightsIS.length) {
-			if (cachedWeightsIS[state] != null) {
-				stateWeightsIS = cachedWeightsIS[state];
-				totalStateWeightIS = cachedWeightSums[state];
+	public StateSpace.Neighbours prepareState(State state) {
+		StateSpace.Neighbours ret = super.prepareState(state);
+		StateInfo si = cachedInfo.get(state);
+		if (si != null) {
+			if (ret != si.nbs) {
+				System.err.println(state.getClass());
+				throw new AssertionError("Different neighbours");
 			}
+			stateWeightsIS = si.weightsIS;
+			if (si.weightsIS.length != ret.neighbours.length)
+				throw new AssertionError(ret.neighbours.length + " neighbours but " + stateWeightsIS.length + " weights");
+			totalStateWeightIS = si.weightSum;
 		}
 		return ret;
+	}
+
+	public int storedStates() {
+		return cachedInfo.size();
 	}
 }

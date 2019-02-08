@@ -114,7 +114,7 @@ public class ExpectedValueTracer extends TraceGenerator
 		if (M == 0) {
 			return new SimulationResult(prop, 0, alpha, Double.NaN,
 					0, 1, new long[]{N, M}, time,
-					baseModelSize);
+					scheme.storedStates());
 		}
 		double mean = sum / N;
 		double estSum = Math.fma(-N, estMean, sum);
@@ -123,7 +123,7 @@ public class ExpectedValueTracer extends TraceGenerator
 		SimulationResult ret = null;
 
 		if (ret == null)
-			ret = new SimulationResult(prop, alpha, mean, var, new long[]{N, M}, time, baseModelSize);
+			ret = new SimulationResult(prop, alpha, mean, var, new long[]{N, M}, time, scheme.storedStates());
 		return ret;
 	}
 

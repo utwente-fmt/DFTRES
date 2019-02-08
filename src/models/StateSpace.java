@@ -4,87 +4,98 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
+import java.lang.ref.SoftReference;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Comparator;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 
 public abstract class StateSpace {
-	public static class State {
-		public final int[] state;
-		public final int number;
+	public static class Neighbours {
+		public final State[] neighbours;
+		public final short[] orders;
+		public final double[] probs;
+		public final double exitRate;
 
-		public State(int[] s, int num)
+		public Neighbours(State[] n, short[] o, double[] p, double R)
+		{
+			neighbours = n;
+			orders = o;
+			probs = p;
+			exitRate = R;
+		}
+	}
+	public class State {
+		public final int[] state;
+		private int cachedHashCode = 0;
+		private SoftReference<Neighbours> neighbours;
+
+		public State(int[] s)
 		{
 			state = s;
-			number = num;
+			neighbours = null;
 		}
 
 		public boolean equals(Object o)
 		{
-			if (o instanceof State)
-				return ((State)o).number == number;
-			if (!(o instanceof StateWrapper))
-				return false;
-			return Arrays.equals(state, ((StateWrapper)o).state);
+			if (o == this)
+				return true;
+			if (o instanceof StateWrapper)
+				return Arrays.equals(state, ((StateWrapper)o).state);
+			else if (o instanceof State)
+				return Arrays.equals(state, ((State)o).state);
+			return false;
 		}
 
 		public int hashCode()
 		{
-			return Arrays.hashCode(state);
+			if (cachedHashCode != 0)
+				return cachedHashCode;
+			return cachedHashCode = Arrays.hashCode(state);
 		}
 
 		public String toString()
 		{
 			return Arrays.toString(state);
 		}
-	}
-	public static class ExploredState extends State {
-		public final int[] neighbours;
-		public final short[] orders;
-		public final double[] probs;
-		public final double exitRate;
 
-		public ExploredState(int[] s, int[] n, short[] o, double[] p,
-		                     double R, int num)
+		public Neighbours getNeighbours()
 		{
-			super(s, num);
-			neighbours = n;
-			orders = o;
-			probs = p;
-			exitRate = R;
+			Neighbours ns = null;
+			if (neighbours != null)
+				ns = neighbours.get();
+			if (ns == null) {
+				ns = findNeighbours(this);
+				neighbours = new SoftReference<>(ns);
+			}
+			return ns;
 		}
 
-		private ExploredState(ExploredState other)
+		public double getProbTo(State state)
 		{
-			this(other, other.neighbours, other.orders,
-			     other.probs, other.exitRate);
-		}
-
-		public ExploredState(State other, int[] n, short[] o,
-		                     double[] p, double R)
-		{
-			this(other.state, n, o, p, R, other.number);
-		}
-
-		public double getProbTo(int state)
-		{
-			for (int i = 0; i < neighbours.length; i++)
-				if (neighbours[i] == state)
+			Neighbours nbs = getNeighbours();
+			State[] ns = nbs.neighbours;
+			double[] probs = nbs.probs;
+			for (int i = ns.length - 1; i >= 0; i--)
+				if (ns[i] == state)
 					return probs[i];
 			return 0;
 		}
 
-		public short getOrderTo(int state)
+		public short getOrderTo(State state)
 		{
-			for (int i = 0; i < neighbours.length; i++)
-				if (neighbours[i] == state)
+			Neighbours nbs = getNeighbours();
+			State[] ns = nbs.neighbours;
+			short[] orders = nbs.orders;
+			for (int i = ns.length - 1; i >= 0; i--)
+				if (ns[i] == state)
 					return orders[i];
 			return Short.MAX_VALUE;
 		}
@@ -116,95 +127,94 @@ public abstract class StateSpace {
 			return new StateWrapper(state);
 		}
 	}
-	public static class HPCState extends ExploredState {
-		public final int[] origNeighbours;
-		public final double[] origProbs;
+	public class HPCState extends State {
+		public final Neighbours origNeighbours;
 		public final double[] meanTimes;
-		public HPCState(ExploredState orig, int[] ns, short[] os, double[] ps)
+		private final Neighbours lockedNeighbours; /* Prevent the soft
+							      reference to the
+							      neighbours array
+							      being freed */
+		public HPCState(State orig, State[] ns, short[] os, double[] ps)
 		{
 			this(orig, ns, os, ps, null);
 		}
 
-		public HPCState(ExploredState orig, int[] ns, short[] os, double[] ps, double[] mt)
+		public HPCState(State orig, State[] ns, short[] os, double[] ps, double[] mt)
 		{
-			super(orig.state, ns, os, ps, orig.exitRate, orig.number);
-			origNeighbours = orig.neighbours;
-			origProbs = orig.probs;
+			super(orig.state);
+			Neighbours prevNs = orig.getNeighbours();
+			origNeighbours = new Neighbours(prevNs.neighbours, null, prevNs.probs, prevNs.exitRate);
+			lockedNeighbours = explored(this, ns, os, ps, prevNs.exitRate);
 			meanTimes = mt;
 		}
 	}
 
-	private HashMap<State, State> knownStates;
-	private volatile State[] states;
-	private volatile int nStates;
+	private WeakHashMap<State, State> knownStates;
+	private volatile State initialState;
 	public final double epsilon;
 	/* Locks are public since HPC removal needs synchronization
 	 * across multiple state updates.
 	 */
 	public Lock writeLock, readLock;
 
-	private State reserve(int[] x) {
-		State ret;
-		try {
-			writeLock.lock();
-			ret = new State(x, nStates);
-			nStates++;
-			if (ret.number >= states.length)
-				states = Arrays.copyOf(states, states.length*2);
-			states[ret.number] = ret;
-			knownStates.put(ret, ret);
-		} finally {
-			writeLock.unlock();
-		}
-		return ret;
-	}
-
 	public StateSpace(double epsilon, int[] initialState) {
 		this.epsilon = epsilon;
-		knownStates = new HashMap<State, State>();
-		states = new State[1024];
-		nStates = 0;
+		knownStates = new WeakHashMap<>();
 		ReentrantReadWriteLock locks = new ReentrantReadWriteLock();
 		writeLock = locks.writeLock();
 		readLock = locks.readLock();
-		reserve(initialState);
+		this.initialState = findOrCreate(initialState);
 	}
 
 	/** Follows the behaviour of snapshot() */
 	protected StateSpace(StateSpace other) {
-		knownStates = new HashMap<>(other.knownStates);
-		states = other.states.clone();
-		nStates = other.nStates;
+		knownStates = new WeakHashMap<>(other.knownStates);
 		epsilon = other.epsilon;
 		ReentrantReadWriteLock locks = new ReentrantReadWriteLock();
 		writeLock = locks.writeLock();
 		readLock = locks.readLock();
+		initialState = other.initialState;
 	}
-
-	/**
-	 * Create a new StateSpace with the following properties:
-	 *
-	 * - Modifications to the snapshot are not visible in the
-	 *   parent.
-	 * - Modifications to separate snapshots are not visible to each
-	 *   other.
-	 * - Modifications to the parent have undefined behaviour in the
-	 *   snapshots.
-	 * - Modifications to intended-to-be-constant entries in any
-	 *   snapshot have undefined behaviour.
-	 */
-	public abstract StateSpace snapshot();
 
 	public int size() {
-		return nStates;
+		return knownStates.size();
 	}
 
-	public State getState(int s)
+	public void cleanupHPCs()
 	{
-		return states[s];
+		StateWrapper w = cachedWrapper.get();
+		if (w == null) {
+			w = new StateWrapper(null);
+			cachedWrapper.set(w);
+		}
+		try {
+			writeLock.lock();
+			for (State s : knownStates.keySet()) {
+				Neighbours nbs = null;
+				if (s.neighbours != null)
+					nbs = s.neighbours.get();
+				if (nbs == null)
+					continue;
+				State[] arr = nbs.neighbours;
+				for (int i = 0; i < arr.length; i++) {
+					w.state = arr[i].state;
+					arr[i] = knownStates.get(w);
+				}
+				if (!(s instanceof HPCState))
+					continue;
+				nbs = ((HPCState)s).origNeighbours;
+				arr = nbs.neighbours;
+				for (int i = 0; i < arr.length; i++) {
+					w.state = arr[i].state;
+					arr[i] = knownStates.get(w);
+				}
+			}
+		} finally {
+			writeLock.unlock();
+		}
 	}
 
-	public void addHPC(ExploredState orig, int[] newNeighbours,
+	public void addHPC(State orig, State[] newNeighbours,
 	                   short[] newOrders, double[] newProbs,
 			   double[] meanTimes)
 	{
@@ -217,7 +227,8 @@ public abstract class StateSpace {
 			                          meanTimes);
 			knownStates.remove(orig);
 			knownStates.put(n, n);
-			states[n.number] = n;
+			if (orig == initialState)
+				initialState = n;
 		} finally {
 			writeLock.unlock();
 		}
@@ -240,6 +251,15 @@ public abstract class StateSpace {
 		}
 	}
 
+	public State find(State x) {
+		try {
+			readLock.lock();
+			return knownStates.get(x);
+		} finally {
+			readLock.unlock();
+		}
+	}
+
 	protected State findOrCreate(int[] x) {
 		State s;
 		s = find(x);
@@ -247,8 +267,10 @@ public abstract class StateSpace {
 			try {
 				writeLock.lock();
 				s = find(x);
-				if (s == null)
-					s = reserve(x);
+				if (s == null) {
+					s = new State(x);
+					knownStates.put(s, s);
+				}
 			} finally {
 				writeLock.unlock();
 			}
@@ -256,41 +278,30 @@ public abstract class StateSpace {
 		return s;
 	}
 
-	protected ExploredState explored(State s, int[] neighbours,
-	                                 short[] orders, double[] probs,
-	                                 double exitRate)
+	protected static Neighbours explored(State s, State[] neighbours,
+	                                     short[] orders, double[] probs,
+	                                     double exitRate)
 	{
-		ExploredState ret = new ExploredState(s, neighbours, orders,
-		                                      probs, exitRate);
-		try {
-			writeLock.lock();
-			State prev = knownStates.get(s);
-			if (prev instanceof ExploredState)
-				return (ExploredState)prev;
-			knownStates.remove(s);
-			knownStates.put(ret, ret);
-			states[ret.number] = ret;
-		} finally {
-			writeLock.unlock();
-		}
-		return ret;
+		Neighbours ns = new Neighbours(neighbours, orders, probs,
+		                               exitRate);
+		s.neighbours = new SoftReference<Neighbours>(ns);
+		return ns;
 	}
 
 	public State getInitialState()
 	{
-		return states[0];
+		return initialState;
 	}
 
-	/** Instantiate the relevant fields for the specified state.
+	/** Explore the specified state and return its neighbours.
 	 *
-	 * This method should populate the s'th entries of successors,
-	 * orders, and probs with correctly filled arrays, and set
-	 * exitRates[s] to the correct value.
+	 * Ideally, should return the result of explored(x, ...), but this
+	 * is not strictly required.
 	 */
-	public abstract ExploredState findNeighbours(State x);
+	protected abstract Neighbours findNeighbours(State x);
 
-	public String stateString(int state) {
-		return "state "+ state +", ="+states[state].toString();
+	public String stateString(State state) {
+		return Arrays.toString(state.state);
 	}
 
 	public Number getVarValue(String variable, State state) {

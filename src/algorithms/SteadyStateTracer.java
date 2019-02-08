@@ -81,12 +81,6 @@ public class SteadyStateTracer extends TraceGenerator
 		hasDeadlocks = false;
 	}
 
-	public void resetModelCache(StateSpace model)
-	{
-		super.resetModelCache(model);
-		mcTracer.scheme.model = scheme.model;
-	}
-
 	public void sample()
 	{
 		boolean deadlocked = false;
@@ -184,7 +178,7 @@ public class SteadyStateTracer extends TraceGenerator
 		double var = Math.fma(-sumRedTime, mean, sumRedTimesSquared);
 		var /= N - 1;
 
-		return new SimulationResult(prop, alpha, mean, var, new long[]{N, M}, time, baseModelSize);
+		return new SimulationResult(prop, alpha, mean, var, new long[]{N, M}, time, scheme.storedStates());
 
 	}
 
@@ -196,7 +190,7 @@ public class SteadyStateTracer extends TraceGenerator
 		double meanZ = sumRedTime / N;
 		double meanT = sumTime / N;
 		if (M <= 1) {
-			return new SimulationResult(prop, sumRedTime / sumTime, alpha, Double.NaN, 0, Double.POSITIVE_INFINITY, new long[]{N, M}, time, baseModelSize);
+			return new SimulationResult(prop, sumRedTime / sumTime, alpha, Double.NaN, 0, Double.POSITIVE_INFINITY, new long[]{N, M}, time, scheme.storedStates());
 		}
 		if (Simulator.VERBOSE) {
 			System.err.println("Estimator for Z (unavail. time during cycle): " + meanZ);
@@ -211,7 +205,7 @@ public class SteadyStateTracer extends TraceGenerator
                 double varV = N*Math.fma(meanV, meanV*varT, varZ)*N;
                 varV /= (N-1)*sumTime*sumTime;
 
-		return new SimulationResult(prop, alpha, meanV, varV, new long[]{N, M}, time, baseModelSize);
+		return new SimulationResult(prop, alpha, meanV, varV, new long[]{N, M}, time, scheme.storedStates());
 	}
 
 	public SimulationResult getResult(TraceGenerator[] ts, double alpha)

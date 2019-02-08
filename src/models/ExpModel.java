@@ -29,11 +29,6 @@ public class ExpModel extends StateSpace
 		this.prop = other.prop;
 	}
 
-	public ExpModel snapshot()
-	{
-		return new ExpModel(this);
-	}
-
 	public ExpModel (double epsilon, LTS model) throws IOException
 	{
 		this(epsilon, model, null);
@@ -56,16 +51,14 @@ public class ExpModel extends StateSpace
 		return initialState.length;
 	}
 
-	public ExploredState findNeighbours(State s)
+	public Neighbours findNeighbours(State s)
 	{
-		if (s instanceof ExploredState)
-			return (ExploredState)s;
 		int[] state = s.state;
 
 		Composition.statesExplored = 0;
 		//System.err.format("Neighbours from state %d (%s)\n", s, java.util.Arrays.toString(state));
 		Set<LTS.Transition> transitions = comp.getTransitions(state);
-		int[] neighbours = new int[transitions.size()];
+		State[] neighbours = new State[transitions.size()];
 		short[] orders = new short[transitions.size()];
 		double[] probs = new double[transitions.size()];
 
@@ -79,7 +72,7 @@ public class ExpModel extends StateSpace
 			if (order > Short.MAX_VALUE)
 				throw new IllegalArgumentException("Order does not fit in 16 bits.");
 			State z = findOrCreate(t.target.clone());
-			neighbours[i] = z.number;
+			neighbours[i] = z;
 			orders[i] = (short)order;
 			probs[i] = rate;
 			i++;
@@ -93,9 +86,7 @@ public class ExpModel extends StateSpace
 		for(i = 0; i < n; i++)
 			probs[i] /= totProb;
 
-		ExploredState ret = explored(s, neighbours, orders, probs,
-		                             totProb);
-		return ret;
+		return explored(s, neighbours, orders, probs, totProb);
 	}
 
 	public Number getVarValue(String variable, State state)

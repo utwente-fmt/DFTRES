@@ -14,7 +14,8 @@ public class Scheme
 
 	public double[] stateWeightsIS;
 	public double totalStateWeightIS;
-	public int[] neighbours;
+	public StateSpace.State[] neighbours;
+	public double exitRate;
 
 	protected short[] orders;
 	protected double[] probs;
@@ -37,15 +38,16 @@ public class Scheme
 		return true;
 	}
 
-	public StateSpace.ExploredState prepareState(int state) {
-		StateSpace.ExploredState s = model.findNeighbours(model.getState(state));
-		neighbours = s.neighbours;
-		orders = s.orders;
-		probs = s.probs;
+	public StateSpace.Neighbours prepareState(StateSpace.State state) {
+		StateSpace.Neighbours n = state.getNeighbours();
+		neighbours = n.neighbours;
+		exitRate = n.exitRate;
+		orders = n.orders;
+		probs = n.probs;
 
 		stateWeightsIS = probs;
 		totalStateWeightIS = 1;
-		return s;
+		return n;
 	}
 	
 	public void resetModelCache(StateSpace initial) {
@@ -77,5 +79,9 @@ public class Scheme
 	 */
 	public String getName() {
 		return this.name;
+	}
+
+	public int storedStates() {
+		return 1; /* Only the initial state is stored by default */
 	}
 }

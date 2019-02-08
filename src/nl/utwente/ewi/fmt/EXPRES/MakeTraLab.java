@@ -120,7 +120,7 @@ public class MakeTraLab {
 		numStates = markings.size();
 		System.err.format("%d lefs after collapsing BSCCs\n", numStates);
 		while (removeDuplicateStates())
-			;
+			System.err.format("%d states currently left\n", markings.size());
 
 		numStates = markings.size();
 		System.err.format("%d states left after removing duplicates\n", numStates);

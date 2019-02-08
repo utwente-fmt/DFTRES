@@ -23,8 +23,8 @@ public class SchemeUniform extends Scheme {
 		return false;
 	}
 
-	public StateSpace.ExploredState prepareState(int state) {
-		StateSpace.ExploredState ret = super.prepareState(state);
+	public StateSpace.Neighbours prepareState(StateSpace.State state) {
+		StateSpace.Neighbours ret = super.prepareState(state);
 		if (myStateWeights.length < probs.length)
 			myStateWeights = new double[probs.length];
 		stateWeightsIS = myStateWeights;

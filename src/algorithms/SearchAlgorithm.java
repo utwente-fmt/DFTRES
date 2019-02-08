@@ -1,6 +1,7 @@
 package algorithms;
 import models.StateSpace;
-import models.StateSpace.ExploredState;
+import models.StateSpace.State;
+import models.StateSpace.Neighbours;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -9,20 +10,21 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.PrimitiveIterator;
-import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingDeque;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 
 public class SearchAlgorithm {
-	private Set<Integer> Lambda;
-	private Set<Integer> Gamma;
-	private ArrayList<ArrayList<ExploredState>> predecessors;
+	private Set<State> Lambda;
+	private Set<State> Gamma;
+	private Set<State> nonHPCs = new HashSet<>();
+	private HashMap<State, ArrayList<State>> predecessors;
+	private HashSet<State> neighboursSet = new HashSet<>();
 	private final StateSpace model;
 	private final Property prop;
 
-	private int dp[];
-	public int d[];
+	private HashMap<State, Integer> dp;
+	public HashMap<State, Integer> d;
 
 	private final boolean trace;
 	
@@ -36,41 +38,47 @@ public class SearchAlgorithm {
 		this(m, false, prop);
 	}
 
-	public double[] runAlgorithm() {
-		dp = new int[] {Integer.MAX_VALUE};
-		predecessors = new ArrayList<>();
+	public HashMap<State, Double> runAlgorithm() {
+		dp = new HashMap<>();
+		predecessors = new HashMap<>();
 		forwardPhase();
-		double[] ret = backwardPhase();
+		model.cleanupHPCs();
+		HashMap<State, Double> ret = backwardPhase();
 		dp = null;
 		return ret;
 	}
 
-	private ExploredState findNeighbours(StateSpace.State state)
+	private Neighbours findNeighbours(StateSpace.State state)
 	{
-		ExploredState ret = model.findNeighbours(state);
-		if (dp.length < model.size()) {
-			int len = dp.length;
-			dp = Arrays.copyOf(dp, model.size() * 2);
-			Arrays.fill(dp, len, dp.length, Integer.MAX_VALUE);
-		}
-		if (ret != state) {
-			for (int zz : ret.neighbours) {
-				while (predecessors.size() <= zz)
-					predecessors.add(new ArrayList<>());
-				predecessors.get(zz).add(ret);
+		Neighbours ret = state.getNeighbours();
+		if (dp.get(state) == null)
+			dp.put(state, Integer.MAX_VALUE);
+		if (!neighboursSet.contains(state)) {
+			for (State zz : ret.neighbours) {
+				ArrayList<State> preds = predecessors.get(zz);
+				if (preds == null) {
+					preds = new ArrayList<>();
+					predecessors.put(zz, preds);
+				}
+				if (!dp.containsKey(zz))
+					dp.put(zz, Integer.MAX_VALUE);
+				preds.add(state);
 			}
+			neighboursSet.add(state);
 		}
 		return ret;
 	}
 
 	/* Returns whether any changes were actually made. */
-	private boolean removeHpc(ExploredState s) {
-		HashSet<ExploredState> A = new HashSet<>();
-		HashSet<ExploredState> B = new HashSet<>();
+	private boolean removeHpc(State s) {
+		if (nonHPCs.contains(s))
+			return false;
+		HashSet<State> A = new HashSet<>();
+		HashSet<State> B = new HashSet<>();
 		A.add(s);
 		B.add(s);
-		ArrayDeque<ExploredState> pot_A = new ArrayDeque<>();
-		ArrayDeque<ExploredState> pot_B = new ArrayDeque<>();
+		ArrayDeque<State> pot_A = new ArrayDeque<>();
+		ArrayDeque<State> pot_B = new ArrayDeque<>();
 		pot_A.add(s);
 		pot_B.add(s);
 
@@ -81,30 +89,29 @@ public class SearchAlgorithm {
 			System.err.print("\nRemoving HPC.");
 		
 		while (!pot_A.isEmpty()) {
-			ExploredState x = pot_A.poll();
+			State x = pot_A.poll();
 			if (Simulator.showProgress && (A.size() % 32768) == 0)
 				System.err.format("\rRemoving HPC, A: %d", A.size());
-			for (int i = 0; i < x.neighbours.length; i++) {
-				if (x.orders[i] > 0)
+			Neighbours nb = findNeighbours(x);
+			for (int i = 0; i < nb.neighbours.length; i++) {
+				if (nb.orders[i] > 0)
 					continue;
-				int z = x.neighbours[i];
-				StateSpace.State zz = model.getState(z);
-				if (prop.isBlue(model, zz))
+				State z = nb.neighbours[i];
+				if (prop.isBlue(model, z))
 					continue;
-				ExploredState es = findNeighbours(zz);
-				if (A.add(es))
-					pot_A.add(es);
+				if (A.add(z))
+					pot_A.add(z);
 			}
 		}
 
-		ArrayList<ExploredState> preds;
+		ArrayList<State> preds;
 		while (!pot_B.isEmpty()) {
-			ExploredState z = pot_B.poll();
+			State z = pot_B.poll();
 			if (Simulator.showProgress && (B.size() % 32768) == 0)
 				System.err.format("\rRemoving HPC, A: %d, B %d", A.size(), B.size());
-			preds = predecessors.get(z.number);
-			for (ExploredState x : preds) {
-				if (x.getOrderTo(z.number) != 0)
+			preds = predecessors.get(z);
+			for (State x : preds) {
+				if (x.getOrderTo(z) != 0)
 					continue;
 				if (!A.contains(x) || prop.isBlue(model, x))
 					continue;
@@ -115,9 +122,9 @@ public class SearchAlgorithm {
 
 		if (trace)
 			System.out.println("A: "+A);
-		HashSet<ExploredState> Ls = A;
+		HashSet<State> Ls = A;
 		Ls.retainAll(B);
-		HashSet<StateSpace.State> Ds = new HashSet<>();
+		HashSet<State> Ds = new HashSet<>();
 		if (trace) {
 			System.out.println("B: "+B);
 			System.out.println("pred: "+predecessors);
@@ -130,18 +137,19 @@ public class SearchAlgorithm {
 		}
 		if (Ls.size() == 1) {
 			if (Simulator.showProgress)
-				System.err.format("\r%d Found not to be HPC.\n", s.number);
+				System.err.format("\r%s Found not to be HPC.\n", s);
+			nonHPCs.add(s);
 			return false; // false alarm: HPC consists of one state only
 		}
 		if (Simulator.showProgress)
-			System.err.format("\rRemoving HPC from %d, size %d\n", s.number, Ls.size());
+			System.err.format("\rRemoving HPC from %s, size %d\n", s, Ls.size());
 
 		A = B = null;
-		for (ExploredState x : Ls) {
-			for (int z : x.neighbours) {
-				StateSpace.State zz = model.getState(z);
-				if (!Ls.contains(zz)) {
-					Ds.add(zz);
+		for (State x : Ls) {
+			Neighbours xn = findNeighbours(x);
+			for (State z : xn.neighbours) {
+				if (!Ls.contains(z)) {
+					Ds.add(z);
 					if(trace)
 						System.out.println("in D: "+z);
 				}
@@ -150,12 +158,10 @@ public class SearchAlgorithm {
 		if (Ds.size() == 0)
 			System.err.println("HPC without destinations.");
 
-		int[] D = new int[Ds.size()];
-		int[] L = new int[Ls.size()];
-		int i = 0;
-		for (StateSpace.State d : Ds)
-			D[i++] = d.number;
+		State[] D = Ds.toArray(new State[Ds.size()]);
 		Ds = null;
+		State[] L = Ls.toArray(new State[Ls.size()]);
+		Ls = null;
 
 		/* We find the transition matrix of the Markov chain
 		 * formed by the HPC and its 1-step-reachable states.
@@ -180,18 +186,15 @@ public class SearchAlgorithm {
 		short[] orders = new short[D.length];
 		Arrays.fill(orders, Short.MAX_VALUE);
 
-		ExploredState[] La = Ls.toArray(new ExploredState[0]);
 		Ls = null;
 
-		i = 0;
-		for (ExploredState l : La) {
-			L[i] = l.number;
-			int[] succs = l.neighbours;
+		int i = 0;
+		for (State l : L) {
 			int j = 0;
-			for (ExploredState z : La)
-				T[i][j++] = l.getProbTo(z.number);
+			for (State z : L)
+				T[i][j++] = l.getProbTo(z);
 			for (j = 0; j < D.length; j++) {
-				int d = D[j];
+				State d = D[j];
 				T[i][j + L.length] = l.getProbTo(d);
 				if (T[i][j + L.length] > 0) {
 					short ord = l.getOrderTo(d);
@@ -201,7 +204,6 @@ public class SearchAlgorithm {
 			}
 			i++;
 		}
-		Ls = null;
 
 		/* To calculate the probabilities of the outgoing states
 		 * from the HPC, we approximate T^inf, and read off the
@@ -215,14 +217,20 @@ public class SearchAlgorithm {
 		solveEventualProbabilities(MAX_ITS, T);
 
 		double[][] meanTimes = null;
-		if (La.length == 2) {
+		if (L.length == 2) {
+			/* For 2 we can solve exactly (probably also for
+			 * slightly larger ones but I can't be bothered
+			 * to implement them.
+			 */
 			meanTimes = new double[2][D.length];
+			Neighbours nb0 = L[0].getNeighbours();
+			Neighbours nb1 = L[1].getNeighbours();
 			for (i = 0; i < D.length; i++) {
 				double v;
-				double m0 = 1 / La[0].exitRate;
-				double m1 = 1 / La[1].exitRate;
-				double P01 = La[0].getProbTo(La[1].number);
-				double P10 = La[1].getProbTo(La[0].number);
+				double m0 = 1 / nb0.exitRate;
+				double m1 = 1 / nb1.exitRate;
+				double P01 = L[0].getProbTo(L[1]);
+				double P10 = L[1].getProbTo(L[0]);
 				double P0sink = T[0][L.length + i];
 				double P1sink = T[1][L.length + i];
 				v = m0 + P01 * P1sink * m1 / P0sink;
@@ -245,8 +253,8 @@ public class SearchAlgorithm {
 		if (trace)
 			System.err.println("Minimal order: " + minOrder);
 
-		for (i = 0; i < La.length; i++) {
-			ExploredState l = La[i];
+		for (i = 0; i < L.length; i++) {
+			State l = L[i];
 			double[] prbs = new double[D.length];
 			double[] mt = null;
 			if (meanTimes != null)
@@ -271,14 +279,13 @@ public class SearchAlgorithm {
 			public void run() {
 				Object o = null;
 				while (true) {
-					StateSpace.State s;
+					State s;
 					try {
 						o = q.take();
 					} catch (InterruptedException e) {
 					}
-					if (o instanceof StateSpace.State) {
-						s = (StateSpace.State)o;
-						model.findNeighbours(s);
+					if (o instanceof State) {
+						((State)o).getNeighbours();
 					} else {
 						q.push(o);
 						return;
@@ -291,13 +298,16 @@ public class SearchAlgorithm {
 	}
 
 	private void forwardPhase() {
-		ArrayDeque<StateSpace.State> current = new ArrayDeque<>();
+		ArrayDeque<State> current = new ArrayDeque<>();
 		LinkedBlockingDeque<Object> needsExploration = null;
-		StateSpace.State x = model.getInitialState();
-		BitSet done = new BitSet();
+		State x = model.getInitialState();
+		predecessors.put(x, new ArrayList<>());
+		dp.put(x, 0);
+		/* Invariant: A state is either done, current, or unexplored.
+		 */
+		HashSet<State> done = new HashSet<>();
 		int dReach = Integer.MAX_VALUE, dCur = 0;
-		int minUnexpl = 0;
-		int[] skipNeighbours = new int[0];
+		State[] skipNeighbours = new State[0];
 
 		if (Simulator.coresToUse > 1) {
 			needsExploration = new LinkedBlockingDeque<>();
@@ -305,39 +315,36 @@ public class SearchAlgorithm {
 		}
 
 		while(x != null && dCur <= dReach) {
-			ExploredState es = null;
-			int[] nbs = skipNeighbours;
-			if (!done.get(x.number)) {
-				x = es = findNeighbours(x);
-				nbs = es.neighbours;
+			Neighbours nbdata = null;
+			State[] nbs = skipNeighbours;
+			if (done.add(x)) {
+				nbdata = findNeighbours(x);
+				nbs = nbdata.neighbours;
 			}
-			done.set(x.number);
 
 			for (int i = 0; i < nbs.length; i++) {
-				StateSpace.State nb = model.getState(nbs[i]);
-				if (nb instanceof StateSpace.HPCState)
+				State z = nbs[i];
+				if (z instanceof StateSpace.HPCState)
 					continue;
-				int z = nb.number;
-				int dZ = dCur + es.orders[i];
-				if (dZ < dp[z])
-					dp[z] = dZ;
+				int dZ = dCur + nbdata.orders[i];
+				Integer oldDp = dp.get(z);
+				if (dZ < oldDp)
+					dp.put(z, dZ);
 				else
-					dZ = dp[z];
+					dZ = oldDp;
 				if (dZ == dCur) {
 					if (needsExploration != null)
-						needsExploration.push(nb);
-					current.add(nb);
+						needsExploration.push(z);
+					current.add(z);
 				}
-				if (dZ < dReach && prop.isRed(model, nb))
+				if (dZ < dReach && prop.isRed(model, z))
 					dReach = dZ;
-				if (done.get(nb.number) && dZ == dCur) {
-					assert(nb instanceof ExploredState);
+				if (done.contains(z) && dZ == dCur) {
 					/* Possible HPC */
-					if (removeHpc((ExploredState)nb)) {
-						x = model.getState(x.number);
-						assert(x instanceof ExploredState);
-						es = (ExploredState)x;
-						nbs = es.neighbours;
+					if (removeHpc(z)) {
+						x = model.find(x);
+						nbdata = findNeighbours(x);
+						nbs = nbdata.neighbours;
 						i = -1;
 					}
 					if (Simulator.showProgress)
@@ -347,16 +354,16 @@ public class SearchAlgorithm {
 			if (!current.isEmpty()) {
 				x = current.poll();
 			} else {
-				ArrayList<StateSpace.State> toExplore = null;
+				ArrayList<State> toExplore = null;
 				if (needsExploration != null) {
 					toExplore = new ArrayList<>();
 					needsExploration.clear();
 				}
 				dCur = dReach;
-				int i = done.nextClearBit(minUnexpl);
-				minUnexpl = i;
-				while (i < model.size()) {
-					int dZ = dp[i];
+				for (State z : dp.keySet()) {
+					if (done.contains(z))
+						continue;
+					int dZ = dp.get(z);
 					if (dZ < dCur) {
 						if (toExplore != null)
 							toExplore.clear();
@@ -364,12 +371,10 @@ public class SearchAlgorithm {
 						dCur = dZ;
 					}
 					if (dZ == dCur) {
-						StateSpace.State zz = model.getState(i);
 						if (toExplore != null)
-							toExplore.add(zz);
-						current.add(zz);
+							toExplore.add(z);
+						current.add(z);
 					}
-					i = done.nextClearBit(i + 1);
 				}
 				if (toExplore != null)
 					needsExploration.addAll(toExplore);
@@ -379,9 +384,9 @@ public class SearchAlgorithm {
 					x = current.poll();
 			}
 			if (trace && x != null)
-				System.out.format("fwd (%d): %s\n", dp[x.number], x);
-			if (Simulator.showProgress && ((model.size() % 32768) == 0))
-				System.err.format("\rForward search: %d states (distance %d)", model.size(), dCur);
+				System.out.format("fwd (%d): %s\n", dp.get(x), x);
+			if (Simulator.showProgress && ((dp.size() % 32768) == 0))
+				System.err.format("\rForward search: %d states (distance %d)", dp.size(), dCur);
 		}
 
 		if (Simulator.coresToUse > 1) {
@@ -391,52 +396,52 @@ public class SearchAlgorithm {
 
 		if (Simulator.showProgress)
 			System.err.println("\nForward search completed, explored " + model.size() + " states, minimal distance " + dReach);
-		Gamma = new HashSet<Integer>();
-		Lambda = new HashSet<Integer>();
-		//assumes that the only states with a listing in X so far are either in Lambda or Gamma:
-		for(int z=0; z<model.size(); z++) {
-			if (model.getState(z) instanceof ExploredState)
+		Gamma = new HashSet<State>();
+		Lambda = new HashSet<State>();
+		for (State z : dp.keySet()) {
+			if (dp.get(z) <= dReach)
 				Lambda.add(z);
 			else
 				Gamma.add(z);
 		}
 	}
 
-	private double[] backwardPhase() {
-		d = new int[model.size()];
-		double v[] = new double[model.size()];
+	private HashMap<State, Double> backwardPhase() {
+		d = new HashMap<State, Integer>();
+		HashMap<State, Double> v = new HashMap<>();
 		if(trace) System.out.println("-----"+Lambda.size()+", "+Gamma.size());
-		BitSet LambdaP = new BitSet();
-		BitSet potentials = new BitSet();
-		BitSet redsAndGamma = new BitSet();
+		HashSet<State> lambdaP = new HashSet<>();
+		HashSet<State> potentials = new HashSet<>();
+		HashSet<State> redsAndGamma = new HashSet<>();
 		
-		//System.out.println(predecessors);
-
-		for (int s : Lambda) {
-			StateSpace.State st = model.getState(s);
+		Double one = 1.0;
+		Double zero = 0.0;
+		for (State st : Lambda) {
 			if(prop.isRed(model, st)) {
-				v[s] = 1;
-				redsAndGamma.set(s);
+				v.put(st, one);
+				d.put(st, 0);
+				redsAndGamma.add(st);
 			} else {
-				d[s] = Integer.MAX_VALUE;
+				v.put(st, zero);
+				d.put(st, Integer.MAX_VALUE);
 				if (!prop.isBlue(model, st))
-					potentials.set(s);
+					potentials.add(st);
 			}
 		}
 
-		for (int s : Gamma) {
-			v[s] = 1;
-			redsAndGamma.set(s);
+		for (State st : Gamma) {
+			d.put(st, 0);
+			v.put(st, one);
+			redsAndGamma.add(st);
 		}
+		one = null;
 		if(trace) System.out.println("Reds and Gamma size: "+redsAndGamma.size());
 
 		int counter = 0;
 
 		// first: reds and Gamma
 
-		PrimitiveIterator.OfInt iter = redsAndGamma.stream().iterator();
-		while (iter.hasNext()) {
-			int x = iter.nextInt();
+		for (State x : redsAndGamma) {
 			if (trace) {
 				System.out.println("*  state "+x);
 				if(counter % 100 == 0)
@@ -444,51 +449,52 @@ public class SearchAlgorithm {
 				counter++;
 			}
 
-			for (ExploredState pred : predecessors.get(x)) {
-				int z = pred.number;
-				int dZ = d[x] + pred.getOrderTo(x);
-				if (dZ < d[z]) {
-					v[z] = 0;
-					d[z] = dZ;
+			for (State z : predecessors.get(x)) {
+				int dZ = d.get(x) + z.getOrderTo(x);
+				if (dZ < d.get(z)) {
+					v.put(z, zero);
+					d.put(z, dZ);
 				}
-				if(d[z] == dZ && !prop.isRed(model, pred))
-					v[z] += v[x] * pred.getProbTo(x);
+				if(d.get(z) == dZ && !prop.isRed(model, z)) {
+					double vZ = v.get(z);
+					double vX = v.get(x);
+					double pZX = z.getProbTo(x);
+					vZ = Math.fma(vX, pZX, vZ);
+					v.put(z, vZ);
+				}
 			}
 		}
 
-		ArrayDeque<Integer> currentSuitables = new ArrayDeque<Integer>();
-		BitSet suitables = new BitSet();
+		ArrayDeque<State> currentSuitables = new ArrayDeque<>();
+		HashSet<State> suitables = new HashSet<>();
 		int dCur = Integer.MAX_VALUE;
 
-		iter = potentials.stream().iterator();
-		while (iter.hasNext()) {
-			int z = iter.nextInt();
+		for (State z : potentials) {
+			if (d.get(z) == Integer.MAX_VALUE)
+				continue;
 			boolean suitable = true;
-			StateSpace.State st = model.getState(z);
-			if (!(st instanceof ExploredState))
-				throw new AssertionError("Unexplored state encountered in backward search.");
-			ExploredState es = (ExploredState)st;
-			for (int x : es.neighbours) {
+			Neighbours es = findNeighbours(z);
+			for (State x : es.neighbours) {
 				if (!Lambda.contains(x))
 					continue;
-				if (redsAndGamma.get(x)) {
-					suitable = false;
-					break;
-				}
-				StateSpace.State nb = model.getState(x);
-				int dXZ = es.getOrderTo(z);
-				if (!(prop.isBlue(model, nb) || dXZ > 0)) {
-					suitable = false;
-					break;
-				}
+				if (redsAndGamma.contains(x))
+					continue;
+				if (prop.isBlue(model, x))
+					continue;
+				int dXZ = x.getOrderTo(z);
+				if (dXZ > 0)
+					continue;
+				suitable = false;
+				break;
 			}
 			if (suitable) {
-				suitables.set(z);
-				if (d[z] < dCur) {
-					dCur = d[z];
+				suitables.add(z);
+				int dZ = d.get(z);
+				if (dZ < dCur) {
+					dCur = dZ;
 					currentSuitables.clear();
 				}
-				if (d[z] == dCur)
+				if (dZ == dCur)
 					currentSuitables.add(z);
 			}
 		}
@@ -498,81 +504,81 @@ public class SearchAlgorithm {
 		while(true) {
 			if (currentSuitables.isEmpty()) {
 				dCur = Integer.MAX_VALUE;
-				int s = suitables.nextSetBit(0);
-				if (s == -1)
+				if (suitables.isEmpty())
 					break;
-				while (s != -1) {
-					if (d[s] < dCur) {
-						dCur = d[s];
+				for (State s : suitables) {
+					int dS = d.get(s);
+					if (dS < dCur) {
+						dCur = dS;
 						currentSuitables.clear();
 					}
-					if (d[s] == dCur)
+					if (dS == dCur)
 						currentSuitables.add(s);
-					s = suitables.nextSetBit(s + 1);
 				}
 			}
-			int x = currentSuitables.poll();
+			State x = currentSuitables.poll();
 
 			if (trace) {
-				System.out.println("** state "+x+": d="+d[x]);
+				System.out.println("** state "+x+": d="+d.get(x));
 				counter++;
 				//System.out.println("count: "+counter+": "+x);
 			}
-			LambdaP.set(x);
-			suitables.clear(x);
+			lambdaP.add(x);
+			suitables.remove(x);
 
-			for (ExploredState z : predecessors.get(x)) {
-				int zn = z.number;
+			for (State z : predecessors.get(x)) {
 				//System.out.println(x+", "+z+": "+X.size());
-				int dZ = d[x] + z.getOrderTo(x);
-				if (dZ < d[zn]) {
-					v[zn] = 0;
-					d[zn] = dZ;
+				int dZ = d.get(x) + z.getOrderTo(x);
+				if (dZ < d.get(z)) {
+					v.put(z, zero);
+					d.put(z, dZ);
 					if (dZ < dCur) {
 						currentSuitables.clear();
 						dCur = dZ;
 					}
 					if (dZ == dCur)
-						currentSuitables.add(zn);
+						currentSuitables.add(z);
 				}
-				if (d[zn] == dZ && !prop.isRed(model, z))
-					v[zn] += v[x] * z.getProbTo(x);
+				if (d.get(z) == dZ && !prop.isRed(model, z)) {
+					double vZ = v.get(z);
+					double vX = v.get(x);
+					double pZX = z.getProbTo(x);
+					vZ = Math.fma(vX, pZX, vZ);
+					v.put(z, vZ);
+				}
 
-				if (suitables.get(zn)
-				    || LambdaP.get(zn)
-				    || !potentials.get(zn))
+				if (suitables.contains(z)
+				    || lambdaP.contains(z)
+				    || !potentials.contains(z))
 					continue;
 				boolean suitable = true;
-				for (int xx : z.neighbours) {
+				for (State xx : z.getNeighbours().neighbours) {
 					if (!Lambda.contains(xx))
 						continue;
-					StateSpace.State st = model.getState(xx);
-					if (!(st instanceof ExploredState))
-						throw new AssertionError("Unexplored state encountered in backward search.");
-					ExploredState es = (ExploredState)st;
-					int rxxz = es.getOrderTo(zn);
-					if (!(prop.isBlue(model, st) || LambdaP.get(xx) || redsAndGamma.get(xx) || rxxz > 0)) {
+					Neighbours es = xx.getNeighbours();
+					int rxxz = xx.getOrderTo(z);
+					if (!(prop.isBlue(model, xx) || lambdaP.contains(xx) || redsAndGamma.contains(xx) || rxxz > 0)) {
 						suitable = false;
 						break;
 					}
 				}
 				if (suitable) {
-					suitables.set(zn);
-					int md = d[zn];
+					suitables.add(z);
+					int md = d.get(z);
 					if (md < dCur) {
 						dCur = md;
 						currentSuitables.clear();
 					}
 					if (md == dCur)
-						currentSuitables.add(zn);
+						currentSuitables.add(z);
 				}
 			}
 		}
 
 		// finallY: reset blue states
-		for(int z : Lambda) {
-			if(prop.isBlue(model, model.getState(z)))
-				v[z] = 0;
+		for(State z : Lambda) {
+			if(prop.isBlue(model, z))
+				v.put(z, zero);
 		}
 		return v;
 	}

@@ -2,33 +2,46 @@ package schemes;
 import algorithms.Scheme;
 import algorithms.SearchAlgorithm;
 import models.StateSpace;
+import models.StateSpace.State;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 
 // path-ZVA, assuming the generator contains a list of generated states with correct values for d
 
 public class SchemeZVAd extends Scheme {
+	private static class StateInfo {
+		public final double v;
+		public final int d;
+		public StateInfo(double v, int d) {
+			this.v = v;
+			this.d = d;
+		}
+	};
 	private double[] myStateWeights = new double[1];
 	private boolean haveLeftLambda;
-	private final double v[];
-	private final int d[];
+	private final HashMap<State, StateInfo> info;
 	
-	private SchemeZVAd(StateSpace model, double v[], int d[]) {
+	private SchemeZVAd(StateSpace model, HashMap<State, StateInfo> info) {
 		super(model, "Path-ZVA-d");
-		this.v = v;
-		this.d = d;
+		this.info = info;
 	}
 
 	public SchemeZVAd clone()
 	{
-		return new SchemeZVAd(model, v, d);
+		return new SchemeZVAd(model, info);
 	}
 
 	public static SchemeZVAd instantiate(StateSpace model, Property prop) {
 		SearchAlgorithm s = new SearchAlgorithm(model, prop);
-		double v[] = s.runAlgorithm();
-		int[] d = s.d;
-		return new SchemeZVAd(model, v, d);
+		HashMap<State, Double> v = s.runAlgorithm();
+		HashMap<State, StateInfo> sinfo = new HashMap<>();
+		for (Map.Entry<State, Double> e : v.entrySet()) {
+			StateInfo si = new StateInfo(e.getValue(), s.d.get(e.getKey()));
+			sinfo.put(e.getKey(), si);
+		}
+		return new SchemeZVAd(model, sinfo);
 	}
 
 	public boolean isBinomial() {
@@ -39,23 +52,29 @@ public class SchemeZVAd extends Scheme {
 		haveLeftLambda = false;
 	}
 	
-	public StateSpace.ExploredState prepareState(int state) {
-		StateSpace.ExploredState ret = super.prepareState(state);
-		if(state >= v.length || v[state] == 1) haveLeftLambda = true; // this seems to be an easy way to check whether gamma has been reached (or whether it doesn't matter anymore, because the probability of ending up in the goal state is 1 anyway).
-		if (state == 0)
-			haveLeftLambda = false;
-		if (haveLeftLambda)
-			return ret;
+	public StateSpace.Neighbours prepareState(State state) {
+		StateSpace.Neighbours ret = super.prepareState(state);
+		StateInfo sinfo = info.get(state);
+		if (sinfo == null || sinfo.v == 1)
+			haveLeftLambda = true;
+		if (haveLeftLambda) {
+			if (state.equals(model.getInitialState()))
+				haveLeftLambda = false;
+			else
+				return ret;
+		}
 		if (myStateWeights.length < probs.length)
 			myStateWeights = new double[probs.length];
 		stateWeightsIS = myStateWeights;
 		totalStateWeightIS = 0;
 		for(int i=0;i<probs.length;i++) {
-			if(neighbours[i]> -1) {
-				stateWeightsIS[i] = probs[i]*Math.pow(model.epsilon, d[neighbours[i]]);
-				totalStateWeightIS += stateWeightsIS[i];
-			}
+			stateWeightsIS[i] = probs[i]*Math.pow(model.epsilon, info.get(neighbours[i]).d);
+			totalStateWeightIS += stateWeightsIS[i];
 		}
 		return ret;
+	}
+
+	public int storedStates() {
+		return info.size();
 	}
 }

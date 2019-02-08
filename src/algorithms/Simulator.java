@@ -103,7 +103,6 @@ public class Simulator {
 				assert(false);
 		}
 		initialModel = gen.scheme.model;
-		gen.resetModelCache(initialModel.snapshot());
 	}
 
 	private TraceGenerator[] multiCoreSim(long maxN, int threads)
@@ -123,7 +122,6 @@ public class Simulator {
 			};
 		}
 		final ProgressPrinter progress = p;
-		final StateSpace[][] toReset = new StateSpace[1][threads];
 
 		class Tracer implements Runnable {
 			public final TraceGenerator gen;
@@ -132,60 +130,11 @@ public class Simulator {
 				gen = g;
 				N = nSims;
 			}
-			private void resetAndWait() {
-				synchronized (toReset) {
-					int i, n = 0;
-					StateSpace ours = null;
-					for (i = 0; i < toReset[0].length; i++) {
-						if (toReset[0][i] != null) {
-							ours = toReset[0][i];
-							toReset[0][i] = null;
-							n = i;
-							break;
-						}
-					}
-					if (showProgress)
-						System.err.format("Resetting %d: %d MB avail\n", n % toReset[0].length, getMemFree() / (1024 * 1024));
-					if (ours == null) {
-						ours = initialModel.snapshot();
-						Simulator.this.gen.resetModelCache(ours);
-						Arrays.fill(toReset[0], ours);
-						toReset[0][0] = null;
-					}
-					gen.resetModelCache(ours);
-					if (n == toReset[0].length - 1) {
-						/* We were the last. */
-						r.gc();
-						toReset.notifyAll();
-					} else {
-						/* Wait for the last one. */
-						try {
-							toReset.wait();
-						} catch (Exception e) {
-						}
-					}
-				}
-			}
 			public void run() {
 				for (long i = 0; i < N; i++) {
-					// keep the cache from exploding
-					if (getMemFree() < MIN_FREE_MEM)
-						resetAndWait();
 					gen.sample();
 					p.doneOne();
 				}
-				synchronized(toReset) {
-					boolean doNotify = false;
-					if (toReset[0].length > 1
-					    && toReset[0][toReset[0].length - 2] != null)
-					{
-						doNotify = true;
-					}
-					toReset[0] = Arrays.copyOf(toReset[0], toReset[0].length - 1);
-					if (doNotify)
-						toReset.notifyAll();
-				}
-				gen.resetModelCache(null);
 			}
 		}
 
@@ -244,14 +193,10 @@ public class Simulator {
 			/* Spend 1% of time to estimate number of runs. */
 			long trialSimTime = start + msec / 100;
 			while (System.currentTimeMillis() < trialSimTime) {
-				// keep the cache from exploding
-				if(getMemFree() < MIN_FREE_MEM)
-					tg.resetModelCache(initialModel.snapshot());
 				tg.sample();
 				N++;
 			}
 
-			gen.resetModelCache(tg.scheme.model);
 			if (showProgress)
 				System.err.println("Estimating simulation rate.");
 			/* Spend about another 1% estimating the time
