@@ -19,7 +19,7 @@ public class MakeTraLab {
 	private final TreeMap<String, Integer> stateNums = new TreeMap<>();
 	private final ArrayList<TreeMap<Integer, String>> transitions = new ArrayList<>();
 	private final ArrayList<String> markings = new ArrayList<>();
-	private final MarkovReducedLTS l;
+	private final LTS l;
 	private BitSet notErgodic;
 	private int transitionCount = 0;
 
@@ -27,6 +27,16 @@ public class MakeTraLab {
 	{
 		if (lts instanceof MarkovReducedLTS)
 			l = (MarkovReducedLTS)lts;
+		else
+			l = new MarkovReducedLTS(lts);
+	}
+
+	public MakeTraLab(LTS lts, boolean unsafe)
+	{
+		if (lts instanceof MarkovReducedLTS)
+			l = (MarkovReducedLTS)lts;
+		else if (unsafe && (lts instanceof Composition))
+			l = new MarkovianComposition((Composition)lts);
 		else
 			l = new MarkovReducedLTS(lts);
 	}

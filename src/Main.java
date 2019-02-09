@@ -453,7 +453,7 @@ class Main {
 		if (janiOutputFile != null)
 			MakeJani.makeJani(model, janiOutputFile, jsonOutput ? filename : null, args, properties);
 		if (traLabOutputFile != null) {
-			MakeTraLab mtl = new MakeTraLab(model);
+			MakeTraLab mtl = new MakeTraLab(model, unsafeComposition);
 			mtl.convert(traLabOutputFile);
 		}
 		if (model instanceof Composition && unsafeComposition) {

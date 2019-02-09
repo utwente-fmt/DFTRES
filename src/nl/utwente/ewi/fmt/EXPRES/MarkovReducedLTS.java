@@ -115,8 +115,14 @@ public class MarkovReducedLTS implements LTS
 			if (finalTransitions == null)
 				finalTransitions = markovian;
 			else
-				if (!finalTransitions.equals(markovian))
+				if (!finalTransitions.equals(markovian)) {
+					System.err.println("From state: " + Arrays.toString(from));
+					System.err.println("Can reach:");
+					System.err.println(markovian);
+					System.err.println("and");
+					System.err.println(finalTransitions);
 					return null;
+				}
 		}
 		return BSCC_Nodes.iterator().next().state;
 	}
