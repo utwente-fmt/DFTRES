@@ -266,7 +266,7 @@ public class Automaton implements LTS {
 					act = "a" + (k++);
 				while (presentActions.contains(act))
 					act = "a" + (k++);
-				renames.put(labels[i][j], act);
+				renames.put(act, labels[i][j]);
 				ret.labels[i] = ret.labels[i].clone();
 				ret.labels[i][j] = act;
 			}

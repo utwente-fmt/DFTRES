@@ -415,8 +415,49 @@ public class Composition implements MarkableLTS
 			*/
 	}
 
+	private void duplicateAutAction(int aut, String from, String to)
+	{
+		System.err.println("Removing nondeterminism for " + from);
+		for (int i = vectorAutomata.length - 1; i > 0; i--) {
+			int j;
+			for (j = 0; j < vectorAutomata[i].length; j++) {
+				if (vectorAutomata[i][j] == aut
+				    && vectorLabels[i][j].equals(from))
+				{
+					break;
+				}
+			}
+			if (j == vectorAutomata[i].length)
+				continue;
+			int pos = vectorAutomata.length;
+			vectorAutomata = Arrays.copyOf(vectorAutomata, pos + 1);
+			vectorLabels = Arrays.copyOf(vectorLabels, pos + 1);
+			synchronizedLabels = Arrays.copyOf(synchronizedLabels, pos + 1);
+			vectorAutomata[pos] = vectorAutomata[i];
+			synchronizedLabels[pos] = synchronizedLabels[i];
+			vectorLabels[pos] = vectorLabels[i].clone();
+			vectorLabels[pos][j] = to;
+		}
+	}
+
+	private void removeInternalNondeterminism()
+	{
+		HashMap<String, String> intRenames = new HashMap<>();
+		for (int i = 0; i < automata.length; i++) {
+			intRenames.clear();
+			Automaton newAut;
+			newAut = automata[i].removeInternalNondet(intRenames);
+			if (newAut == automata[i])
+				continue;
+			automata[i] = newAut;
+			for (Map.Entry<String, String> e : intRenames.entrySet())
+				duplicateAutAction(i, e.getValue(), e.getKey());
+		}
+	}
+
 	private void afterParsing()
 	{
+		removeInternalNondeterminism();
 		rejectedFor = new ThreadLocal<int[]>();
 		haveRateTransitions = new int[0];
 		for (int i = 0; i < automata.length; i++) {
