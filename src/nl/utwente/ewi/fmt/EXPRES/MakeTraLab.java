@@ -14,9 +14,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingDeque;
+
+import algorithms.Simulator;
 
 public class MakeTraLab {
-	private final TreeMap<String, Integer> stateNums = new TreeMap<>();
 	private final ArrayList<TreeMap<Integer, String>> transitions = new ArrayList<>();
 	private final ArrayList<String> markings = new ArrayList<>();
 	private final LTS l;
@@ -41,15 +44,73 @@ public class MakeTraLab {
 			l = new MarkovReducedLTS(lts);
 	}
 
+	private class Explorer extends Thread {
+		public final LinkedBlockingDeque<int[]> toExplore;
+		public final ConcurrentHashMap<int[], Object[]> explored;
+		/* Explored:
+		 * [length-1] - state label,
+		 * [length-2] - marking,
+		 * rest       - Set<LTS.Transition>
+		 */
+
+		public Explorer(LinkedBlockingDeque<int[]> toExplore,
+		                ConcurrentHashMap<int[], Object[]> explored)
+		{
+			this.toExplore = toExplore;
+			this.explored = explored;
+		}
+
+		public void run () {
+			int[] state;
+			while (true) try {
+				state = toExplore.takeLast();
+				break;
+			} catch (InterruptedException e) {
+			}
+			while (state.length > 0) {
+				if (explored.containsKey(state))
+					continue;
+				String sState = Composition.stateString(state);
+				Map<?, Integer> vals = l.getVarValues(state);
+				String marking = "";
+				for (Map.Entry<?, Integer> v : vals.entrySet()){
+					if (v.getValue() != 0)
+						marking += " " + v.getKey();
+				}
+				if (marking.length() == 0)
+					marking = null;
+				vals = null;
+				Set<LTS.Transition> s = l.getTransitions(state);
+				Object[] ret = new Object[s.size() + 2];
+				s.toArray(ret);
+				s = null;
+				ret[ret.length - 1] = sState;
+				ret[ret.length - 2] = marking;
+				explored.put(state, ret);
+				ret = null;
+				while (true) try {
+					state = toExplore.takeLast();
+					break;
+				} catch (InterruptedException e) {
+				}
+			}
+			while (true) {
+				try {
+					toExplore.putLast(state);
+					break;
+				} catch (InterruptedException e) {
+				}
+			}
+		}
+	}
+
 	public void convert(String out) throws IOException
 	{
-		int[] state;
 		int numStates;
 		
 		FileOutputStream traFile, labFile;
 		PrintWriter traWriter, labWriter;
-		state = l.getInitialState();
-		exploreStates(l, state);
+		exploreStates();
 		numStates = markings.size();
 		System.err.format("%d states before removing duplicates\n", numStates);
 		while (removeDuplicateStates())
@@ -65,7 +126,7 @@ public class MakeTraLab {
 		traWriter.format("STATES %d\nTRANSITIONS %s\n",
 		                 numStates,
 		                 transitionCount);
-		Map<String, Integer> initialValues = l.getVarValues(state);
+		Map<String, Integer> initialValues = l.getVarValues(l.getInitialState());
 		labWriter.println("#DECLARATION");
 		for (String v : initialValues.keySet())
 			labWriter.println(v);
@@ -87,9 +148,45 @@ public class MakeTraLab {
 		}
 	}
 
-	private Integer exploreStates(LTS l, int[] state)
+	private void exploreStates()
 	{
-		String sState = Composition.stateString(state);
+		TreeMap<String, Integer> stateNums = new TreeMap<>();
+		LinkedBlockingDeque<int[]> toExplore;
+		ConcurrentHashMap<int[], Object[]> explored;
+		toExplore = new LinkedBlockingDeque<>();
+		explored = new ConcurrentHashMap<>();
+		Explorer[] threads = new Explorer[Simulator.coresToUse];
+		for (int i = 0; i < threads.length; i++) {
+			threads[i] = new Explorer(toExplore, explored);
+			threads[i].start();
+		}
+		int state[] = l.getInitialState();
+		while (true) {
+			try {
+				threads[0].toExplore.putLast(state);
+				break;
+			} catch (InterruptedException e) {
+			}
+		}
+		exploreStates(stateNums, state, threads[0]);
+		while (true) {
+			try {
+				threads[0].toExplore.putLast(new int[0]);
+				break;
+			} catch (InterruptedException e) {
+			}
+		}
+	}
+
+	private Integer exploreStates(Map<String, Integer> stateNums,
+	                              int[] state, Explorer explorer)
+	{
+		Object[] stateInfo;
+		while ((stateInfo = explorer.explored.get(state)) == null)
+			Thread.yield();
+		Object tmp = stateInfo[stateInfo.length - 1];
+		assert(tmp instanceof String);
+		String sState = (String)tmp;
 		Integer stateNum = stateNums.get(sState);
 		if (stateNum != null)
 			return stateNum;
@@ -100,24 +197,35 @@ public class MakeTraLab {
 		stateNum = stateNums.size();
 		stateNums.put(sState, stateNum);
 
-		Map<String, Integer> vals = l.getVarValues(state);
-		String marking = "";
-		for (Map.Entry<String, Integer> val : vals.entrySet()) {
-			if (val.getValue() != 0)
-				marking += " " + val.getKey();
-		}
-		if (marking.length() > 0)
-			markings.add(marking);
-		else
+		tmp = stateInfo[stateInfo.length - 2];
+		if (tmp != null) {
+			assert(tmp instanceof String);
+			markings.add((String)tmp);
+		} else {
 			markings.add(null);
+		}
 
-		Set<LTS.Transition> s = l.getTransitions(state);
+		for (int i = stateInfo.length - 3; i >= 0; i--) {
+			tmp = stateInfo[i];
+			assert(tmp instanceof LTS.Transition);
+			LTS.Transition t = (LTS.Transition)tmp;
+			while (true)  {
+				try {
+					explorer.toExplore.put(t.target);
+					break;
+				} catch (InterruptedException e) {
+				}
+			}
+		}
 		TreeMap<Integer, String> ts = new TreeMap<>();
 		TreeSet<Integer> lTargets = new TreeSet<>();
 		transitions.add(ts);
-		transitionCount += s.size();
-		for (LTS.Transition t : s) {
-			Integer target = exploreStates(l, t.target);
+		transitionCount += stateInfo.length - 1;
+		for (int i = stateInfo.length - 3; i >= 0; i--) {
+			tmp = stateInfo[i];
+			assert(tmp instanceof LTS.Transition);
+			LTS.Transition t = (LTS.Transition)tmp;
+			Integer target = exploreStates(stateNums, t.target, explorer);
 			ts.put(target, t.label);
 			lTargets.add(target);
 		}
@@ -143,7 +251,7 @@ public class MakeTraLab {
 		}
 	}
 
-	private String addLabels(String l1, String l2)
+	private static String addLabels(String l1, String l2)
 	{
 		if (l1 == null)
 			return l2;
