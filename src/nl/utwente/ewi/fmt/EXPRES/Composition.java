@@ -80,42 +80,33 @@ public class Composition implements MarkableLTS
 
 	public static String stateString(int[] state)
 	{
-		char[] tmp = new char[state.length * 3];
-		int usedChars = 0;
-		int i;
+		int i, pos = 0;
 		for (i = state.length - 1; i >= 0; i--) {
-			if (state[i] < 65535) {
-				tmp[usedChars++] = (char)state[i];
+			if (i > 0 && state[i] < 128 && state[i - 1] < 256) {
+				pos++;
+				i--;
+			} else if (state[i] < 32767) {
+				pos++;
 			} else {
-				tmp[usedChars++] = 65535;
-				tmp[usedChars++] = (char)(state[i] & 0xFFFF);
-				tmp[usedChars++] = (char)(state[i] >>> 16);
+				pos += 3;
 			}
 		}
-		return new String(tmp, 0, usedChars);
-	}
-
-	public static int[] stringToState(String sString)
-	{
-		int len = 0;
-		for (int i = 0; i < sString.length(); i++) {
-			if (sString.charAt(i) == 65535)
-				i += 2;
-			len++;
-		}
-		int ret[] = new int[len];
-		int j = ret.length - 1;
-		for (int i = 0; i < sString.length(); i++) {
-			if (sString.charAt(i) < 65535) {
-				ret[j--] = sString.charAt(i);
+		char[] tmp = new char[pos];
+		pos = 0;
+		for (i = state.length - 1; i >= 0; i--) {
+			if (i > 0 && state[i] < 128 && state[i - 1] < 256) {
+				tmp[pos] = (char)((state[i] << 8) + state[i-1]);
+				pos++;
+				i--;
+			} else if (state[i] < 32767) {
+				tmp[pos++] = (char)(0x8000 | state[i]);
 			} else {
-				ret[j] = sString.charAt(i + 2);
-				ret[j] <<= 16;
-				ret[j--] += sString.charAt(i + 1);
-				i += 2;
+				tmp[pos++] = 65535;
+				tmp[pos++] = (char)(state[i] & 0xFFFF);
+				tmp[pos++] = (char)(state[i] >>> 16);
 			}
 		}
-		return ret;
+		return new String(tmp);
 	}
 
 	/** Construct a composition by reading a file.

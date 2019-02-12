@@ -7,8 +7,10 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -20,7 +22,7 @@ import java.util.concurrent.LinkedBlockingDeque;
 import algorithms.Simulator;
 
 public class MakeTraLab {
-	private final ArrayList<TreeMap<Integer, String>> transitions = new ArrayList<>();
+	private final ArrayList<Map<Integer, String>> transitions = new ArrayList<>();
 	private final ArrayList<String> markings = new ArrayList<>();
 	private final LTS l;
 	private BitSet notErgodic;
@@ -113,6 +115,9 @@ public class MakeTraLab {
 		exploreStates();
 		numStates = markings.size();
 		System.err.format("%d states before removing duplicates\n", numStates);
+		collapseDeadends();
+		numStates = markings.size();
+		System.err.format("%d lefs after collapsing BSCCs\n", numStates);
 		while (removeDuplicateStates())
 			;
 
@@ -136,16 +141,7 @@ public class MakeTraLab {
 		printStates(traWriter, labWriter);
 		labWriter.close();
 		traWriter.close();
-		notErgodic = new BitSet(numStates);
-		notErgodic.set(1, numStates);
-		checkErgodic();
-		if (!notErgodic.isEmpty()) {
-			int s = notErgodic.nextSetBit(0);
-			while (s != -1) {
-				System.err.format("%d Cannot return to initial state.\n", s);
-				s = notErgodic.nextSetBit(s + 1);
-			}
-		}
+		//checkErgodic();
 	}
 
 	private void exploreStates()
@@ -237,7 +233,7 @@ public class MakeTraLab {
 	{
 		int maxState = markings.size();
 		for (int i = 0; i < maxState; i++) {
-			TreeMap<Integer, String> ts = transitions.get(i);
+			Map<Integer, String> ts = transitions.get(i);
 			for (Integer target : ts.keySet()) {
 				String label = ts.get(target);
 				if (label.charAt(0) == 'r')
@@ -279,7 +275,7 @@ public class MakeTraLab {
 		for (int i = 0; i < maxState; i++) {
 			Integer s = i;
 			Object stateInfo;
-			TreeMap<Integer, String> ts = transitions.get(i);
+			Map<Integer, String> ts = transitions.get(i);
 			for (Integer t : ts.keySet())
 				predecessors.get(t).add(s);
 			String marking = markings.get(i);
@@ -304,7 +300,7 @@ public class MakeTraLab {
 
 			if (dup >= transitions.size())
 				return;
-			TreeMap<Integer, String> ts = transitions.get(dup);
+			Map<Integer, String> ts = transitions.get(dup);
 			String marking = markings.get(dup);
 			Object dupInfo;
 			if (marking == null)
@@ -326,7 +322,7 @@ public class MakeTraLab {
 			}
 			Set<Integer> mPreds = predecessors.get(merged);
 			for (Integer s : predecessors.get(dup)) {
-				TreeMap<Integer, String> t = transitions.get(s);
+				Map<Integer, String> t = transitions.get(s);
 				String dLabel = t.remove(iDup);
 				String mLabel = t.get(iMerged);
 				String nLabel = addLabels(mLabel, dLabel);
@@ -336,7 +332,7 @@ public class MakeTraLab {
 				mPreds.add(s);
 			}
 			for (Integer s : predecessors.get(repl)) {
-				TreeMap<Integer, String> t = transitions.get(s);
+				Map<Integer, String> t = transitions.get(s);
 				String rLabel = t.remove(iRepl);
 				if (rLabel == null)
 					continue;
@@ -371,6 +367,8 @@ public class MakeTraLab {
 
 	private void checkErgodic()
 	{
+		BitSet notErgodic = new BitSet(markings.size());
+		notErgodic.set(1, markings.size());
 		boolean changed;
 		do {
 			changed = false;
@@ -387,5 +385,120 @@ public class MakeTraLab {
 				state = notErgodic.nextSetBit(state + 1);
 			}
 		} while (changed);
+		if (!notErgodic.isEmpty()) {
+			int s = notErgodic.nextSetBit(0);
+			while (s != -1) {
+				System.err.format("%d Cannot return to initial state.\n", s);
+				s = notErgodic.nextSetBit(s + 1);
+			}
+		}
+	}
+
+	private void collapseDeadends()
+	{
+		int numStates = markings.size();
+		int minDeadend = 0;
+		BitSet canChange = new BitSet(markings.size());
+		boolean changed;
+		do {
+			changed = false;
+			int s = canChange.nextClearBit(minDeadend);
+			minDeadend = s;
+			while (s < numStates) {
+				String mark = markings.get(s);
+				for (int t : transitions.get(s).keySet()) {
+					if (canChange.get(t)) {
+						canChange.set(s);
+						changed = true;
+						break;
+					}
+					String tMark = markings.get(t);
+					if (tMark == mark)
+						continue;
+					if (tMark != null && tMark.equals(mark))
+						continue;
+					canChange.set(s);
+					changed = true;
+					break;
+				}
+				s = canChange.nextClearBit(s + 1);
+			}
+		} while (changed);
+		TreeMap<String, Integer> stateLabels = new TreeMap<>();
+		Map<Integer, String> emptyTransitions = Collections.emptyMap();
+		int s = minDeadend;
+		while (s < numStates) {
+			String mark = markings.get(s);
+			if (mark == null)
+				mark = "";
+			transitions.set(s, emptyTransitions);
+			if (!stateLabels.containsKey(mark)) {
+				stateLabels.put(mark, minDeadend);
+				canChange.set(minDeadend++);
+				minDeadend = canChange.nextClearBit(minDeadend);
+			}
+			s = canChange.nextClearBit(s + 1);
+		}
+		if (minDeadend == numStates)
+			return;
+		HashMap<Integer, Integer> renames = new HashMap<>();
+		s = canChange.nextClearBit(minDeadend);
+		int i = numStates - 1;
+		while (s < numStates) {
+			while (i > s && !canChange.get(i)) {
+				String mark = markings.remove(i);
+				if (mark == null)
+					mark = "";
+				transitions.remove(i);
+				renames.put(i, stateLabels.get(mark));
+				i--;
+				numStates--;
+			}
+			Map<Integer, String> ts = transitions.remove(i);
+			String sMark = markings.get(s);
+			if (sMark == null)
+				sMark = "";
+			String iMark = markings.remove(i);
+			renames.put(i, s);
+			renames.put(s, stateLabels.get(sMark));
+			if (s != i) {
+				transitions.set(s, ts);
+				markings.set(s, iMark);
+			}
+			i--;
+			numStates--;
+			s = canChange.nextClearBit(s + 1);
+		}
+		HashMap<Integer, String> tmpRenames = new HashMap<>();
+		for (i = 0; i < numStates; i++) {
+			Map<Integer, String> ts = transitions.get(i);
+			Iterator<Integer> trans_it = ts.keySet().iterator();
+			while (trans_it.hasNext()) {
+				Integer tgt = trans_it.next();
+				Integer rename = renames.get(tgt);
+				if (rename != null) {
+					String label = ts.get(tgt);
+					String rLabel = tmpRenames.get(rename);
+					label = addLabels(label, rLabel);
+					tmpRenames.put(rename, label);
+					trans_it.remove();
+				}
+			}
+			if (tmpRenames.isEmpty())
+				continue;
+			for (Map.Entry<Integer, String> rn : tmpRenames.entrySet()) {
+				Integer tgt = rn.getKey();
+				String nLabel = rn.getValue();
+				String oLabel = ts.get(tgt);
+				ts.put(tgt, addLabels(nLabel, oLabel));
+			}
+			tmpRenames.clear();
+		}
+		for (Map.Entry<String, Integer> p : stateLabels.entrySet()) {
+			String mark = p.getKey();
+			if (mark.length() == 0)
+				mark = null;
+			markings.set(p.getValue(), mark);
+		}
 	}
 }
