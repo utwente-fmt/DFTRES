@@ -26,7 +26,7 @@ public class Automaton implements LTS {
 	private String labels[][];
 	private Expression guards[][];
 	private Map<String, Expression> assignments[][];
-	private HashMap<String, Integer> transitions[];
+	private Map<String, Integer> transitions[];
 	private final static boolean VERBOSE = false;
 
 	/** Construct an automaton by reading it from a file.
@@ -51,7 +51,22 @@ public class Automaton implements LTS {
 		}
 	}
 
-	public Automaton(LTS system)
+	/** Generate an explicit-state automaton out of the given LTS,
+	 * possibly with a restricted action set.
+	 *
+	 * The automaton will replicate all behaviour of the LTS,
+	 * made explicit as much as possible (e.g., guards will not
+	 * refer to local variables anymore, since the variables are now
+	 * part of the state).
+	 *
+	 * If a set of permitted actions is provided, only transitions
+	 * will be kept that are either Markovian or contained in the
+	 * permitted action set.
+	 *
+	 * @param system	The system to make explicit.
+	 * @param permitted	The set of permitted actions.
+	 */
+	public Automaton(LTS system, Set<String> permitted)
 	{
 		HashMap<LTS.StateWrapper, Integer> states = new HashMap<>();
 		ArrayDeque<LTS.StateWrapper> queue = new ArrayDeque<>();
@@ -60,6 +75,7 @@ public class Automaton implements LTS {
 		targets = new int[1][];
 		labels = new String[1][];
 		assignments = createAssignmentArray(1);
+		boolean anyHasAssignments = false;
 		while (!queue.isEmpty()) {
 			if (targets.length < states.size()) {
 				int n = states.size();
@@ -76,6 +92,12 @@ public class Automaton implements LTS {
 			assignments[num] = Arrays.copyOf(assignments[0], ts.size());
 			int i = 0;
 			for (LTS.Transition t : ts) {
+				if (permitted != null
+				    && t.label.charAt(0) != 'r'
+				    && !permitted.contains(t.label))
+				{
+					continue;
+				}
 				LTS.StateWrapper tgt = new LTS.StateWrapper(t.target);
 				Integer tgtNum = states.get(tgt);
 				if (tgtNum == null) {
@@ -105,11 +127,29 @@ public class Automaton implements LTS {
 					guards[num][i] = t.guard;
 				}
 				assignments[num][i] = t.assignments;
+				if (t.assignments != null && !t.assignments.isEmpty())
+				{
+					anyHasAssignments = true;
+				}
 				i++;
 			}
+			if (i != labels[num].length) {
+				labels[num] = Arrays.copyOf(labels[num], i);
+				targets[num] = Arrays.copyOf(targets[num], i);
+				assignments[num] = Arrays.copyOf(assignments[num], i);
+				if (guards != null && guards[num] != null)
+					guards[num] = Arrays.copyOf(guards[num], i);
+			}
 		}
+		if (!anyHasAssignments)
+			assignments = null;
 		createTransitionArray();
 		initState = 0;
+	}
+
+	public Automaton(LTS system)
+	{
+		this(system, null);
 	}
 
 	public static Automaton fromJani(Map janiData,
@@ -176,9 +216,9 @@ public class Automaton implements LTS {
 	}
 
 	@SuppressWarnings("unchecked")
-	private HashMap<String, Expression>[][] createAssignmentArray(int len)
+	private Map<String, Expression>[][] createAssignmentArray(int len)
 	{
-		return (HashMap<String, Expression>[][]) new HashMap[len][0];
+		return (Map<String, Expression>[][]) new Map[len][0];
 	}
 
 	/** Create a new automaton by renaming some transitions from an
@@ -415,11 +455,40 @@ public class Automaton implements LTS {
 		for (int i = 0; i < targets[src].length; i++) {
 			target = targets[src][i];
 			String label = labels[src][i];
+			Map<String, Expression> assigns = Map.of();
+			if (assignments != null
+			    && assignments.length > src
+			    && assignments[src].length > i)
+			{
+				assigns = assignments[src][i];
+			}
 			ret.add(new LTS.Transition(label, new int[]{target},
 			                           ConstantExpression.TRUE,
-			                           assignments[src][i]));
+			                           assigns));
 		}
 		return ret;
+	}
+
+	/** Return a reduced automaton that can only execute the
+	 * specified labels (in addition to Markovian rates).
+	 */
+	public Automaton trim(Set<String> keep) {
+		boolean anyChange = false;
+		boolean needsChange[] = new boolean[labels.length];
+		for (int i = 0; i < labels.length; i++) {
+			for (int j = 0; j < labels[i].length; j++) {
+				if (labels[i][j].charAt(0) == 'r')
+					continue;
+				if (!keep.contains(labels[i][j])) {
+					needsChange[i] = true;
+					anyChange = true;
+					break;
+				}
+			}
+		}
+		if (!anyChange)
+			return this;
+		return new Automaton(this, keep);
 	}
 
 	public int stateSize()

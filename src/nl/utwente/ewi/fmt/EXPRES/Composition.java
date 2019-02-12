@@ -10,11 +10,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.LinkedHashMap;
 import nl.ennoruijters.util.JSONParser;
 import nl.utwente.ewi.fmt.EXPRES.expression.ConstantExpression;
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
@@ -446,9 +447,68 @@ public class Composition implements MarkableLTS
 		}
 	}
 
+	private boolean removeImpossibleActions()
+	{
+		List<Set<String>> actions = new ArrayList<>(automata.length);
+		List<Set<String>> syncs = new ArrayList<>(automata.length);
+		for (Automaton a : automata) {
+			Set<String> thisActs = new TreeSet<>();
+			actions.add(thisActs);
+			syncs.add(new TreeSet<>());
+			for (int i = a.getNumStates() - 1; i >= 0; i--) {
+				int j = 0;
+				String l = a.getTransitionLabel(i, 0);;
+				while (l != null) {
+					if (l.charAt(0) != 'r')
+						thisActs.add(l);
+					l = a.getTransitionLabel(i, ++j);
+				}
+			}
+		}
+
+		for (int i = 0; i < vectorAutomata.length; i++) {
+			int auts[] = vectorAutomata[i];
+			String labels[] = vectorLabels[i];
+			boolean ok = true;
+			for (int j = 0; j < auts.length; j++) {
+				Set<String> acts = actions.get(auts[j]);
+				if (!acts.contains(labels[j])) {
+					ok = false;
+					break;
+				}
+			}
+			if (!ok) {
+				int j = vectorAutomata.length - 1;
+				vectorAutomata[i] = vectorAutomata[j];
+				vectorLabels[i] = vectorLabels[j];
+				synchronizedLabels[i] = synchronizedLabels[j];
+				vectorAutomata = Arrays.copyOf(vectorAutomata, j);
+				vectorLabels = Arrays.copyOf(vectorLabels, j);
+				synchronizedLabels = Arrays.copyOf(synchronizedLabels, j);
+				i--;
+			} else {
+				for (int j = 0; j < auts.length; j++)
+					syncs.get(auts[j]).add(labels[j]);
+			}
+		}
+
+		boolean anyChange = false;
+		for (int i = 0; i < automata.length; i++) {
+			Automaton orig = automata[i], reduced;
+			reduced = orig.trim(syncs.get(i));
+			if (reduced != orig) {
+				automata[i] = reduced;
+				anyChange = true;
+			}
+		}
+		return anyChange;
+	}
+
 	private void afterParsing()
 	{
 		removeInternalNondeterminism();
+		while (removeImpossibleActions())
+			;
 		rejectedFor = new ThreadLocal<int[]>();
 		haveRateTransitions = new int[0];
 		for (int i = 0; i < automata.length; i++) {
