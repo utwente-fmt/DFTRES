@@ -20,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
 
 import algorithms.Simulator;
+import nl.utwente.ewi.fmt.EXPRES.MarkovReducedLTS;
 
 public class MakeTraLab {
 	private final ArrayList<Map<Integer, String>> transitions = new ArrayList<>();
@@ -222,7 +223,10 @@ public class MakeTraLab {
 			assert(tmp instanceof LTS.Transition);
 			LTS.Transition t = (LTS.Transition)tmp;
 			Integer target = exploreStates(stateNums, t.target, explorer);
-			ts.put(target, t.label);
+			String label = t.label;
+			if (ts.containsKey(target))
+				label = MarkovReducedLTS.addLabels(ts.get(target), label);
+			ts.put(target, label);
 			lTargets.add(target);
 		}
 		return stateNum;
@@ -245,22 +249,6 @@ public class MakeTraLab {
 			if (marking != null)
 				labWriter.format("%d%s\n", i + 1, marking);
 		}
-	}
-
-	private static String addLabels(String l1, String l2)
-	{
-		if (l1 == null)
-			return l2;
-		if (l2 == null)
-			return l1;
-		if (l1.charAt(0) != 'r')
-			throw new UnsupportedOperationException("Tried to merge non-rate transitions.");
-		if (l2.charAt(0) != 'r')
-			throw new UnsupportedOperationException("Tried to merge non-rate transitions.");
-		BigDecimal r1 = new BigDecimal(l1.substring(1));
-		BigDecimal r2 = new BigDecimal(l2.substring(1));
-		BigDecimal rret = r1.add(r2);
-		return "r" + rret.toString();
 	}
 
 	private boolean removeDuplicateStates()
@@ -325,7 +313,7 @@ public class MakeTraLab {
 				Map<Integer, String> t = transitions.get(s);
 				String dLabel = t.remove(iDup);
 				String mLabel = t.get(iMerged);
-				String nLabel = addLabels(mLabel, dLabel);
+				String nLabel = MarkovReducedLTS.addLabels(mLabel, dLabel);
 				if (nLabel == null)
 					throw new AssertionError("Dup error " + dLabel + " -- " + mLabel + " @ " + s + " for " + merged + "<-" + dup + "<-" + repl);
 				t.put(iMerged, nLabel);
@@ -479,7 +467,7 @@ public class MakeTraLab {
 				if (rename != null) {
 					String label = ts.get(tgt);
 					String rLabel = tmpRenames.get(rename);
-					label = addLabels(label, rLabel);
+					label = MarkovReducedLTS.addLabels(label, rLabel);
 					tmpRenames.put(rename, label);
 					trans_it.remove();
 				}
@@ -490,7 +478,7 @@ public class MakeTraLab {
 				Integer tgt = rn.getKey();
 				String nLabel = rn.getValue();
 				String oLabel = ts.get(tgt);
-				ts.put(tgt, addLabels(nLabel, oLabel));
+				ts.put(tgt, MarkovReducedLTS.addLabels(nLabel, oLabel));
 			}
 			tmpRenames.clear();
 		}

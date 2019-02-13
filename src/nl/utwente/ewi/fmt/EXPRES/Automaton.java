@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.ArrayDeque;
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -369,6 +370,135 @@ public class Automaton implements LTS {
 		return ret;
 	}
 
+	public Automaton addDontCares(String dontCare,
+	                              String notCared,
+	                              Set<String> preserve)
+	{
+		/* First, identify all states from which we can never
+		 * perform a preserved action.
+		 * (Technically, we could also check for states from
+		 * which we can always perform preserved actions, and
+		 * various combinations for different actions, but
+		 * I don't have any models exhibiting such behaviour).
+		 */
+		BitSet dontCareStates = new BitSet(targets.length);
+		dontCareStates.set(0, targets.length);
+		boolean changed = true;
+		while (changed) {
+			changed = false;
+			for (int i = labels.length - 1; i >= 0; i--) {
+				if (!dontCareStates.get(i))
+					continue;
+				for (String l : labels[i]) {
+					if (preserve.contains(l)) {
+						dontCareStates.clear(i);
+						changed = true;
+						break;
+					}
+				}
+				if (!dontCareStates.get(i))
+					continue;
+				for (int t : targets[i]) {
+					if (!dontCareStates.get(t)) {
+						dontCareStates.clear(i);
+						changed = true;
+						break;
+					}
+				}
+			}
+		}
+		Automaton ret = new Automaton(this);
+		
+		/* Fint or create a target state that can do nothing
+		 * (except tell others we have stopped caring).
+		 */
+		int finalState = dontCareStates.nextSetBit(0);
+		if (finalState == -1) {
+			finalState = ret.targets.length;
+			ret.targets = Arrays.copyOf(ret.targets, finalState+1);
+			ret.labels = Arrays.copyOf(labels, finalState + 1);
+		}
+		/* The final state cannot have guards or
+		 * assignments.
+		 */
+		ret.targets[finalState] = new int[1];
+		ret.targets[finalState][0] = finalState;
+		ret.labels[finalState] = new String[1];
+		ret.labels[finalState][0] = dontCare;
+
+		/* Anything going to any state where we don't care
+		 * should go to the final state.
+		 */
+		for (int i = 0; i < ret.targets.length; i++) {
+			for (int j = 0; j < ret.targets[i].length; j++) {
+				if (dontCareStates.get(ret.targets[i][j]))
+					ret.targets[i][j] = finalState;
+			}
+		}
+
+		/* Add an unguarded transition from every other state to the
+		 * don't care state. */
+		for (int i = 0; i < ret.targets.length; i++) {
+			if (i == finalState)
+				continue;
+			int n = ret.targets[i].length;
+			ret.targets[i] = Arrays.copyOf(ret.targets[i], n + 1);
+			ret.labels[i] = Arrays.copyOf(ret.labels[i], n + 1);
+			ret.targets[i][n] = finalState;
+			ret.labels[i][n] = notCared;
+		}
+		ret.createTransitionArray();
+		return ret;
+	}
+
+	public Automaton stopCaring(String signal, String dontCareSignal, String stopCaringSignal)
+	{
+		Automaton ret = new Automaton(this);
+		int dontCareState = -1;
+		for (int i = 0; i < ret.labels.length; i++) {
+			if (ret.targets[i].length != 1)
+				continue;
+			if (ret.targets[i][0] != i)
+				continue;
+			if (!ret.labels[i][0].equals(dontCareSignal))
+				continue;
+			dontCareState = i;
+			break;
+		}
+		if (dontCareState == -1)
+			throw new IllegalStateException("Attempt to redirect \"don't care\" signal in automaton that doesn't have \"don't care\" state.");
+		int targetState = -1;
+		for (int i = 0; i < ret.labels.length; i++) {
+			if (ret.targets[i].length != 1)
+				continue;
+			if (ret.targets[i][0] != dontCareState)
+				continue;
+			if (!ret.labels[i][0].equals(stopCaringSignal))
+				continue;
+			targetState = i;
+			break;
+		}
+		if (targetState == -1) {
+			int n = ret.targets.length;
+			ret.targets = Arrays.copyOf(ret.targets, n + 1);
+			ret.labels = Arrays.copyOf(ret.labels, n + 1);
+			ret.targets[n] = new int[1];
+			ret.labels[n] = new String[1];
+			ret.targets[n][0] = dontCareState;
+			ret.labels[n][0] = stopCaringSignal;
+			targetState = n;
+		}
+
+		for (int i = 0; i < ret.labels.length; i++) {
+			for (int j = 0; j < ret.labels[i].length; j++) {
+				if (ret.labels[i][j].equals(signal))
+					ret.targets[i][j] = targetState;
+			}
+		}
+		ret.createTransitionArray();
+		return ret;
+	}
+
 	/**
 	 * @return The target of the n'th transition from state 'from',
 	 * or -1 if 'from' has fewer than n transitions.
@@ -416,6 +546,58 @@ public class Automaton implements LTS {
 		if (r == null)
 			return -1;
 		return r;
+	}
+
+	/**
+	 * @param includeMarkov Whether to include Markovian
+	 * transitions.
+	 * @return The set of all actions that occur in this automaton.
+	 */
+	public Set<String> getAllActions(boolean includeMarkov)
+	{
+		Set<String> ret = new TreeSet<>();
+		int i = 0;
+		for (String[] acts : labels) {
+			int j = 0;
+			for (String act : acts) {
+				if (includeMarkov || act.charAt(0) != 'r')
+					ret.add(act);
+				j++;
+			}
+			i++;
+		}
+		return ret;
+	}
+
+	public boolean isAlwaysEnabled(String action)
+	{
+		for (String[] labs : labels) {
+			boolean enabled = false;
+			for (String label : labs) {
+				if (label.equals(action)) {
+					enabled = true;
+					break;
+				}
+			}
+			if (!enabled)
+				return false;
+		}
+		return true;
+	}
+
+	public boolean hasAnyAssignments()
+	{
+		if (assignments == null)
+			return false;
+		for (Map<String, Expression> assigns[] : assignments) {
+			if (assigns == null)
+				continue;
+			for (Map<String, Expression> assign : assigns) {
+				if (!assign.isEmpty())
+					return true;
+			}
+		}
+		return false;
 	}
 
 	public Map<String, Expression> getAssignments(int from, int n)
@@ -524,8 +706,12 @@ public class Automaton implements LTS {
 		out.println("],"); /* End of locations */
 		out.println("\t \"initial-locations\":[\"l"+initState+"\"],");
 		out.println("\t \"edges\":[");
+		boolean firstEdge = true;
 		for (int i = 0; i < targets.length; i++) {
 			for (int j = 0; j < targets[i].length; j++) {
+				if (!firstEdge)
+					out.println(",");
+				firstEdge = false;
 				out.println("\t\t{\"location\":\"l"+i+"\",");
 				if (assignments == null || assignments[i] == null || assignments[i].length <= j || assignments[i][j] == null) {
 					out.println("\t\t \"destinations\":[{\"location\":\"l"+targets[i][j]+"\"}],");
@@ -552,12 +738,9 @@ public class Automaton implements LTS {
 				} else {
 					out.println("\t\t \"action\":\""+labels[i][j].substring(1)+"\"");
 				}
-				if (i != targets.length - 1 || j != targets[i].length - 1)
-					out.println("\t\t},");
-				else
-					out.println("\t\t}");
+				out.print("\t\t}");
 			}
 		}
-		out.print("\t]}");
+		out.print("\n\t]}");
 	}
 }

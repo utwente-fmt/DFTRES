@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -400,11 +401,6 @@ public class Composition implements MarkableLTS
 			automata[i++] = a;
 			line = input.readLine().trim();
 		}
-		/*
-		System.out.format("%d automata\n", automata.length);
-		for (Automaton a : automata)
-			System.out.println(a);
-			*/
 	}
 
 	private void duplicateAutAction(int aut, String from, String to)
@@ -452,18 +448,8 @@ public class Composition implements MarkableLTS
 		List<Set<String>> actions = new ArrayList<>(automata.length);
 		List<Set<String>> syncs = new ArrayList<>(automata.length);
 		for (Automaton a : automata) {
-			Set<String> thisActs = new TreeSet<>();
-			actions.add(thisActs);
+			actions.add(a.getAllActions(false));
 			syncs.add(new TreeSet<>());
-			for (int i = a.getNumStates() - 1; i >= 0; i--) {
-				int j = 0;
-				String l = a.getTransitionLabel(i, 0);;
-				while (l != null) {
-					if (l.charAt(0) != 'r')
-						thisActs.add(l);
-					l = a.getTransitionLabel(i, ++j);
-				}
-			}
 		}
 
 		for (int i = 0; i < vectorAutomata.length; i++) {
@@ -504,11 +490,212 @@ public class Composition implements MarkableLTS
 		return anyChange;
 	}
 
+	/** We define a dependent automaton as one that has no
+	 * effect on any globally visible automaton except through the
+	 * provided automaton.
+	 * In case of disconnected networks, this may include automata
+	 * that have no communication with globals or with the specified
+	 * automaton. This is a rather strange definition of dependent
+	 * and we should probably just remove such automata, but it does
+	 * no harm to include them.
+	 *
+	 * @param outwardActions Which interactive transitions of the
+	 * the automaton communicate outside of the dependents.
+	 */
+	private Set<Integer> getDependents(int automaton, Set<Integer> globals,
+	                                   Set<String> outwardTransitions)
+	{
+		TreeSet<Integer> ret = new TreeSet<>();
+		for (int i = 0; i < automata.length; i++) {
+			if (i != automaton && !globals.contains(i))
+				ret.add(i);
+		}
+		boolean changed = true;
+		while (changed) {
+			changed = false;
+			for (int i = 0; i < vectorAutomata.length; i++) {
+				/* Check if this synchronization links
+				 * possible dependents and globals.
+				 */
+				boolean link = false;
+				int[] auts = vectorAutomata[i];
+				for (int j : auts) {
+					if (!ret.contains(j) && j != automaton){
+						link = true;
+						break;
+					}
+				}
+				if (link) {
+					for (int aut : auts) {
+						changed |= ret.remove(aut);
+					}
+				}
+			}
+		}
+		if (globals.contains(automaton)) {
+			/* Special case: Actions that affect global
+			 * variables also need to be preserved.
+			 */
+			Automaton aut = automata[automaton];
+			for (int i = aut.getNumStates() - 1; i >= 0; i--) {
+				int j = 0;
+				while (aut.getTransitionTarget(i, j) != -1) {
+					Map assigns = aut.getAssignments(i, j);
+					if (assigns != null
+					    && !assigns.isEmpty())
+					{
+						outwardTransitions.add(aut.getTransitionLabel(i, j));
+					}
+					j++;
+				}
+			}
+		}
+
+		for (int i = 0; i < vectorAutomata.length; i++) {
+			int[] auts = vectorAutomata[i];
+			String[] labs = vectorLabels[i];
+			int ourIdx = -1;
+			boolean outsideDependents = false;
+			for (int j = 0; j < auts.length; j++) {
+				if (auts[j] == automaton) {
+					ourIdx = j;
+					continue;
+				}
+				if (!ret.contains(auts[j]))
+					outsideDependents = true;
+			}
+			if (markLabels.containsKey(synchronizedLabels[i]))
+				outsideDependents = true;
+			if (ourIdx != -1 && outsideDependents)
+				outwardTransitions.add(labs[ourIdx]);
+		}
+		return ret;
+	}
+
+	public void addDontCares()
+	{
+		/* Build dependency sets: For each automaton A we identify
+		 * those automata B that communicate with A (directly or
+		 * indirectly) but not with any globally visible
+		 * automaton (i.e., those with assignments or
+		 * participating in marked actions).
+		 */
+		Set<Integer> globalVisible = new TreeSet<>();
+		for (int i = 0; i < automata.length; i++) {
+			if (automata[i].hasAnyAssignments())
+				globalVisible.add(i);
+		}
+		for (String l : markLabels.keySet()) {
+			for (int i = 0; i < synchronizedLabels.length; i++) {
+				if (!synchronizedLabels[i].equals(l))
+					continue;
+				for (int aut : vectorAutomata[i])
+					globalVisible.add(aut);
+			}
+		}
+		System.err.println("Globally visible: " + globalVisible);
+		List<Set<Integer>> dependents = new ArrayList<>();
+		List<Set<String>> preserveActions = new ArrayList<>();
+		for (int i = 0; i < automata.length; i++) {
+			Set<String> acts = new TreeSet<>();
+			dependents.add(getDependents(i, globalVisible, acts));
+			preserveActions.add(acts);
+		}
+
+		/* Transitive dependencies should not be kept, as they
+		 * block the synchronization (or would require a large
+		 * number of subset synchronizations).
+		 */
+		int m = 0;
+		for (Set<Integer> ds : dependents) {
+			Iterator<Integer> it = ds.iterator();
+			while (it.hasNext()) {
+				Integer s = it.next();
+				for (Integer t : ds) {
+					if (dependents.get(t).contains(s)) {
+						it.remove();
+						break;
+					}
+				}
+			}
+			m++;
+		}
+
+		/* Next, every automaton gets 'no longer cared about'
+		 * signal. This signal indicates that the automaton no
+		 * longer has a path to any globally visible automaton,
+		 * and therefore should not exhibit any interesting
+		 * behaviour. The only remaining behaviour is to
+		 * continue responding to the 'no longer cared about'
+		 * signal as larger irrelevant subsets may appear in the
+		 * future.
+		 */
+
+		/* Pick a signal that don't exist yet */
+		Set<String> existingLabels = getAllTransitionLabels();
+		String dontCare = "iDONTCARE";
+		int i = 0;
+		while (existingLabels.contains(dontCare))
+			dontCare = "iDONTCARE_" + (i++);
+		String notCared = "iNOTCARED";
+		i = 0;
+		while (existingLabels.contains(notCared))
+			notCared = "iNOTCARED_" + (i++);
+
+		for (i = 0; i < automata.length; i++) {
+			automata[i] = automata[i].addDontCares(dontCare,
+					notCared,
+					preserveActions.get(i));
+		}
+		/* Finally, add synchronizations such that once an automaton
+		 * find all automata that depend on it have stopped
+		 * caring, it goes to its own don't care state.
+		 */
+		for (i = 0; i < automata.length; i++) {
+			/* Number of signals in synchronization vector:
+			 * 1 per automaton dependent on us, plus 1 for
+			 * ourselves.
+			 */
+			if (globalVisible.contains(i))
+				continue;
+			int n = 1;
+			for (Set<Integer> depends : dependents) {
+				if (depends.contains(i))
+					n++;
+			}
+			int auts[] = new int[n];
+			String labs[] = new String[n];
+			auts[0] = i;
+			labs[0] = notCared;
+			n = 1;
+			for (int j = 0; j < dependents.size(); j++) {
+				Set<Integer> depends = dependents.get(j);
+				if (depends.contains(i)) {
+					auts[n] = j;
+					labs[n] = dontCare;
+					n++;
+				}
+			}
+			n = vectorAutomata.length + 1;
+			vectorAutomata = Arrays.copyOf(vectorAutomata, n);
+			vectorLabels = Arrays.copyOf(vectorLabels, n);
+			synchronizedLabels = Arrays.copyOf(synchronizedLabels, n);
+			vectorAutomata[n - 1] = auts;
+			vectorLabels[n - 1] = labs;
+			synchronizedLabels[n - 1] = "i";
+		}
+		boolean changed = true;
+		while (changed)
+			changed = removeImpossibleActions();
+	}
+
 	private void afterParsing()
 	{
 		removeInternalNondeterminism();
-		while (removeImpossibleActions())
-			;
+		boolean changed = true;
+		while (changed) {
+			changed = removeImpossibleActions();
+		}
 		rejectedFor = new ThreadLocal<int[]>();
 		haveRateTransitions = new int[0];
 		for (int i = 0; i < automata.length; i++) {

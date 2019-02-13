@@ -1,5 +1,6 @@
 package nl.utwente.ewi.fmt.EXPRES;
 
+import java.math.BigDecimal;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -127,6 +128,23 @@ public class MarkovReducedLTS implements LTS
 		return BSCC_Nodes.iterator().next().state;
 	}
 
+	public static String addLabels(String l1, String l2)
+	{
+		if (l1 == null)
+			return l2;
+		if (l2 == null)
+			return l1;
+		if (l1.charAt(0) != 'r')
+			throw new UnsupportedOperationException("Tried to merge non-rate transitions.");
+		if (l2.charAt(0) != 'r')
+			throw new UnsupportedOperationException("Tried to merge non-rate transitions.");
+		BigDecimal r1 = new BigDecimal(l1.substring(1));
+		BigDecimal r2 = new BigDecimal(l2.substring(1));
+		BigDecimal rret = r1.add(r2);
+		return "r" + rret.stripTrailingZeros().toString();
+	}
+
+
 	public TreeSet<LTS.Transition> getTransitions(int[] from)
 	{
 		TreeSet<LTS.Transition> ret = new TreeSet<LTS.Transition>();
@@ -136,9 +154,19 @@ public class MarkovReducedLTS implements LTS
 			if (t.label.charAt(0) != 'r')
 				continue;
 			int[] endState = markovTerminal(t.target);
-			if (endState != null)
-				ret.add(new LTS.Transition(t.label, endState, null, null));
-			else
+			if (endState != null) {
+				LTS.Transition nt = new LTS.Transition(t.label, endState, null, null);
+				if (ret.contains(nt)) {
+					/* Two transitions to the same
+					 * state, i.e., should double
+					 * the rate.
+					 */
+					String label = addLabels(t.label, t.label);
+					ret.remove(nt);
+					nt = new LTS.Transition(label, endState, null, null);
+				}
+				ret.add(nt);
+			} else
 				throw new UnsupportedOperationException("Model has not-obviously-spurious nondeterminism.");
 		}
 		return ret;

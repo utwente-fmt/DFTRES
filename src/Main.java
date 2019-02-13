@@ -308,6 +308,7 @@ class Main {
 			c.markStatesAfter("FAIL", 1);
 			c.markStatesAfter("REPAIR", 0);
 			c.markStatesAfter("ONLINE", 0);
+			c.addDontCares();
 			ret = c;
 		} else if (filename.endsWith(".aut")
 		           || filename.endsWith(".bcg"))
