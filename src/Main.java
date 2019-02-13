@@ -368,6 +368,10 @@ class Main {
 				Property av = new Property(Property.Type.STEADY_STATE, new VariableExpression("marked"), "Unavailability");
 				properties.add(av);
 				onlyProperties.add(av.name);
+			} else if (args[i].equals("-u")) {
+				Property rel = new Property(Property.Type.REACHABILITY, new VariableExpression("marked"), "Unreliability");
+				properties.add(rel);
+				onlyProperties.add(rel.name);
 			} else if (args[i].equals("-r")) {
 				double time = Double.parseDouble(args[++i]);
 				Property rel = new Property(Property.Type.REACHABILITY, time, new VariableExpression("marked"), "Unreliability");
