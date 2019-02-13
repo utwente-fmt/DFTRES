@@ -1321,7 +1321,7 @@ public class Composition implements MarkableLTS
 				for (Object o : bound.keySet()) {
 					if ("upper".equals(o)) {
 						o = bound.get("upper");
-						timeBound = JaniUtils.getConstantDouble(o, constants);
+						timeBound = JaniUtils.getConstantDouble(o, constants).doubleValue();
 					} else if (!"upper-exclusive".equals(o)) {
 						throw new UnsupportedOperationException("Only constant-valued upper bounds currently supported.");
 					}

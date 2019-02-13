@@ -8,6 +8,7 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
+import java.math.BigDecimal;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
@@ -206,7 +207,12 @@ public class JSONParser {
 			}
 		} else {
 			try {
-				return Double.valueOf(nr);
+				BigDecimal v = new BigDecimal(nr).stripTrailingZeros();
+				Double d = Double.valueOf(nr);
+				BigDecimal dv = new BigDecimal(d);
+				if (dv.compareTo(v) == 0)
+					return d;
+				return v;
 			} catch (NumberFormatException _e) {
 				/* Can't happen */
 			}

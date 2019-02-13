@@ -153,13 +153,13 @@ public class SymbolicAutomaton implements LTS {
 				if (!(ro instanceof Map))
 					throw new IllegalArgumentException("Edge rates must be JSON objects, not: " + ro);
 				Map rateMap = (Map)ro;
-				double rate = JaniUtils.getConstantDouble(rateMap.get("exp"), constants);
+				Number rate = JaniUtils.getConstantDouble(rateMap.get("exp"), constants);
 				action = "r" + rate;
 			} else { /* both action and rate specified */
 				if (!(ro instanceof Map))
 					throw new IllegalArgumentException("Edge rates must be JSON objects, not: " + ro);
 				Map rateMap = (Map)ro;
-				double rate = JaniUtils.getConstantDouble(rateMap.get("exp"), constants);
+				Number rate = JaniUtils.getConstantDouble(rateMap.get("exp"), constants);
 				action = "c" + rate + ";" + ao.toString();
 			}
 			labels[srci] = Arrays.copyOf(labels[srci], labels[srci].length + 1);

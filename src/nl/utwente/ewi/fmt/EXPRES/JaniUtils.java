@@ -6,17 +6,17 @@ class JaniUtils {
 	public static final int DEFAULT_INT_BITS = 7;
 	public static final int DEFAULT_INT_MIN = 0;
 	public static final int DEFAULT_INT_MAX = (1 << DEFAULT_INT_BITS) - 1;
-	public static double getConstantDouble(Object exp,
+	public static Number getConstantDouble(Object exp,
 	                                       Map<String, Number> constants)
 	{
 		if (exp instanceof Number)
-			return ((Number)exp).doubleValue();
+			return (Number)exp;
 		else if (exp instanceof String) {
 			String name = (String)exp;
 			Number c = constants.get(name);
 			if (c == null)
 				throw new IllegalArgumentException("Unknown identifier: " + name);
-			return c.doubleValue();
+			return c;
 		} else if (exp instanceof Map) {
 			Map m = (Map)exp;
 			if (m.containsKey("constant")) {
@@ -31,7 +31,7 @@ class JaniUtils {
 			Expression e = Expression.fromJani(exp);
 			Number val = e.evaluate(constants);
 			if (val != null)
-				return val.doubleValue();
+				return val;
 			throw new UnsupportedOperationException("Unable to evaluate " + e + " in " + constants);
 		} else {
 			throw new UnsupportedOperationException("Expected constant literal, found: " + exp);
