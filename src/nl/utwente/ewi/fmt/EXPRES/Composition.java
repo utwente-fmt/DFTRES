@@ -924,7 +924,7 @@ public class Composition implements MarkableLTS
 	{
 		if (vectorAutomata == null)
 			return getUnsynchronizedTransitions(from);
-		TreeSet<LTS.Transition> ret = new TreeSet<LTS.Transition>();
+		ArrayList<LTS.Transition> ret = new ArrayList<LTS.Transition>();
 		int t[] = new int[automata.length];
 		//PartialState part = new PartialState(this);
 
@@ -987,7 +987,11 @@ public class Composition implements MarkableLTS
 				continue;
 				*/
 			int[] target;
-			TreeMap<String, Expression> assigns = new TreeMap<>(transientGlobals);
+			TreeMap<String, Expression> assigns;
+			if (!transientGlobals.isEmpty())
+				assigns = new TreeMap<>(transientGlobals);
+			else
+				assigns = null;
 
 			for (j = needed.length - 1; j >= 0; j--)
 			{
@@ -1014,8 +1018,12 @@ public class Composition implements MarkableLTS
 						break;
 				}
 				Map<String, Expression> as = a.getAssignments(origin, k);
-				if (as != null)
-					assigns.putAll(as);
+				if (as != null) {
+					if (assigns == null)
+						assigns = new TreeMap<>(as);
+					else
+						assigns.putAll(as);
+				}
 			}
 			if (j >= 0) {
 				/*
@@ -1040,12 +1048,13 @@ public class Composition implements MarkableLTS
 			for (j = 0; j < needed.length; j++) {
 				target[needed[j]] = t[j];
 			}
-			doAssigns(target, assigns);
+			if (assigns != null)
+				doAssigns(target, assigns);
 			//System.err.println("Transition possible: " + synchronizedLabels[i]);
 			ret.add(new Transition(synchronizedLabels[i], target, ConstantExpression.TRUE, Map.of()));
 		}
 
-		return ret;
+		return new LTS.TransitionSet(ret);
 	}
 
 	public void printAutomata()

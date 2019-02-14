@@ -1,6 +1,9 @@
 package nl.utwente.ewi.fmt.EXPRES;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -14,6 +17,7 @@ public interface LTS
 		public final int[] target;
 		public final Expression guard;
 		public final Map<String, Expression> assignments;
+		private int cachedHashCode = -1;
 
 		public Transition(String l, int[] t, Expression g,
 		                  Map<String, Expression> assts)
@@ -35,6 +39,10 @@ public interface LTS
 			if (!(o instanceof Transition))
 				return false;
 			Transition other = (Transition) o;
+			if (cachedHashCode != -1 && other.cachedHashCode != -1){
+				if (cachedHashCode != other.cachedHashCode)
+					return false;
+			}
 			if (!label.equals(other.label))
 				return false;
 			if ((guard == null) != (other.guard == null))
@@ -109,7 +117,16 @@ public interface LTS
 
 		public int hashCode()
 		{
-			return label.hashCode() + Arrays.hashCode(target);
+			if (cachedHashCode == -1) {
+				cachedHashCode = label.hashCode();
+				cachedHashCode *= 3;
+				cachedHashCode += Arrays.hashCode(target);
+				cachedHashCode *= 3;
+				cachedHashCode += guard.hashCode();
+				cachedHashCode *= 3;
+				cachedHashCode += assignments.hashCode();
+			}
+			return cachedHashCode;
 		}
 
 		public String toString()
@@ -118,7 +135,190 @@ public interface LTS
 		}
 	}
 
-	public static class StateWrapper implements Comparable<StateWrapper> {
+	public static interface StateWrapperLike {
+		public int[] getState();
+	};
+
+	public static class ReducedStateWrapper implements StateWrapperLike {
+		public final byte[] state;
+
+		private ReducedStateWrapper(int[] state) {
+			final byte[] tmp = new byte[state.length];
+			for (int i = state.length - 1; i >= 0; i--) {
+				if (state[i] > Byte.MAX_VALUE)
+					throw new AssertionError();
+				if (state[i] < Byte.MIN_VALUE)
+					throw new AssertionError();
+				tmp[i] = (byte)state[i];
+			}
+			this.state = tmp;
+		}
+
+		public int[] getState() {
+			int[] ret = new int[state.length];
+			for (int i = state.length - 1; i >= 0; i--)
+				ret[i] = state[i];
+			return ret;
+		}
+
+		public boolean equals(Object o)
+		{
+			if (o instanceof ReducedStateWrapper) {
+				ReducedStateWrapper r = (ReducedStateWrapper)o;
+				return Arrays.equals(r.state, state);
+			}
+			if (o instanceof StateWrapper) {
+				StateWrapper w = (StateWrapper)o;
+				final int[] their = w.state;
+				final byte[] our  = state;
+				if (their.length != our.length)
+					return false;
+				for (int i = our.length - 1; i >= 0; i--) {
+					if (their[i] != our[i])
+						return false;
+				}
+				return true;
+			}
+			return false;
+		}
+
+		public int hashCode()
+		{
+			return Arrays.hashCode(state);
+		}
+
+	}
+
+	public static class TransitionSet implements Set<Transition>
+	{
+		private final Transition[] elements;
+		public TransitionSet(Collection<Transition> ts) {
+			if (ts.size() == 0) {
+				elements = null;
+			} else if (ts instanceof Set) {
+				elements = new Transition[ts.size()];
+				ts.toArray(elements);
+			} else if (ts.size() < 10) {
+				elements = new Transition[ts.size()];
+				ts.toArray(elements);
+				for (int i = 0; i < elements.length; i++) {
+					int j;
+					for (j = 0; j < elements.length; j++) {
+						if (i == j)
+							continue;
+						if (elements[i].equals(elements[j]))
+							throw new IllegalArgumentException("Elements of transition set not unique");
+					}
+				}
+			} else {
+				Set<Transition> s = new HashSet<>(ts);
+				if (s.size() != ts.size())
+					throw new IllegalArgumentException("Elements of transition set not unique");
+				elements = new Transition[ts.size()];
+				ts.toArray(elements);
+			}
+		}
+
+		public boolean contains(Object o) {
+			if (elements == null)
+				return false;
+			for (Transition t : elements)
+				if (t.equals(o))
+					return true;
+			return false;
+		}
+
+		public boolean containsAll(Collection<?> c) {
+			for (Object o : c)
+				if (!contains(o))
+					return false;
+			return true;
+		}
+
+		public boolean equals(Object o) {
+			if (!(o instanceof Set))
+				return false;
+			Set other = (Set)o;
+			if (elements == null)
+				return other.isEmpty();
+			if (other.size() != elements.length)
+				return false;
+			for (Transition t : elements)
+				if (!(other.contains(t)))
+					return false;
+			return true;
+		}
+
+		public int hashCode() {
+			int ret = 0;
+			if (elements == null)
+				return 0;
+			for (Transition t : elements)
+				ret += t.hashCode();
+			return ret;
+		}
+
+		public boolean isEmpty() {
+			return elements != null;
+		}
+
+		public Iterator<Transition> iterator() {
+			if (elements == null) {
+				return new Iterator<Transition> () {
+					public boolean hasNext() {
+						return false;
+					}
+					public Transition next() {
+						throw new java.util.NoSuchElementException();
+					}
+				};
+			}
+			return new Iterator<Transition> () {
+				private int i = 0;
+				public boolean hasNext() {
+					return i < elements.length;
+				}
+				public Transition next() {
+					return elements[i++];
+				}
+			};
+		}
+
+		public int size() {
+			if (elements == null)
+				return 0;
+			return elements.length;
+		}
+
+		public Object[] toArray() {
+			if (elements == null)
+				return new Transition[0];
+			return elements.clone();
+		}
+
+		public <T> T[] toArray(T[] a) {
+			if (elements == null && a.length > 0) {
+				a[0] = null;
+				return a;
+			}
+			if (a.length >= elements.length) {
+				System.arraycopy(elements, 0, a, 0, elements.length);
+				if (a.length > elements.length)
+					a[elements.length] = null;
+				return a;
+			}
+			return new TreeSet<Transition>(this).toArray(a);
+		}
+
+		public boolean add(Transition e) { throw new UnsupportedOperationException(); };
+		public boolean addAll(Collection <? extends Transition> c) { throw new UnsupportedOperationException(); };
+		public void clear() { throw new UnsupportedOperationException(); };
+		public boolean remove(Object e) { throw new UnsupportedOperationException(); };
+		public boolean removeAll(Collection <?> c) { throw new UnsupportedOperationException(); };
+		public boolean retainAll(Collection <?> c) { throw new UnsupportedOperationException(); };
+	}
+
+	public static class StateWrapper implements Comparable<StateWrapper>, StateWrapperLike {
 		public final int[] state;
 
 		public StateWrapper(int[] state)
@@ -126,12 +326,29 @@ public interface LTS
 			this.state = state;
 		}
 
+		public int[] getState() {
+			return state;
+		}
+
 		public boolean equals(Object o)
 		{
-			if (!(o instanceof StateWrapper))
+			if (!(o instanceof StateWrapper)) {
+				if (o instanceof ReducedStateWrapper)
+					return ((ReducedStateWrapper)o).equals(this);
 				return false;
+			}
 			StateWrapper other = (StateWrapper) o;
 			return Arrays.equals(state, other.state);
+		}
+
+		public StateWrapperLike tryReduce() {
+			for (int i = state.length - 1; i >= 0; i--) {
+				if (state[i] > Byte.MAX_VALUE)
+					return this;
+				if (state[i] < Byte.MIN_VALUE)
+					return this;
+			}
+			return new ReducedStateWrapper(state);
 		}
 
 		public int compareTo(StateWrapper other)
@@ -167,4 +384,14 @@ public interface LTS
 	public Map<String, Integer> getVarValues(int[] state);
 	public int getVarValue(String var, int[] state);
 	public int stateSize();
+	public static StateWrapperLike wrapUncomparable(final int[] state)
+	{
+		for (int i = state.length - 1; i >= 0; i--) {
+			if (state[i] > Byte.MAX_VALUE)
+				return new StateWrapper(state);
+			if (state[i] < Byte.MIN_VALUE)
+				return new StateWrapper(state);
+		}
+		return new ReducedStateWrapper(state);
+	}
 }

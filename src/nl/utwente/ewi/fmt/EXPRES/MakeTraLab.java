@@ -47,32 +47,36 @@ public class MakeTraLab {
 			l = new MarkovReducedLTS(lts);
 	}
 
-	private class Explorer extends Thread {
-		public final LinkedBlockingDeque<int[]> toExplore;
-		public final ConcurrentHashMap<int[], Object[]> explored;
-		/* Explored:
-		 * [length-1] - state label,
-		 * [length-2] - marking,
-		 * rest       - Set<LTS.Transition>
-		 */
+	private class StateToExplore {
+		public final int[] state;
+		public final String label;
+		public Set<LTS.Transition> transitions;
+		public String stateString;
+		public String marking;
 
-		public Explorer(LinkedBlockingDeque<int[]> toExplore,
-		                ConcurrentHashMap<int[], Object[]> explored)
+		StateToExplore(int[] s, String l) {
+			state = s;
+			label = l;
+		}
+	}
+
+	private class Explorer extends Thread {
+		public final LinkedBlockingDeque<StateToExplore> toExplore;
+
+		public Explorer(LinkedBlockingDeque<StateToExplore> toExplore)
 		{
 			this.toExplore = toExplore;
-			this.explored = explored;
 		}
 
 		public void run () {
-			int[] state;
+			StateToExplore s;
 			while (true) try {
-				state = toExplore.takeLast();
+				s = toExplore.takeLast();
 				break;
 			} catch (InterruptedException e) {
 			}
-			while (state.length > 0) {
-				if (explored.containsKey(state))
-					continue;
+			while (s.state != null) {
+				int[] state = s.state;
 				String sState = Composition.stateString(state);
 				Map<?, Integer> vals = l.getVarValues(state);
 				String marking = "";
@@ -83,23 +87,34 @@ public class MakeTraLab {
 				if (marking.length() == 0)
 					marking = null;
 				vals = null;
-				Set<LTS.Transition> s = l.getTransitions(state);
-				Object[] ret = new Object[s.size() + 2];
-				s.toArray(ret);
-				s = null;
-				ret[ret.length - 1] = sState;
-				ret[ret.length - 2] = marking;
-				explored.put(state, ret);
-				ret = null;
+				Set<LTS.Transition> t = l.getTransitions(state);
+				for (LTS.Transition tr : t) {
+					Number g = tr.guard.evaluate(Map.of());
+					if (!(g instanceof Integer))
+						throw new UnsupportedOperationException("Model has remaining non-true guards.");
+					if ((int)g != 1)
+						throw new UnsupportedOperationException("Model has remaining non-true guards.");
+					/* Don't bother checking for
+					 * assignments: Even if they
+					 * exist, the cannot have any
+					 * effect (since no guard can
+					 * depend on them */
+				}
+				synchronized(s) {
+					s.transitions = t;
+					s.stateString = sState;
+					s.marking = marking;
+					s.notifyAll();
+				}
 				while (true) try {
-					state = toExplore.takeLast();
+					s = toExplore.takeLast();
 					break;
 				} catch (InterruptedException e) {
 				}
 			}
 			while (true) {
 				try {
-					toExplore.putLast(state);
+					toExplore.putLast(s);
 					break;
 				} catch (InterruptedException e) {
 				}
@@ -148,27 +163,27 @@ public class MakeTraLab {
 	private void exploreStates()
 	{
 		TreeMap<String, Integer> stateNums = new TreeMap<>();
-		LinkedBlockingDeque<int[]> toExplore;
-		ConcurrentHashMap<int[], Object[]> explored;
+		LinkedBlockingDeque<StateToExplore> toExplore;
 		toExplore = new LinkedBlockingDeque<>();
-		explored = new ConcurrentHashMap<>();
 		Explorer[] threads = new Explorer[Simulator.coresToUse];
 		for (int i = 0; i < threads.length; i++) {
-			threads[i] = new Explorer(toExplore, explored);
+			threads[i] = new Explorer(toExplore);
 			threads[i].start();
 		}
 		int state[] = l.getInitialState();
+		StateToExplore init = new StateToExplore(state, null);
 		while (true) {
 			try {
-				threads[0].toExplore.putLast(state);
+				threads[0].toExplore.putLast(init);
 				break;
 			} catch (InterruptedException e) {
 			}
 		}
-		exploreStates(stateNums, state, threads[0]);
+		exploreStates(stateNums, init, threads[0]);
+		StateToExplore terminator = new StateToExplore(null, null);
 		while (true) {
 			try {
-				threads[0].toExplore.putLast(new int[0]);
+				threads[0].toExplore.putLast(terminator);
 				break;
 			} catch (InterruptedException e) {
 			}
@@ -176,14 +191,18 @@ public class MakeTraLab {
 	}
 
 	private Integer exploreStates(Map<String, Integer> stateNums,
-	                              int[] state, Explorer explorer)
+	                              StateToExplore state, Explorer explorer)
 	{
-		Object[] stateInfo;
-		while ((stateInfo = explorer.explored.get(state)) == null)
-			Thread.yield();
-		Object tmp = stateInfo[stateInfo.length - 1];
-		assert(tmp instanceof String);
-		String sState = (String)tmp;
+		synchronized(state) {
+			while (state.transitions == null) {
+				try {
+					state.wait();
+				} catch (InterruptedException e) {
+				}
+			}
+		}
+
+		String sState = state.stateString;
 		Integer stateNum = stateNums.get(sState);
 		if (stateNum != null)
 			return stateNum;
@@ -193,37 +212,30 @@ public class MakeTraLab {
 		}
 		stateNum = stateNums.size();
 		stateNums.put(sState, stateNum);
+		markings.add(state.marking);
 
-		tmp = stateInfo[stateInfo.length - 2];
-		if (tmp != null) {
-			assert(tmp instanceof String);
-			markings.add((String)tmp);
-		} else {
-			markings.add(null);
-		}
-
-		for (int i = stateInfo.length - 3; i >= 0; i--) {
-			tmp = stateInfo[i];
-			assert(tmp instanceof LTS.Transition);
-			LTS.Transition t = (LTS.Transition)tmp;
+		StateToExplore next[];
+		next = new StateToExplore[state.transitions.size()];
+		int i = 0;
+		for (LTS.Transition t : state.transitions) {
+			next[i] = new StateToExplore(t.target, t.label);
 			while (true)  {
 				try {
-					explorer.toExplore.put(t.target);
+					explorer.toExplore.put(next[i]);
 					break;
 				} catch (InterruptedException e) {
 				}
 			}
+			i++;
 		}
+		state = null;
 		TreeMap<Integer, String> ts = new TreeMap<>();
 		TreeSet<Integer> lTargets = new TreeSet<>();
 		transitions.add(ts);
-		transitionCount += stateInfo.length - 1;
-		for (int i = stateInfo.length - 3; i >= 0; i--) {
-			tmp = stateInfo[i];
-			assert(tmp instanceof LTS.Transition);
-			LTS.Transition t = (LTS.Transition)tmp;
-			Integer target = exploreStates(stateNums, t.target, explorer);
-			String label = t.label;
+		transitionCount += next.length;
+		for (StateToExplore n : next) {
+			Integer target = exploreStates(stateNums, n, explorer);
+			String label = n.label;
 			if (ts.containsKey(target))
 				label = MarkovReducedLTS.addLabels(ts.get(target), label);
 			ts.put(target, label);

@@ -40,11 +40,13 @@ public class MarkovReducedLTS implements LTS
 	/* data[0] = index, data[1] = lowlink, data[2] = onStack */
 	private void strongConnect(LTS.StateWrapper node,
 			ArrayList<LTS.StateWrapper> stack,
-			HashMap<LTS.StateWrapper, int[]> bookkeeping,
-			int index, HashSet<LTS.StateWrapper> BSCC_Nodes)
+			HashMap<LTS.StateWrapperLike, byte[]> bookkeeping,
+			int index, HashSet<LTS.StateWrapperLike> BSCC_Nodes)
 	{
-		int[] data = bookkeeping.get(node);
-		data[0] = data[1] = index++;
+		byte[] data = bookkeeping.get(node);
+		data[0] = data[1] = (byte)index++;
+		if (index > 255)
+			throw new UnsupportedOperationException("Recursion too deep.");
 		stack.add(node);
 		data[2] = 1;
 		Set<LTS.Transition> outgoing = null;
@@ -58,35 +60,54 @@ public class MarkovReducedLTS implements LTS
 			if (!t.assignments.isEmpty())
 				throw new UnsupportedOperationException("Assignments remain in Markov reduction step.");
 			LTS.StateWrapper targ = new LTS.StateWrapper(t.target);
-			int[] nData = bookkeeping.get(targ);
+			byte[] nData = bookkeeping.get(targ);
 			if (nData == null) {
-				nData = new int[3];
-				bookkeeping.put(targ, nData);
+				nData = new byte[3];
+				bookkeeping.put(targ.tryReduce(), nData);
 				strongConnect(targ, stack, bookkeeping, index,
 				              BSCC_Nodes);
-				if (data[1] < nData[1])
+				int nd1 = ((int)nData[1]) & 0xff;
+				int d1 = ((int)data[1]) & 0xff;
+				if (d1 < nd1)
 					nData[1] = data[1];
 			} else if (data[2] > 0) {
-				if (data[0] < nData[1])
+				int nd1 = ((int)nData[1]) & 0xff;
+				int d0 = ((int)data[0]) & 0xff;
+				if (d0 < nd1)
 					nData[1] = data[0];
 			}
 		}
 
 		if (data[0] == data[1]) {
-			HashSet<LTS.StateWrapper> newSCC = new HashSet<>();
+			HashSet<LTS.StateWrapperLike> newSCC = new HashSet<>();
 			LTS.StateWrapper next;
 			do {
 				next = stack.remove(stack.size() - 1);
-				bookkeeping.get(next)[2] = 0;
-				newSCC.add(next);
+				LTS.StateWrapperLike red = next.tryReduce();
+				byte[] bk = bookkeeping.get(red);
+				bookkeeping.remove(red);
+				bk[2] = 0;
+				bookkeeping.put(red, bk);
+				newSCC.add(red);
 			} while (!next.equals(node));
 			int[] tmp = node.state;
 			Set<LTS.Transition> out = original.getTransitions(tmp);
-			LTS.StateWrapper tb = null;
+			tmp = null;
+			int[][] targets = new int[out.size()][];
+			String[] labels = new String[out.size()];
+			int i = 0;
 			for (LTS.Transition t : out) {
-				if (t.label.charAt(0) == 'r')
+				labels[i] = t.label;
+				targets[i++] = t.target;
+			}
+			out = null;
+
+			LTS.StateWrapperLike tb = null;
+			for (i = labels.length - 1; i >= 0; i--) {
+				if (labels[i].charAt(0) == 'r')
 					continue;
-				tb = new LTS.StateWrapper(t.target);
+				tb = LTS.wrapUncomparable(targets[i]);
+				targets[i] = null;
 				if (!newSCC.contains(tb)) {
 					newSCC = null;
 					break;
@@ -101,13 +122,13 @@ public class MarkovReducedLTS implements LTS
 	{
 		LTS.StateWrapper node = new LTS.StateWrapper(from);
 		ArrayList<LTS.StateWrapper> stack = new ArrayList<>();
-		HashMap<LTS.StateWrapper, int[]> book = new HashMap<>();
-		HashSet<LTS.StateWrapper> BSCC_Nodes = new HashSet<>();
-		book.put(node, new int[3]);
+		HashMap<LTS.StateWrapperLike, byte[]> book = new HashMap<>();
+		HashSet<LTS.StateWrapperLike> BSCC_Nodes = new HashSet<>();
+		book.put(node, new byte[3]);
 		strongConnect(node, stack, book, 0, BSCC_Nodes);
 		Set<LTS.Transition> finalTransitions = null;
-		for (LTS.StateWrapper n : BSCC_Nodes) {
-			int[] tmp = n.state;
+		for (LTS.StateWrapperLike n : BSCC_Nodes) {
+			int[] tmp = n.getState();
 			Set<LTS.Transition> out = original.getTransitions(tmp);
 			HashSet<LTS.Transition> markovian = new HashSet<>();
 			for (LTS.Transition t : out)
@@ -125,7 +146,7 @@ public class MarkovReducedLTS implements LTS
 					return null;
 				}
 		}
-		return BSCC_Nodes.iterator().next().state;
+		return BSCC_Nodes.iterator().next().getState();
 	}
 
 	public static String addLabels(String l1, String l2)
