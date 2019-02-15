@@ -219,6 +219,20 @@ public interface LTS
 			}
 		}
 
+		public TransitionSet(Collection<Transition> ts, boolean trusted)
+		{
+			if (ts.isEmpty()) {
+				elements = null;
+			} else {
+				if (!trusted) {
+					throw new UnsupportedOperationException();
+				} else {
+					elements = new Transition[ts.size()];
+					ts.toArray(elements);
+				}
+			}
+		}
+
 		public boolean contains(Object o) {
 			if (elements == null)
 				return false;

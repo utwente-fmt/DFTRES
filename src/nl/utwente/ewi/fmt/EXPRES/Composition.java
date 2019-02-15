@@ -24,6 +24,14 @@ import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 public class Composition implements MarkableLTS
 {
 	public static int statesExplored;
+	/* Vector transitions:
+	 * If vectorTransitions[v][a] is null, then vector 'v' does not
+	 * depend on automaton [a]. Otherwise,
+	 * vectorTransitions[v][a][s] = t indicates that vector 'v' can
+	 * be taken from automaton 'a' in state 's' if and only if
+	 * t >= 0, in which case t denotes the transition number.
+	 */
+	private int[][][] vectorTransitions;
 	private int[][] vectorAutomata;
 	private String[][] vectorLabels;
 	private String[] synchronizedLabels;
@@ -33,16 +41,18 @@ public class Composition implements MarkableLTS
 	private Map<String, int[]> globalVars; /* Argument: lower bit, upper bit (both inclusive), initial value, lower bound */
 	private String[] globalVarNames;
 	private Map<String, Expression> transientGlobals; /* Maps the variable name to its initial value. */
-	/* From a partial state to the targets of the needed automata */
-	private LinkedHashMap<PartialState, int[]> transitionCache;
-	private int[] noTransitionPossible = new int[0];
 
 	/* Rejection cache: a transition t (i.e.
 	 * t<vectorAutomata.length) was last rejected by automaton
 	 * rejectedFor[2*t] being in state rejectedFor[2*t+1].
 	 */
 	private ThreadLocal<int[]> rejectedFor;
+	/* rateTransitions[haveRateTransitions[i]][s] is a list of the
+	 * transitions from state 's' of automata 'haveRateTransitions[i]'
+	 * that have a Markovian label.
+	 */
 	private int[] haveRateTransitions;
+	private int[][][] rateTransitions;
 
 	private class PartialState {
 		private final Composition parent;
@@ -136,12 +146,6 @@ public class Composition implements MarkableLTS
 				throw new IllegalArgumentException("Unsupported composition type");
 		}
 		afterParsing();
-		transitionCache = new LinkedHashMap<PartialState, int[]>() {
-			protected boolean removeEldestEntry(Map.Entry<PartialState, int[]> eldest)
-			{
-				return size() > 10000000;
-			}
-		};
 	}
 
 	public Composition(String filename, String type) throws IOException
@@ -152,12 +156,6 @@ public class Composition implements MarkableLTS
 	Composition()
 	{
 		markLabels = new TreeMap<String, Integer>();
-		transitionCache = new LinkedHashMap<PartialState, int[]>() {
-			protected boolean removeEldestEntry(Map.Entry<PartialState, int[]> eldest)
-			{
-				return size() > 1000000;
-			}
-		};
 	}
 
 	public void markStatesAfter(String label, int val)
@@ -687,6 +685,7 @@ public class Composition implements MarkableLTS
 		boolean changed = true;
 		while (changed)
 			changed = removeImpossibleActions();
+		buildVectorTransitions();
 	}
 
 	private void afterParsing()
@@ -697,22 +696,6 @@ public class Composition implements MarkableLTS
 			changed = removeImpossibleActions();
 		}
 		rejectedFor = new ThreadLocal<int[]>();
-		haveRateTransitions = new int[0];
-		for (int i = 0; i < automata.length; i++) {
-			for (int j = 0; j < automata[i].getNumStates(); j++) {
-				for (int k = 0; true; k++) {
-					String l = automata[i].getTransitionLabel(j, k);
-					if (l == null)
-						break;
-					if (l.charAt(0) == 'r') {
-						haveRateTransitions = Arrays.copyOf(haveRateTransitions, haveRateTransitions.length + 1);
-						haveRateTransitions[haveRateTransitions.length - 1] = i;
-						j = Integer.MAX_VALUE - 1;
-						break;
-					}
-				}
-			}
-		}
 		TreeMap<String, Integer> mins = new TreeMap<>();
 		TreeMap<String, Integer> maxs = new TreeMap<>();
 		TreeSet<String> unspecifieds = new TreeSet<>();
@@ -774,6 +757,69 @@ public class Composition implements MarkableLTS
 			data[1] = uBit - 1;
 			if (bits == 0)
 				data[0] = data[1] = 0;
+		}
+		buildVectorTransitions();
+	}
+
+	private void buildVectorTransitions() {
+		int vt[][][] = new int[vectorLabels.length][automata.length][];
+		vectorTransitions = vt;
+		for (int v = 0; v < vectorLabels.length; v++) {
+			for (int i = 0; i < vectorAutomata[v].length; i++) {
+				int a = vectorAutomata[v][i];
+				Automaton aut = automata[a];
+				String needed = vectorLabels[v][i];
+				vt[v][a] = new int[aut.getNumStates()];
+				Arrays.fill(vt[v][a], -1);
+				for (int s = aut.getNumStates() - 1; s >= 0; s--) {
+					int j = 0;
+					String l = aut.getTransitionLabel(s, 0);
+					while (l != null) {
+						if (l.equals(needed)) {
+							vt[v][a][s] = j;
+							break;
+						}
+						l = aut.getTransitionLabel(s, ++j);
+					}
+				}
+			}
+		}
+
+		/* Build rate transition list */
+		haveRateTransitions = new int[0];
+		rateTransitions = new int[0][][];
+		ArrayList<int[]> mStates = new ArrayList<>();
+		for (int i = 0; i < automata.length; i++) {
+			Automaton aut = automata[i];
+			int[][] fromThisState = null;
+			for (int j = 0; j < aut.getNumStates(); j++) {
+				int[] mTransitions = null;
+				for (int k = 0; true; k++) {
+					String l = aut.getTransitionLabel(j, k);
+					if (l == null)
+						break;
+					if (l.charAt(0) != 'r')
+						continue;
+					if (mTransitions == null) {
+						mTransitions = new int[]{k};
+					} else {
+						mTransitions = Arrays.copyOf(mTransitions, mTransitions.length + 1);
+						mTransitions[mTransitions.length - 1] = k;
+					}
+				}
+				if (mTransitions != null) {
+					if (fromThisState == null)
+						fromThisState = new int[aut.getNumStates()][];
+					fromThisState[j] = mTransitions;
+				}
+			}
+			if (fromThisState != null) {
+				int n = haveRateTransitions.length;
+				haveRateTransitions = Arrays.copyOf(haveRateTransitions, n + 1);
+				haveRateTransitions[n] = i;
+				rateTransitions = Arrays.copyOf(rateTransitions, n + 1);
+				rateTransitions[n] = fromThisState;
+			}
 		}
 	}
 
@@ -926,66 +972,56 @@ public class Composition implements MarkableLTS
 			return getUnsynchronizedTransitions(from);
 		ArrayList<LTS.Transition> ret = new ArrayList<LTS.Transition>();
 		int t[] = new int[automata.length];
-		//PartialState part = new PartialState(this);
 
 		/* First, 'rate' transitions are always taken
 		 * unsynchronized.
 		 */
-		for (int i : haveRateTransitions) {
-			for (int j = 0; true; j++) {
-				String l = automata[i].getTransitionLabel(from[i], j);
+		for (int i = 0; i < haveRateTransitions.length; i++) {
+			int a = haveRateTransitions[i];
+			Automaton aut = automata[a];
+			int orig = from[a];
+			if (rateTransitions[i][orig] == null)
+				continue;
+			for (int j : rateTransitions[i][orig]) {
+				String l = aut.getTransitionLabel(orig, j);
 				if (l == null)
 					break;
-				if (l.charAt(0) == 'r') {
-					Expression g = automata[i].getTransitionGuard(from[i], j);
-					boolean guardOK = true;
-					if (g != null) {
-						Number v = g.evaluate(this, from);
-						if (v == null) {
-							System.err.println("Values: " + getVarValues(from));
-							throw new UnsupportedOperationException("Unevaluatable expression: " + g.toString());
-						}
-						guardOK = v.doubleValue() != 0;
+				Expression g = automata[i].getTransitionGuard(orig, j);
+				boolean guardOK = true;
+				if (g != null) {
+					Number v = g.evaluate(this, from);
+					if (v == null) {
+						System.err.println("Values: " + getVarValues(from));
+						throw new UnsupportedOperationException("Unevaluatable expression: " + g.toString());
 					}
-					if (!guardOK)
-						continue;
-					int[] target = Arrays.copyOf(from, from.length);
-					target[i] = automata[i].getTransitionTarget(from[i], j);
-					Map<String, Expression> assigns = automata[i].getAssignments(from[i], j);
-					doAssigns(target, transientGlobals);
-					if (assigns != null)
-						doAssigns(target, assigns);
-					ret.add(new LTS.Transition(l, target, ConstantExpression.TRUE, Map.of()));
+					guardOK = v.doubleValue() != 0;
 				}
+				if (!guardOK)
+					continue;
+				int[] target = from.clone();
+				target[a] = aut.getTransitionTarget(orig, j);
+				Map<String, Expression> assigns = aut.getAssignments(orig, j);
+				doAssigns(target, transientGlobals);
+				if (assigns != null)
+					doAssigns(target, assigns);
+				ret.add(new LTS.Transition(l, target, ConstantExpression.TRUE, Map.of()));
 			}
 		}
 
-		for (int i = 0; i < vectorAutomata.length; i++) {
-			int[] needed = vectorAutomata[i];
-			String[] neededL = vectorLabels[i];
-			int j;
+		/* Initialize the rejection cache */
+		int[] rejCache = rejectedFor.get();
+		if (rejCache == null) {
+			rejCache = new int[2*vectorAutomata.length];
+			for (int k = 0; k < vectorAutomata.length; k++)
+				rejCache[2*k+1] = -1;
+			rejectedFor.set(rejCache);
+		}
 
+		for (int i = 0; i < vectorTransitions.length; i++) {
 			/* Check the rejection cache */
-			int[] rejCache = rejectedFor.get();
-			if (rejCache == null) {
-				rejCache = new int[2*vectorAutomata.length];
-				for (int k = 0; k < vectorAutomata.length; k++)
-					rejCache[2*k+1] = -1;
-				rejectedFor.set(rejCache);
-			}
 			if (from[rejCache[2*i]] == rejCache[2*i+1])
 				continue;
 
-			/* Try the partial-state cache first */
-			/*
-			part.transition = i;
-			part.states = t;
-			for (j = needed.length - 1; j >= 0; j--)
-				t[j] = from[needed[j]];
-			int[] target = transitionCache.get(part);
-			if (target == noTransitionPossible)
-				continue;
-				*/
 			int[] target;
 			TreeMap<String, Expression> assigns;
 			if (!transientGlobals.isEmpty())
@@ -993,20 +1029,24 @@ public class Composition implements MarkableLTS
 			else
 				assigns = null;
 
-			for (j = needed.length - 1; j >= 0; j--)
-			{
-				Automaton a = automata[needed[j]];
-				int origin = from[needed[j]];
-				int k = a.getTransitionNum(origin, neededL[j]);
-				if (k < 0) {
-					rejCache[2*i] = needed[j];
-					rejCache[2*i+1] = from[needed[j]];
+			int needed[][] = vectorTransitions[i];
+
+			int j;
+			for (j = needed.length - 1; j >= 0; j--) {
+				if (needed[j] == null)
+					continue;
+				int origin = from[j];
+				int k = needed[j][origin];
+				if (k == -1) {
+					rejCache[2*i] = j;
+					rejCache[2*i+1] = origin;
 					//System.err.println("Rejecting transition " + synchronizedLabels[i] + ": need " + neededL[j] + " at " + needed[j]);
 					break;
 				}
+				Automaton a = automata[j];
 				t[j] = a.getTransitionTarget(origin, k);
 				Expression g = a.getTransitionGuard(origin, k);
-				if (g != null) {
+				if (g != null && g != ConstantExpression.TRUE) {
 					Number v = g.evaluate(getVarValues(from));
 					if (v == null)
 						throw new UnsupportedOperationException("Unable to evaluate guard: " + g);
@@ -1025,28 +1065,20 @@ public class Composition implements MarkableLTS
 						assigns.putAll(as);
 				}
 			}
-			if (j >= 0) {
-				/*
-				part.states = new int[needed.length];
-				for (int k = needed.length - 1; k>=0; k--)
-					part.states[k] = from[needed[k]];
-				transitionCache.put(part, noTransitionPossible);
-				part = new PartialState(this);
-				*/
+			if (j >= 0)
 				continue;
-			}
 
 			/* Transition possible, we assume no internal
 			 * nondeterminism.
 			 */
-
 			Integer m;
-			target = Arrays.copyOf(from, from.length);
+			target = from.clone();
 			m = markLabels.get(synchronizedLabels[i]);
 			if (m != null)
 				target[automata.length] = m;
 			for (j = 0; j < needed.length; j++) {
-				target[needed[j]] = t[j];
+				if (needed[j] != null)
+					target[j] = t[j];
 			}
 			if (assigns != null)
 				doAssigns(target, assigns);
@@ -1054,7 +1086,7 @@ public class Composition implements MarkableLTS
 			ret.add(new Transition(synchronizedLabels[i], target, ConstantExpression.TRUE, Map.of()));
 		}
 
-		return new LTS.TransitionSet(ret);
+		return new LTS.TransitionSet(ret, true);
 	}
 
 	public void printAutomata()
