@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.Set;
 import nl.utwente.ewi.fmt.EXPRES.Composition;
 import nl.utwente.ewi.fmt.EXPRES.LTS;
+import nl.utwente.ewi.fmt.EXPRES.NondeterminismException;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 
@@ -57,13 +58,18 @@ public class ExpModel extends StateSpace
 
 		Composition.statesExplored = 0;
 		//System.err.format("Neighbours from state %d (%s)\n", s, java.util.Arrays.toString(state));
-		Set<LTS.Transition> transitions = comp.getTransitions(state);
+		Set<LTS.Transition> transitions;
+		try {
+			transitions = comp.getTransitions(state);
+		} catch (NondeterminismException e) {
+			throw new UnsupportedOperationException(e);
+		}
 		State[] neighbours = new State[transitions.size()];
 		short[] orders = new short[transitions.size()];
 		double[] probs = new double[transitions.size()];
 
 		int i = 0;
-		for (LTS.Transition t : comp.getTransitions(state)) {
+		for (LTS.Transition t : transitions) {
 			String rlabel = t.label.substring(1);
 			double rate = Double.parseDouble(rlabel);
 			int order = (int)Math.ceil(Math.log(rate) / logEpsilon);

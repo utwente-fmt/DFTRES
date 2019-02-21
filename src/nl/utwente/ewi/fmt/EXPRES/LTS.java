@@ -324,6 +324,22 @@ public interface LTS
 			return new TreeSet<Transition>(this).toArray(a);
 		}
 
+		public String toString() {
+			if (elements == null)
+				return "[]";
+			String ret = "[\n\t";
+			boolean first = true;
+			for (Transition t : elements) {
+				if (!first)
+					ret += ",\n\t";
+				first = false;
+				ret += t;
+			}
+			ret += "\n]";
+			return ret;
+		}
+
+
 		public boolean add(Transition e) { throw new UnsupportedOperationException(); };
 		public boolean addAll(Collection <? extends Transition> c) { throw new UnsupportedOperationException(); };
 		public void clear() { throw new UnsupportedOperationException(); };
@@ -394,7 +410,7 @@ public interface LTS
 	}
 
 	public int[] getInitialState();
-	public Set<Transition> getTransitions(int[] from);
+	public Set<Transition> getTransitions(int[] from) throws NondeterminismException;
 	public Map<String, Integer> getVarValues(int[] state);
 	public int getVarValue(String var, int[] state);
 	public int stateSize();

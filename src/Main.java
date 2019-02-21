@@ -27,6 +27,7 @@ import nl.utwente.ewi.fmt.EXPRES.Automaton;
 import nl.utwente.ewi.fmt.EXPRES.MarkedAutomaton;
 import nl.utwente.ewi.fmt.EXPRES.MarkovReducedLTS;
 import nl.utwente.ewi.fmt.EXPRES.MarkovianComposition;
+import nl.utwente.ewi.fmt.EXPRES.NondeterminismException;
 import nl.utwente.ewi.fmt.EXPRES.Composition;
 import nl.utwente.ewi.fmt.EXPRES.LTS;
 import nl.utwente.ewi.fmt.EXPRES.MakeJani;
@@ -298,7 +299,8 @@ class Main {
 	}
 
 	private static LTS loadModel(String filename,
-	                             Map<String, Number> constants)
+	                             Map<String, Number> constants,
+				     boolean doDontCareElimination)
 			throws IOException
 	{
 		LTS ret;
@@ -308,7 +310,8 @@ class Main {
 			c.markStatesAfter("FAIL", 1);
 			c.markStatesAfter("REPAIR", 0);
 			c.markStatesAfter("ONLINE", 0);
-			c.addDontCares();
+			if (doDontCareElimination)
+				c.addDontCares();
 			ret = c;
 		} else if (filename.endsWith(".aut")
 		           || filename.endsWith(".bcg"))
@@ -340,18 +343,19 @@ class Main {
 			if (basename.lastIndexOf('/') != -1)
 				basename = basename.substring(basename.lastIndexOf('/') + 1, basename.length());
 			basename = basename.substring(0, basename.length() - 4);
-			return loadModel("output/" + basename + ".exp", null);
+			return loadModel("output/" + basename + ".exp", null, doDontCareElimination);
 		} else {
 			throw new IllegalArgumentException("Type of file " + filename + " unknown");
 		}
 		return ret;
 	}
 
-	public static void main(String args[]) throws IOException
+	public static void main(String args[]) throws Exception
 	{
 		long startTime = System.nanoTime();
 		long seed = 0;
 		boolean haveSeed = false;
+		boolean doDontCareElimination = true;
 		TreeMap<String, Number> constants = new TreeMap<>();
 		ArrayList<SimulationResult> results = new ArrayList<>();
 		TreeSet<String> onlyProperties = new TreeSet<>();
@@ -386,6 +390,8 @@ class Main {
 				haveSeed = true;
 			} else if (args[i].equals("--rng")) {
 				useRng = args[++i];
+			} else if (args[i].equals("--no-dc")) {
+				doDontCareElimination = false;
 			} else if (args[i].equals("-t"))
 				maxTime = Integer.parseInt(args[++i]) * 1000;
 			else if (args[i].equals("-n"))
@@ -454,12 +460,19 @@ class Main {
 			rng = new MersenneTwisterFast(seed);
 		}
 
-		model = loadModel(filename, constants);
+		model = loadModel(filename, constants, doDontCareElimination);
 		if (janiOutputFile != null)
 			MakeJani.makeJani(model, janiOutputFile, jsonOutput ? filename : null, args, properties);
 		if (traLabOutputFile != null) {
-			MakeTraLab mtl = new MakeTraLab(model, unsafeComposition);
-			mtl.convert(traLabOutputFile);
+			try {
+				MakeTraLab mtl = new MakeTraLab(model, unsafeComposition);
+				mtl.convert(traLabOutputFile);
+			} catch (NondeterminismException e) {
+				e.printStackTrace();
+				LTS tmpModel = loadModel(filename, constants, false);
+				MakeTraLab mtl = new MakeTraLab(tmpModel, unsafeComposition);
+				mtl.convert(traLabOutputFile);
+			}
 		}
 		if (model instanceof Composition && unsafeComposition) {
 			model = new MarkovianComposition((Composition)model);

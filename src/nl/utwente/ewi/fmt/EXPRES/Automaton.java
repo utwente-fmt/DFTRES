@@ -87,7 +87,12 @@ public class Automaton implements LTS {
 			LTS.StateWrapper cur = queue.poll();
 			int[] state = cur.state;
 			int num = states.get(cur);
-			Set<LTS.Transition> ts = system.getTransitions(state);
+			Set<LTS.Transition> ts;
+			try {
+				ts = system.getTransitions(state);
+			} catch (NondeterminismException e) {
+				throw new UnsupportedOperationException(e);
+			}
 			targets[num] = new int[ts.size()];
 			labels[num] = new String[ts.size()];
 			assignments[num] = Arrays.copyOf(assignments[0], ts.size());
@@ -416,7 +421,7 @@ public class Automaton implements LTS {
 		if (finalState == -1) {
 			finalState = ret.targets.length;
 			ret.targets = Arrays.copyOf(ret.targets, finalState+1);
-			ret.labels = Arrays.copyOf(labels, finalState + 1);
+			ret.labels = Arrays.copyOf(ret.labels, finalState + 1);
 		}
 		/* The final state cannot have guards or
 		 * assignments.

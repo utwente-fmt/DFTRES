@@ -53,6 +53,7 @@ public class MakeTraLab {
 		public Set<LTS.Transition> transitions;
 		public String stateString;
 		public String marking;
+		public NondeterminismException explorationError;
 
 		StateToExplore(int[] s, String l) {
 			state = s;
@@ -87,24 +88,31 @@ public class MakeTraLab {
 				if (marking.length() == 0)
 					marking = null;
 				vals = null;
-				Set<LTS.Transition> t = l.getTransitions(state);
-				for (LTS.Transition tr : t) {
-					Number g = tr.guard.evaluate(Map.of());
-					if (!(g instanceof Integer))
-						throw new UnsupportedOperationException("Model has remaining non-true guards.");
-					if ((int)g != 1)
-						throw new UnsupportedOperationException("Model has remaining non-true guards.");
-					/* Don't bother checking for
-					 * assignments: Even if they
-					 * exist, the cannot have any
-					 * effect (since no guard can
-					 * depend on them */
-				}
-				synchronized(s) {
-					s.transitions = t;
-					s.stateString = sState;
-					s.marking = marking;
-					s.notifyAll();
+				try {
+					Set<LTS.Transition> t = l.getTransitions(state);
+					for (LTS.Transition tr : t) {
+						Number g = tr.guard.evaluate(Map.of());
+						if (!(g instanceof Integer))
+							throw new UnsupportedOperationException("Model has remaining non-true guards.");
+						if ((int)g != 1)
+							throw new UnsupportedOperationException("Model has remaining non-true guards.");
+						/* Don't bother checking for
+						 * assignments: Even if they
+						 * exist, the cannot have any
+						 * effect (since no guard can
+						 * depend on them */
+					}
+					synchronized(s) {
+						s.transitions = t;
+						s.stateString = sState;
+						s.marking = marking;
+						s.notifyAll();
+					}
+				} catch (NondeterminismException e) {
+					synchronized(s) {
+						s.explorationError = e;
+						s.notifyAll();
+					}
 				}
 				while (true) try {
 					s = toExplore.takeLast();
@@ -122,7 +130,7 @@ public class MakeTraLab {
 		}
 	}
 
-	public void convert(String out) throws IOException
+	public void convert(String out) throws IOException, NondeterminismException
 	{
 		int numStates;
 		
@@ -160,7 +168,7 @@ public class MakeTraLab {
 		//checkErgodic();
 	}
 
-	private void exploreStates()
+	private void exploreStates() throws NondeterminismException
 	{
 		TreeMap<String, Integer> stateNums = new TreeMap<>();
 		LinkedBlockingDeque<StateToExplore> toExplore;
@@ -179,22 +187,29 @@ public class MakeTraLab {
 			} catch (InterruptedException e) {
 			}
 		}
-		exploreStates(stateNums, init, threads[0]);
-		StateToExplore terminator = new StateToExplore(null, null);
-		while (true) {
-			try {
-				threads[0].toExplore.putLast(terminator);
-				break;
-			} catch (InterruptedException e) {
+		try {
+			exploreStates(stateNums, init, threads[0]);
+		} finally {
+			StateToExplore term = new StateToExplore(null, null);
+			while (true) {
+				try {
+					threads[0].toExplore.putLast(term);
+					break;
+				} catch (InterruptedException e) {
+				}
 			}
 		}
 	}
 
 	private Integer exploreStates(Map<String, Integer> stateNums,
 	                              StateToExplore state, Explorer explorer)
+		throws NondeterminismException
+
 	{
 		synchronized(state) {
-			while (state.transitions == null) {
+			while (state.transitions == null
+			       && state.explorationError == null)
+			{
 				try {
 					state.wait();
 				} catch (InterruptedException e) {
@@ -202,6 +217,8 @@ public class MakeTraLab {
 			}
 		}
 
+		if (state.explorationError != null)
+			throw state.explorationError;
 		String sState = state.stateString;
 		Integer stateNum = stateNums.get(sState);
 		if (stateNum != null)

@@ -50,7 +50,12 @@ public class MarkovianComposition implements LTS
 		int[] ret = original.getInitialState();
 		TreeSet<int[]> visited = new TreeSet<int[]>(new StateComparator());
 		while (!done) {
-			Set<Transition> outgoing = original.getTransitions(ret);
+			Set<Transition> outgoing;
+			try {
+				outgoing = original.getTransitions(ret);
+			} catch (NondeterminismException e) {
+				throw new UnsupportedOperationException(e);
+			}
 			done = true;
 			for (Transition t : outgoing) {
 				if (visited.contains(t.target))
@@ -67,7 +72,7 @@ public class MarkovianComposition implements LTS
 	}
 
 	/* Return a state at some maximal distance from this transition */
-	private Transition forward(Transition t)
+	private Transition forward(Transition t) throws NondeterminismException
 	{
 		TreeSet<int[]> visited = new TreeSet<>(new StateComparator());
 		Transition next = t;
@@ -95,11 +100,13 @@ public class MarkovianComposition implements LTS
 	}
 
 	public Set<Transition> getTransitions(int[] from)
+			throws NondeterminismException
 	{
 		return getTransitions(from, false);
 	}
 
 	private Set<Transition> getTransitions(int[] from, boolean checkEmpty)
+			throws NondeterminismException
 	{
 		Set<Transition> direct = original.getTransitions(from);
 		Set<Transition> ret = new TreeSet<Transition>();

@@ -35,6 +35,15 @@ public class Composition implements MarkableLTS
 	private int[][] vectorAutomata;
 	private String[][] vectorLabels;
 	private String[] synchronizedLabels;
+	/** Priority vectors may be performed before any others, in any
+	 * order.
+	 *
+	 * Priority vectors are those inserted by don't care
+	 * propagation, which means we can guarantee that they can be
+	 * performed before all others without loss of behaviour
+	 * (assuming the don't care elimination works correctly).
+	 */
+	private boolean[] priorityVectors;
 	private Automaton[] automata;
 	private TreeSet<String> hideLabels;
 	private TreeMap<String, Integer> markLabels;
@@ -465,10 +474,12 @@ public class Composition implements MarkableLTS
 				int j = vectorAutomata.length - 1;
 				vectorAutomata[i] = vectorAutomata[j];
 				vectorLabels[i] = vectorLabels[j];
+				priorityVectors[i] = priorityVectors[j];
 				synchronizedLabels[i] = synchronizedLabels[j];
 				vectorAutomata = Arrays.copyOf(vectorAutomata, j);
 				vectorLabels = Arrays.copyOf(vectorLabels, j);
 				synchronizedLabels = Arrays.copyOf(synchronizedLabels, j);
+				priorityVectors = Arrays.copyOf(priorityVectors, j);
 				i--;
 			} else {
 				for (int j = 0; j < auts.length; j++)
@@ -681,6 +692,8 @@ public class Composition implements MarkableLTS
 			vectorAutomata[n - 1] = auts;
 			vectorLabels[n - 1] = labs;
 			synchronizedLabels[n - 1] = "i";
+			priorityVectors = Arrays.copyOf(priorityVectors, n);
+			priorityVectors[n - 1] = true;
 		}
 		boolean changed = true;
 		while (changed)
@@ -691,6 +704,7 @@ public class Composition implements MarkableLTS
 	private void afterParsing()
 	{
 		removeInternalNondeterminism();
+		priorityVectors = new boolean[vectorAutomata.length];
 		boolean changed = true;
 		while (changed) {
 			changed = removeImpossibleActions();
@@ -1083,7 +1097,10 @@ public class Composition implements MarkableLTS
 			if (assigns != null)
 				doAssigns(target, assigns);
 			//System.err.println("Transition possible: " + synchronizedLabels[i]);
-			ret.add(new Transition(synchronizedLabels[i], target, ConstantExpression.TRUE, Map.of()));
+			Transition nt = new Transition(synchronizedLabels[i], target, ConstantExpression.TRUE, Map.of());
+			if (priorityVectors[i])
+				return Collections.singleton(nt);
+			ret.add(nt);
 		}
 
 		return new LTS.TransitionSet(ret, true);

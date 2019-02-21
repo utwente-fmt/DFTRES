@@ -34,7 +34,11 @@ public class MarkovReducedLTS implements LTS
 
 	public int[] getInitialState()
 	{
-		return markovTerminal(initialState);
+		try {
+			return markovTerminal(initialState);
+		} catch (NondeterminismException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	/* data[0] = index, data[1] = lowlink, data[2] = onStack */
@@ -42,6 +46,7 @@ public class MarkovReducedLTS implements LTS
 			ArrayList<LTS.StateWrapper> stack,
 			HashMap<LTS.StateWrapperLike, byte[]> bookkeeping,
 			int index, HashSet<LTS.StateWrapperLike> BSCC_Nodes)
+		throws NondeterminismException
 	{
 		byte[] data = bookkeeping.get(node);
 		data[0] = data[1] = (byte)index++;
@@ -118,7 +123,7 @@ public class MarkovReducedLTS implements LTS
 		}
 	}
 
-	private int[] markovTerminal(int from[])
+	private int[] markovTerminal(int from[]) throws NondeterminismException
 	{
 		LTS.StateWrapper node = new LTS.StateWrapper(from);
 		ArrayList<LTS.StateWrapper> stack = new ArrayList<>();
@@ -167,6 +172,7 @@ public class MarkovReducedLTS implements LTS
 
 
 	public TreeSet<LTS.Transition> getTransitions(int[] from)
+		throws NondeterminismException
 	{
 		TreeSet<LTS.Transition> ret = new TreeSet<LTS.Transition>();
 		Set<LTS.Transition> outgoing = original.getTransitions(from);
@@ -177,18 +183,18 @@ public class MarkovReducedLTS implements LTS
 			int[] endState = markovTerminal(t.target);
 			if (endState != null) {
 				LTS.Transition nt = new LTS.Transition(t.label, endState, null, null);
-				if (ret.contains(nt)) {
+				while (ret.contains(nt)) {
 					/* Two transitions to the same
 					 * state, i.e., should double
 					 * the rate.
 					 */
-					String label = addLabels(t.label, t.label);
+					String label = addLabels(nt.label, nt.label);
 					ret.remove(nt);
 					nt = new LTS.Transition(label, endState, null, null);
 				}
 				ret.add(nt);
 			} else
-				throw new UnsupportedOperationException("Model has not-obviously-spurious nondeterminism.");
+				throw new NondeterminismException("Model has not-obviously-spurious nondeterminism.");
 		}
 		return ret;
 	}

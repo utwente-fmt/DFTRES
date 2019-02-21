@@ -14,7 +14,8 @@ public class Test {
 	static int transitionCount = 0;
 	static boolean INTERACTIVE = true;
 
-	public static void main(String[] args) throws IOException
+	public static void main(String[] args)
+			throws IOException, NondeterminismException
 	{
 		int[] state;
 		LTS l;
@@ -68,6 +69,7 @@ public class Test {
 	}
 
 	public static void printTransitions(LTS c, int[] state, boolean inDef)
+		throws NondeterminismException
 	{
 		String sState = Composition.stateString(state);
 		Integer stateNum = stateNums.get(sState);
@@ -127,6 +129,7 @@ public class Test {
 				}
 			}
 			System.out.println();
+			s = new HashSet<LTS.Transition>(s);
 			s.removeAll(rem);
 		}
 		for (Composition.Transition t : s) {
