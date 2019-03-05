@@ -293,9 +293,32 @@ public class MakeTraLab {
 			Integer s = i;
 			Object stateInfo;
 			Map<Integer, String> ts = transitions.get(i);
-			for (Integer t : ts.keySet())
-				predecessors.get(t).add(s);
+			/* Remove self-loops, they are always pointless. */
+			ts.remove(i);
 			String marking = markings.get(i);
+			for (Integer t : ts.keySet()) {
+				int tt = t;
+				predecessors.get(t).add(s);
+				String nextMark = markings.get(tt);
+				if (nextMark != marking
+				    && nextMark != null
+				    && !nextMark.equals(marking))
+					continue;
+				Map<Integer, String> og = transitions.get(tt);
+				if (og.containsKey(s)) {
+					og = new HashMap<>(og);
+					og.remove(s);
+				}
+				Map<Integer, String> others = new HashMap<>(ts);
+				others.remove(t);
+				if (og.equals(others)) {
+					/* Transition to equivalent
+					 * state, might as well not have
+					 * it.
+					 */
+					ts = others;
+				}
+			}
 			if (marking == null)
 				stateInfo = ts;
 			else
@@ -318,6 +341,10 @@ public class MakeTraLab {
 			if (dup >= transitions.size())
 				return;
 			Map<Integer, String> ts = transitions.get(dup);
+			if (ts.containsKey(merged)) {
+				ts = new HashMap<>(ts);
+				ts.remove(merged);
+			}
 			String marking = markings.get(dup);
 			Object dupInfo;
 			if (marking == null)
@@ -326,6 +353,10 @@ public class MakeTraLab {
 				dupInfo = List.of(ts, marking);
 
 			ts = transitions.get(merged);
+			if (ts.containsKey(dup)) {
+				ts = new HashMap<>(ts);
+				ts.remove(dup);
+			}
 			marking = markings.get(merged);
 			Object mergedInfo;
 			if (marking == null)
@@ -334,7 +365,7 @@ public class MakeTraLab {
 				mergedInfo = List.of(ts, marking);
 
 			if (!mergedInfo.equals(dupInfo)) {
-				System.err.println("Different: " + mergedInfo + " and " + dupInfo);
+				System.err.println("Different: " + mergedInfo + " (" + merged + ") and " + dupInfo + " (" + dup + ")");
 				return;
 			}
 			Set<Integer> mPreds = predecessors.get(merged);
@@ -345,6 +376,9 @@ public class MakeTraLab {
 				String nLabel = MarkovReducedLTS.addLabels(mLabel, dLabel);
 				if (nLabel == null)
 					throw new AssertionError("Dup error " + dLabel + " -- " + mLabel + " @ " + s + " for " + merged + "<-" + dup + "<-" + repl);
+				/* Ignore self-loops */
+				if (merged == s)
+					continue;
 				t.put(iMerged, nLabel);
 				mPreds.add(s);
 			}
@@ -352,6 +386,9 @@ public class MakeTraLab {
 				Map<Integer, String> t = transitions.get(s);
 				String rLabel = t.remove(iRepl);
 				if (rLabel == null)
+					continue;
+				/* Ignore self-loops */
+				if (dup == s)
 					continue;
 				t.put(iDup, rLabel);
 			}
