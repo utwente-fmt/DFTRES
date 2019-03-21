@@ -602,7 +602,6 @@ public class Composition implements MarkableLTS
 					globalVisible.add(aut);
 			}
 		}
-		System.err.println("Globally visible: " + globalVisible);
 		List<Set<Integer>> dependents = new ArrayList<>();
 		List<Set<String>> preserveActions = new ArrayList<>();
 		for (int i = 0; i < automata.length; i++) {
@@ -1145,8 +1144,8 @@ public class Composition implements MarkableLTS
 		if (!markLabels.isEmpty()) {
 			out.println("\"variables\":["+
 					"{\"name\":\"marked\","+
-					"\"type\":\"bool\","+
-					"\"initial-value\":false}],");
+					"\"type\":{\"kind\":\"bounded\",\"base\":\"int\",\"upper-bound\":1},"+
+					"\"initial-value\":0}],");
 		} else {
 			out.println("\"variables\":[");
 			boolean first = true;
@@ -1223,13 +1222,13 @@ public class Composition implements MarkableLTS
 			out.println("\t\t \"action\":\"mark\",");
 			out.println("\t\t \"destinations\":[{");
 			out.println("\t\t\t\"location\":\"l\",");
-			out.println("\t\t\t\"assignments\":[{\"ref\":\"marked\", \"value\":true}]");
+			out.println("\t\t\t\"assignments\":[{\"ref\":\"marked\", \"value\":1}]");
 			out.println("\t\t\t}]},");
 			out.println("\t\t{\"location\":\"l\",");
 			out.println("\t\t \"action\":\"unmark\",");
 			out.println("\t\t \"destinations\":[{");
 			out.println("\t\t\t\"location\":\"l\",");
-			out.println("\t\t\t\"assignments\":[{\"ref\":\"marked\", \"value\":false}]");
+			out.println("\t\t\t\"assignments\":[{\"ref\":\"marked\", \"value\":0}]");
 			out.println("\t\t\t}]");
 			out.println("\t\t}]");
 			out.println("\t}");

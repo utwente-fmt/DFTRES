@@ -133,17 +133,23 @@ public class MakeTraLab {
 	public void convert(String out) throws IOException, NondeterminismException
 	{
 		int numStates;
-		
+		long genTime = System.nanoTime(), redTime;
 		FileOutputStream traFile, labFile;
 		PrintWriter traWriter, labWriter;
 		exploreStates();
+		genTime = System.nanoTime() - genTime;
+		System.err.format("Computing full state space took %f seconds\n", genTime / 1.0e9);
+		redTime = System.nanoTime();
 		numStates = markings.size();
 		System.err.format("%d states before removing duplicates\n", numStates);
 		collapseDeadends();
 		numStates = markings.size();
 		System.err.format("%d lefs after collapsing BSCCs\n", numStates);
 		while (removeDuplicateStates())
-			System.err.format("%d states currently left\n", markings.size());
+			;//System.err.format("%d states currently left\n", markings.size());
+		redTime = System.nanoTime() - redTime;
+		System.err.format("Reducing state space took %f seconds\n", redTime / 1.0e9);
+		System.err.format("Total time: %f seconds\n", (genTime + redTime) / 1.0e9);
 
 		numStates = markings.size();
 		System.err.format("%d states left after removing duplicates\n", numStates);
