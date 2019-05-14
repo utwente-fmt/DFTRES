@@ -20,6 +20,7 @@ import java.util.TreeSet;
 import nl.ennoruijters.util.JSONParser;
 import nl.utwente.ewi.fmt.EXPRES.expression.ConstantExpression;
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
+import nl.utwente.ewi.fmt.EXPRES.expression.VariableExpression;
 
 public class Composition implements MarkableLTS
 {
@@ -1146,6 +1147,11 @@ public class Composition implements MarkableLTS
 					"{\"name\":\"marked\","+
 					"\"type\":{\"kind\":\"bounded\",\"base\":\"int\",\"upper-bound\":1},"+
 					"\"initial-value\":0}],");
+			if (props.isEmpty()) {
+				out.println("\"constants\":[\n");
+				out.println("\t{\"name\":\"T\", \"type\":\"real\"},");
+				out.println("\t{\"name\":\"L\", \"type\":\"real\"}],");
+			}
 		} else {
 			out.println("\"variables\":[");
 			boolean first = true;
@@ -1299,6 +1305,117 @@ public class Composition implements MarkableLTS
 		out.println("\t]},");
 		out.println("\"properties\": [");
 		int i = 0;
+		if (props.isEmpty() && !markLabels.isEmpty()) {
+			/* Special cases as we write min/max. */
+			props = new HashSet<>();
+			Property av = new Property(Property.Type.STEADY_STATE, new VariableExpression("marked"), "Unavailability");
+			props.add(av);
+			Property mttf = new Property(Property.Type.EXPECTED_VALUE, Double.POSITIVE_INFINITY, new VariableExpression("marked"), "MTTF", new ConstantExpression(1), null);
+			props.add(mttf);
+			out.println("\t{\"name\":\"TBLmax_Unreliability\",");
+			out.println("\t \"expression\":{");
+			out.println("\t\t\"fun\":\"max\",");
+			out.println("\t\t\"op\":\"filter\",");
+			out.println("\t\t\"states\":{\"op\":\"initial\"},");
+			out.println("\t\t\"values\":{");
+			out.println("\t\t\t\"op\":\"Pmax\",");
+			out.println("\t\t\t\"exp\":{\"op\":\"U\", \"left\":true, \"right\":{\"op\":\">\", \"left\":\"marked\", \"right\":0}, \"time-bounds\":{\"upper\": \"T\", \"lower\":\"L\"}}");
+			out.println("\t\t\t}");
+			out.println("\t\t}");
+			out.println("\t},");
+			out.println("\t{\"name\":\"TBmax_Unreliability\",");
+			out.println("\t \"expression\":{");
+			out.println("\t\t\"fun\":\"max\",");
+			out.println("\t\t\"op\":\"filter\",");
+			out.println("\t\t\"states\":{\"op\":\"initial\"},");
+			out.println("\t\t\"values\":{");
+			out.println("\t\t\t\"op\":\"Pmax\",");
+			out.println("\t\t\t\"exp\":{\"op\":\"U\", \"left\":true, \"right\":{\"op\":\">\", \"left\":\"marked\", \"right\":0}, \"time-bounds\":{\"upper\": \"T\"}}");
+			out.println("\t\t\t}");
+			out.println("\t\t}");
+			out.println("\t},");
+			out.println("\t{\"name\":\"TBmin_Unreliability\",");
+			out.println("\t \"expression\":{");
+			out.println("\t\t\"fun\":\"max\",");
+			out.println("\t\t\"op\":\"filter\",");
+			out.println("\t\t\"states\":{\"op\":\"initial\"},");
+			out.println("\t\t\"values\":{");
+			out.println("\t\t\t\"op\":\"Pmin\",");
+			out.println("\t\t\t\"exp\":{\"op\":\"U\", \"left\":true, \"right\":{\"op\":\">\", \"left\":\"marked\", \"right\":0}, \"time-bounds\":{\"upper\": \"T\", \"lower\":\"L\"}}");
+			out.println("\t\t\t}");
+			out.println("\t\t}");
+			out.println("\t},");
+			out.println("\t{\"name\":\"UBmax_Unreliability\",");
+			out.println("\t \"expression\":{");
+			out.println("\t\t\"fun\":\"max\",");
+			out.println("\t\t\"op\":\"filter\",");
+			out.println("\t\t\"states\":{\"op\":\"initial\"},");
+			out.println("\t\t\"values\":{");
+			out.println("\t\t\t\"op\":\"Pmax\",");
+			out.println("\t\t\t\"exp\":{\"op\":\"U\", \"left\":true, \"right\":{\"op\":\">\", \"left\":\"marked\", \"right\":0}}");
+			out.println("\t\t\t}");
+			out.println("\t\t}");
+			out.println("\t},");
+			out.println("\t{\"name\":\"UBmin_Unreliability\",");
+			out.println("\t \"expression\":{");
+			out.println("\t\t\"fun\":\"max\",");
+			out.println("\t\t\"op\":\"filter\",");
+			out.println("\t\t\"states\":{\"op\":\"initial\"},");
+			out.println("\t\t\"values\":{");
+			out.println("\t\t\t\"op\":\"Pmin\",");
+			out.println("\t\t\t\"exp\":{\"op\":\"U\", \"left\":true, \"right\":{\"op\":\">\", \"left\":\"marked\", \"right\":0}}");
+			out.println("\t\t\t}");
+			out.println("\t\t}");
+			out.println("\t},");
+			out.println("\t{\"name\":\"max_Unavailability\",");
+			out.println("\t \"expression\":{");
+			out.println("\t\t\"fun\":\"max\",");
+			out.println("\t\t\"op\":\"filter\",");
+			out.println("\t\t\"states\":{\"op\":\"initial\"},");
+			out.println("\t\t\"values\":{");
+			out.println("\t\t\t\"op\":\"Smax\",");
+			out.println("\t\t\t\"exp\":{\"op\":\">\", \"left\":\"marked\", \"right\":0}");
+			out.println("\t\t\t}");
+			out.println("\t\t}");
+			out.println("\t},");
+			out.println("\t{\"name\":\"min_Unavailability\",");
+			out.println("\t \"expression\":{");
+			out.println("\t\t\"fun\":\"max\",");
+			out.println("\t\t\"op\":\"filter\",");
+			out.println("\t\t\"states\":{\"op\":\"initial\"},");
+			out.println("\t\t\"values\":{");
+			out.println("\t\t\t\"op\":\"Smin\",");
+			out.println("\t\t\t\"exp\":{\"op\":\">\", \"left\":\"marked\", \"right\":0}");
+			out.println("\t\t\t}");
+			out.println("\t\t}");
+			out.println("\t},");
+			out.println("\t{\"name\":\"max_MTTF\",");
+			out.println("\t \"expression\":{");
+			out.println("\t\t\"fun\":\"max\",");
+			out.println("\t\t\"op\":\"filter\",");
+			out.println("\t\t\"states\":{\"op\":\"initial\"},");
+			out.println("\t\t\"values\":{");
+			out.println("\t\t\t\"op\":\"Emax\",");
+			out.println("\t\t\t\"accumulate\": [\"time\"],");
+			out.println("\t\t\t\"reach\":{\"op\":\">\", \"left\":\"marked\", \"right\":0},");
+			out.println("\t\t\t\"exp\":1");
+			out.println("\t\t\t}");
+			out.println("\t\t}");
+			out.println("\t},");
+			out.println("\t{\"name\":\"min_MTTF\",");
+			out.println("\t \"expression\":{");
+			out.println("\t\t\"fun\":\"max\",");
+			out.println("\t\t\"op\":\"filter\",");
+			out.println("\t\t\"states\":{\"op\":\"initial\"},");
+			out.println("\t\t\"values\":{");
+			out.println("\t\t\t\"op\":\"Emin\",");
+			out.println("\t\t\t\"accumulate\": [\"time\"],");
+			out.println("\t\t\t\"reach\":{\"op\":\">\", \"left\":\"marked\", \"right\":0},");
+			out.println("\t\t\t\"exp\":1");
+			out.println("\t\t\t}");
+			out.println("\t\t}");
+			out.println("\t},");
+		}
 		for (Property prop : props) {
 			prop.printJani(out, 1);
 			if (++i == props.size())
