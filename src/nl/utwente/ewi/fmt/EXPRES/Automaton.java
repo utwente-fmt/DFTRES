@@ -375,9 +375,9 @@ public class Automaton implements LTS {
 		return ret;
 	}
 
-	public Automaton addDontCares(String dontCare,
-	                              String notCared,
-	                              Set<String> preserve)
+	private void addDontCaresMutating(String dontCare,
+	                                  String notCared,
+	                                  Set<String> preserve)
 	{
 		/* First, identify all states from which we can never
 		 * perform a preserved action.
@@ -412,47 +412,54 @@ public class Automaton implements LTS {
 				}
 			}
 		}
-		Automaton ret = new Automaton(this);
 		
 		/* Fint or create a target state that can do nothing
 		 * (except tell others we have stopped caring).
 		 */
 		int finalState = dontCareStates.nextSetBit(0);
 		if (finalState == -1) {
-			finalState = ret.targets.length;
-			ret.targets = Arrays.copyOf(ret.targets, finalState+1);
-			ret.labels = Arrays.copyOf(ret.labels, finalState + 1);
+			finalState = targets.length;
+			targets = Arrays.copyOf(targets, finalState+1);
+			labels = Arrays.copyOf(labels, finalState + 1);
 		}
 		/* The final state cannot have guards or
 		 * assignments.
 		 */
-		ret.targets[finalState] = new int[1];
-		ret.targets[finalState][0] = finalState;
-		ret.labels[finalState] = new String[1];
-		ret.labels[finalState][0] = dontCare;
+		targets[finalState] = new int[1];
+		targets[finalState][0] = finalState;
+		labels[finalState] = new String[1];
+		labels[finalState][0] = dontCare;
 
 		/* Anything going to any state where we don't care
 		 * should go to the final state.
 		 */
-		for (int i = 0; i < ret.targets.length; i++) {
-			for (int j = 0; j < ret.targets[i].length; j++) {
-				if (dontCareStates.get(ret.targets[i][j]))
-					ret.targets[i][j] = finalState;
+		for (int i = 0; i < targets.length; i++) {
+			for (int j = 0; j < targets[i].length; j++) {
+				if (dontCareStates.get(targets[i][j]))
+					targets[i][j] = finalState;
 			}
 		}
 
 		/* Add an unguarded transition from every other state to the
 		 * don't care state. */
-		for (int i = 0; i < ret.targets.length; i++) {
+		for (int i = 0; i < targets.length; i++) {
 			if (i == finalState)
 				continue;
-			int n = ret.targets[i].length;
-			ret.targets[i] = Arrays.copyOf(ret.targets[i], n + 1);
-			ret.labels[i] = Arrays.copyOf(ret.labels[i], n + 1);
-			ret.targets[i][n] = finalState;
-			ret.labels[i][n] = notCared;
+			int n = targets[i].length;
+			targets[i] = Arrays.copyOf(targets[i], n + 1);
+			labels[i] = Arrays.copyOf(labels[i], n + 1);
+			targets[i][n] = finalState;
+			labels[i][n] = notCared;
 		}
-		ret.createTransitionArray();
+		createTransitionArray();
+	}
+
+	public Automaton addDontCares(String dontCare,
+	                              String notCared,
+	                              Set<String> preserve)
+	{
+		Automaton ret = new Automaton(this);
+		ret.addDontCaresMutating(dontCare, notCared, preserve);
 		return ret;
 	}
 
