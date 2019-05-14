@@ -104,6 +104,7 @@ public class Automaton implements LTS {
 			for (LTS.Transition t : ts) {
 				if (permitted != null
 				    && t.label.charAt(0) != 'r'
+				    && t.label.charAt(0) != 't'
 				    && !permitted.contains(t.label))
 				{
 					continue;
@@ -226,6 +227,8 @@ public class Automaton implements LTS {
 			transitions[i] = new HashMap<String, Integer>();
 			for (int j = labels[i].length - 1; j >= 0; j--) {
 				if (labels[i][j].charAt(0) == 'r')
+					continue;
+				if (labels[i][j].charAt(0) == 't')
 					continue;
 				if (transitions[i].containsKey(labels[i][j])) {
 					transitions[i] = null;
@@ -381,6 +384,8 @@ public class Automaton implements LTS {
 			String label;
 			if (parts[1].startsWith("rate ")) {
 				label = 'r' + parts[1].substring(5);
+			} else if (parts[1].startsWith("time ")) {
+				label = 't' + parts[1].substring(5);
 			} else {
 				label = 'i' + parts[1];
 			}
@@ -587,7 +592,7 @@ public class Automaton implements LTS {
 		for (String[] acts : labels) {
 			int j = 0;
 			for (String act : acts) {
-				if (includeMarkov || act.charAt(0) != 'r')
+				if (includeMarkov || (act.charAt(0) != 'r' && act.charAt(0) != 't'))
 					ret.add(act);
 				j++;
 			}
@@ -687,6 +692,8 @@ public class Automaton implements LTS {
 		for (int i = 0; i < labels.length; i++) {
 			for (int j = 0; j < labels[i].length; j++) {
 				if (labels[i][j].charAt(0) == 'r')
+					continue;
+				if (labels[i][j].charAt(0) == 't')
 					continue;
 				if (!keep.contains(labels[i][j])) {
 					needsChange[i] = true;

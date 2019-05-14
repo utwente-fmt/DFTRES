@@ -70,6 +70,8 @@ public class ExpModel extends StateSpace
 
 		int i = 0;
 		for (LTS.Transition t : transitions) {
+			if (t.label.charAt(0) != 'r')
+				throw new IllegalArgumentException("Non-Markovian transition encountered: " + t.label);
 			String rlabel = t.label.substring(1);
 			double rate = Double.parseDouble(rlabel);
 			int order = (int)Math.ceil(Math.log(rate) / logEpsilon);

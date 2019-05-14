@@ -3,10 +3,12 @@ package nl.utwente.ewi.fmt.EXPRES;
 import java.io.IOException;
 import java.io.FileOutputStream;
 import java.io.PrintWriter;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -19,10 +21,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
 
 import algorithms.Simulator;
-import nl.utwente.ewi.fmt.EXPRES.MarkovReducedLTS;
 
 public class MakeTraLab {
-	private final ArrayList<Map<Integer, String>> transitions = new ArrayList<>();
+	private final static Comparator<BigDecimal> bdComparator
+		= new Comparator<BigDecimal>() {
+			public int compare(BigDecimal d1, BigDecimal d2) {
+				return d1.compareTo(d2);
+			}
+		};
+	private final ArrayList<Map<Integer, Set<String>>> transitions = new ArrayList<>();
+	private final TreeMap<BigDecimal, Set<BigDecimal>> transitionTimes
+			= new TreeMap<>(bdComparator);
 	private final ArrayList<String> markings = new ArrayList<>();
 	private final LTS l;
 	private BitSet notErgodic;
@@ -129,6 +138,57 @@ public class MakeTraLab {
 		}
 	}
 
+	private void setTimes() {
+		TreeSet<BigDecimal> tTimes = new TreeSet<>(bdComparator);
+		for (Map<Integer, Set<String>> ts : transitions) {
+			for (Set<String> ls : ts.values()) {
+				for (String l : ls) {
+					if (l.charAt(0) == 't') {
+						l = l.substring(1);
+						BigDecimal time;
+						time = new BigDecimal(l);
+						tTimes.add(time);
+					}
+				}
+			}
+		}
+		if (tTimes.isEmpty())
+			return;
+		BigDecimal times[] = tTimes.toArray(new BigDecimal[0]);
+		long n[] = new long[times.length];
+		BigDecimal time = BigDecimal.ZERO;
+		boolean done = false;
+		while (!done) {
+			Set<BigDecimal> thisTime = new TreeSet<>(bdComparator);
+			done = true;
+			time = times[0].multiply(new BigDecimal(n[0] + 1));
+			thisTime.add(times[0]);
+			for (int i = times.length - 1; i > 0; i--) {
+				BigDecimal t;
+				t = times[i].multiply(new BigDecimal(n[i] + 1));
+				int c = t.compareTo(time);
+				if (c < 0) { /* t < time */
+					done = false;
+					thisTime = new TreeSet<>(bdComparator);
+					time = t;
+					thisTime.add(times[i]);
+				} else if (t == time) {
+					thisTime.add(times[i]);
+				} else {
+					done = false;
+				}
+			}
+			System.err.format("Found time: %s\n", time);
+			for (int i = 0; i < times.length; i++) {
+				BigDecimal t = times[i];
+				t = t.multiply(new BigDecimal(n[i] + 1));
+				if (t.compareTo(time) == 0)
+					n[i]++;
+			}
+			transitionTimes.put(time, thisTime);
+		}
+	}
+
 	public void convert(String out) throws IOException, NondeterminismException
 	{
 		int numStates;
@@ -140,16 +200,12 @@ public class MakeTraLab {
 		System.err.format("Computing full state space took %f seconds\n", genTime / 1.0e9);
 		redTime = System.nanoTime();
 		numStates = markings.size();
-		System.err.format("%d states before removing duplicates\n", numStates);
-		collapseDeadends();
-		numStates = markings.size();
-		System.err.format("%d lefs after collapsing BSCCs\n", numStates);
-		while (removeDuplicateStates())
-			;//System.err.format("%d states currently left\n", markings.size());
+		System.err.format("%d states before bisimulation reduction\n", numStates);
+		bisimulationReduction();
 		redTime = System.nanoTime() - redTime;
 		System.err.format("Reducing state space took %f seconds\n", redTime / 1.0e9);
 		System.err.format("Total time: %f seconds\n", (genTime + redTime) / 1.0e9);
-
+		setTimes();
 		numStates = markings.size();
 		System.err.format("%d states left after removing duplicates\n", numStates);
 
@@ -157,9 +213,20 @@ public class MakeTraLab {
 		traWriter = new PrintWriter(traFile);
 		labFile = new FileOutputStream(out + ".lab");
 		labWriter = new PrintWriter(labFile);
-		traWriter.format("STATES %d\nTRANSITIONS %s\n",
-		                 numStates,
-		                 transitionCount);
+		if (!transitionTimes.isEmpty()) {
+			String modeLine = "MODES";
+			String timesLine = "TIMES";
+			for (BigDecimal t : transitionTimes.keySet()) {
+				modeLine += " ctmc dtmc";
+				timesLine += " " + t + " 1";
+			}
+			traWriter.format("%s\n%s\n", modeLine, timesLine);
+			traWriter.format("STATES %d\n", numStates);
+		} else {
+			traWriter.format("STATES %d\nTRANSITIONS %s\n",
+					numStates,
+					transitionCount);
+		}
 		Map<String, Integer> initialValues = l.getVarValues(l.getInitialState());
 		labWriter.println("#DECLARATION");
 		for (String v : initialValues.keySet())
@@ -251,177 +318,133 @@ public class MakeTraLab {
 			i++;
 		}
 		state = null;
-		TreeMap<Integer, String> ts = new TreeMap<>();
+		TreeMap<Integer, Set<String>> ts = new TreeMap<>();
 		TreeSet<Integer> lTargets = new TreeSet<>();
 		transitions.add(ts);
 		transitionCount += next.length;
 		for (StateToExplore n : next) {
 			Integer target = exploreStates(stateNums, n, explorer);
 			String label = n.label;
-			if (ts.containsKey(target))
-				label = MarkovReducedLTS.addLabels(ts.get(target), label);
-			ts.put(target, label);
+			Set<String> existing = ts.get(target);
+			if (existing == null) {
+				existing = new TreeSet<>();
+				ts.put(target, existing);
+			}
+			if (label.charAt(0) == 'r') {
+				for (String other : existing) {
+					if (other.charAt(0) == 'r') {
+						existing.remove(other);
+						label = MarkovReducedLTS.addLabels(other, label);
+						break;
+					}
+				}
+			}
+			existing.add(label);
 			lTargets.add(target);
 		}
 		return stateNum;
 	}
 
-	private void printStates(PrintWriter traWriter,
-	                               PrintWriter labWriter)
+	private int getFinalTarget(int from, BigDecimal[] times)
+		throws NondeterminismException
+	{
+		Map<Integer, Set<String>> ts = transitions.get(from);
+		int ret = -1;
+		for (int i = times.length - 1; i >= 0; i--) {
+			BigDecimal time = times[i];
+			int next = -1;
+			if (time == null)
+				continue;
+			for (Integer target : ts.keySet()) {
+				Set<String> labels = ts.get(target);
+				for (String l : labels) {
+					if (l.charAt(0) != 't')
+						continue;
+					l = l.substring(1);
+					BigDecimal t = new BigDecimal(l);
+					if (t.compareTo(time) == 0) {
+						if (next != -1)
+							throw new NondeterminismException("Nondeterministic choice at time " + t + " in state " + from);
+						next = target;
+						break;
+					}
+				}
+			}
+			if (next == -1)
+				next = from;
+			times[i] = null;
+			next = getFinalTarget(next, times);
+			times[i] = time;
+			if (ret != -1 && ret != next) {
+				throw new NondeterminismException("Nondeterministic choice at time " + time + " starting in state " + from);
+			}
+			ret = next;
+		}
+		if (ret == -1)
+			ret = from;
+		return ret;
+	}
+
+	private int[] getTimedTargets(int state) throws NondeterminismException
+	{
+		int[] ret = new int[transitionTimes.size()];
+		int i = 0;
+		for (BigDecimal time : transitionTimes.keySet()) {
+			Set<BigDecimal> allTimes = transitionTimes.get(time);
+			BigDecimal[] times = new BigDecimal[allTimes.size()];
+			times = allTimes.toArray(times);
+			int target = getFinalTarget(state, times);
+			ret[i++] = target;
+		}
+		return ret;
+	}
+
+	private String formatRates(int target, Map<Integer, Set<String>> transitions, int timed[])
+		throws NondeterminismException
+	{
+		String rate = "0";
+		Set<String> labels = transitions.get(target);
+		if (labels != null) {
+			for (String l : labels) {
+				if (l.charAt(0) == 'r') {
+					rate = l.substring(1);
+					break;
+				}
+			}
+		}
+		if (timed == null || timed.length == 0)
+			return rate;
+		String ret = "";
+		for (int t : timed) {
+			if (t == target)
+				ret += rate + " 1 ";
+			else
+				ret += rate + " 0 ";
+		}
+		return ret;
+	}
+
+
+	private void printStates(PrintWriter traWriter, PrintWriter labWriter)
+		throws NondeterminismException
 	{
 		int maxState = markings.size();
 		for (int i = 0; i < maxState; i++) {
-			Map<Integer, String> ts = transitions.get(i);
-			for (Integer target : ts.keySet()) {
-				String label = ts.get(target);
-				if (label.charAt(0) == 'r')
-					label = label.substring(1);
+			Map<Integer, Set<String>> ts = transitions.get(i);
+			int[] timed = getTimedTargets(i);
+			Set<Integer> targets = new TreeSet<Integer>();
+			targets.addAll(ts.keySet());
+			for (int t : timed)
+				targets.add(t);
+			for (Integer target : targets) {
+				String rates = formatRates(target, ts, timed);
 				traWriter.format("%d %d %s\n",
-				                 i + 1, target + 1, label);
+				                 i + 1, target + 1, rates);
 			}
 			String marking = markings.get(i);
 			if (marking != null)
 				labWriter.format("%d%s\n", i + 1, marking);
 		}
-	}
-
-	private boolean removeDuplicateStates()
-	{
-		HashMap<Object, Integer> states = new HashMap<>();
-		List<Set<Integer>> predecessors = new ArrayList<>(markings.size());
-		List<int[]> dups = new ArrayList<>();
-
-		int maxState = markings.size();
-		for (int i = 0; i < maxState; i++)
-			predecessors.add(new TreeSet<Integer>());
-		for (int i = 0; i < maxState; i++) {
-			Integer s = i;
-			Object stateInfo;
-			Map<Integer, String> ts = transitions.get(i);
-			/* Remove self-loops, they are always pointless. */
-			ts.remove(i);
-			String marking = markings.get(i);
-			for (Integer t : ts.keySet()) {
-				int tt = t;
-				predecessors.get(t).add(s);
-				String nextMark = markings.get(tt);
-				if (nextMark != marking
-				    && nextMark != null
-				    && !nextMark.equals(marking))
-					continue;
-				Map<Integer, String> og = transitions.get(tt);
-				if (og.containsKey(s)) {
-					og = new HashMap<>(og);
-					og.remove(s);
-				}
-				Map<Integer, String> others = new HashMap<>(ts);
-				others.remove(t);
-				if (og.equals(others)) {
-					/* Transition to equivalent
-					 * state, might as well not have
-					 * it.
-					 */
-					ts = others;
-				}
-			}
-			if (marking == null)
-				stateInfo = ts;
-			else
-				stateInfo = List.of(ts, marking);
-			Integer existing = states.get(stateInfo);
-			if (existing == null)
-				states.put(stateInfo, i);
-			else
-				dups.add(new int[]{i, existing});
-		}
-		if (dups.isEmpty())
-			return false;
-		states = null;
-
-		dups.forEach((data) -> {
-			int dup = data[0], merged = data[1];
-			int repl = transitions.size() - 1;
-			Integer iRepl = repl, iDup = dup, iMerged = merged;
-
-			if (dup >= transitions.size())
-				return;
-			Map<Integer, String> ts = transitions.get(dup);
-			if (ts.containsKey(merged)) {
-				ts = new HashMap<>(ts);
-				ts.remove(merged);
-			}
-			String marking = markings.get(dup);
-			Object dupInfo;
-			if (marking == null)
-				dupInfo = ts;
-			else
-				dupInfo = List.of(ts, marking);
-
-			ts = transitions.get(merged);
-			if (ts.containsKey(dup)) {
-				ts = new HashMap<>(ts);
-				ts.remove(dup);
-			}
-			marking = markings.get(merged);
-			Object mergedInfo;
-			if (marking == null)
-				mergedInfo = ts;
-			else
-				mergedInfo = List.of(ts, marking);
-
-			if (!mergedInfo.equals(dupInfo)) {
-				System.err.println("Different: " + mergedInfo + " (" + merged + ") and " + dupInfo + " (" + dup + ")");
-				return;
-			}
-			Set<Integer> mPreds = predecessors.get(merged);
-			for (Integer s : predecessors.get(dup)) {
-				Map<Integer, String> t = transitions.get(s);
-				String dLabel = t.remove(iDup);
-				String mLabel = t.get(iMerged);
-				String nLabel = MarkovReducedLTS.addLabels(mLabel, dLabel);
-				if (nLabel == null)
-					throw new AssertionError("Dup error " + dLabel + " -- " + mLabel + " @ " + s + " for " + merged + "<-" + dup + "<-" + repl);
-				/* Ignore self-loops */
-				if (merged == s)
-					continue;
-				t.put(iMerged, nLabel);
-				mPreds.add(s);
-			}
-			for (Integer s : predecessors.get(repl)) {
-				Map<Integer, String> t = transitions.get(s);
-				String rLabel = t.remove(iRepl);
-				if (rLabel == null)
-					continue;
-				/* Ignore self-loops */
-				if (dup == s)
-					continue;
-				t.put(iDup, rLabel);
-			}
-			/* Dup is no longer a predecessor of anything.
-			 * We don't need to add a new predecessor, since
-			 * by definition 'merged' is already a
-			 * predecessor (otherwise we couldn't have
-			 * merged them).
-			 */
-			for (Integer s : transitions.get(dup).keySet()) {
-				Set<Integer> preds = predecessors.get((int)s);
-				preds.remove(iDup);
-			}
-			for (Integer s : transitions.get(repl).keySet()) {
-				Set<Integer> preds = predecessors.get((int)s);
-				preds.remove(iRepl);
-				if (dup != repl)
-					preds.add(iDup);
-			}
-
-			predecessors.set(dup, predecessors.get(repl));
-			predecessors.remove(repl);
-			transitions.set(dup, transitions.get(repl));
-			transitions.remove(repl);
-			markings.set(dup, markings.get(repl));
-			markings.remove(repl);
-		});
-		return true;
 	}
 
 	private void checkErgodic()
@@ -453,111 +476,213 @@ public class MakeTraLab {
 		}
 	}
 
-	private void collapseDeadends()
+	private Set<Integer> splitRate(Set<Integer> part, Set<Integer> splitter)
 	{
-		int numStates = markings.size();
-		int minDeadend = 0;
-		BitSet canChange = new BitSet(markings.size());
-		boolean changed;
-		do {
-			changed = false;
-			int s = canChange.nextClearBit(minDeadend);
-			minDeadend = s;
-			while (s < numStates) {
-				String mark = markings.get(s);
-				for (int t : transitions.get(s).keySet()) {
-					if (canChange.get(t)) {
-						canChange.set(s);
-						changed = true;
-						break;
-					}
-					String tMark = markings.get(t);
-					if (tMark == mark)
+		if (part == splitter)
+			return null;
+		Set<Integer> newPart = null;
+		BigDecimal rate = null;
+		for (Integer s : part) {
+			BigDecimal myRate = BigDecimal.ZERO;
+			Map<Integer, Set<String>> ts = transitions.get(s);
+			for (Integer t : splitter) {
+				BigDecimal newRate;
+				Set<String> labels = ts.get(t);
+				if (labels == null)
+					continue;
+				for (String label : labels) {
+					if (label.charAt(0) != 'r')
 						continue;
-					if (tMark != null && tMark.equals(mark))
+					label = label.substring(1);
+					newRate = new BigDecimal(label);
+					myRate = myRate.add(newRate);
+				}
+			}
+			if (rate == null) {
+				rate = myRate;
+				continue;
+			}
+			if (rate.compareTo(myRate) != 0) {
+				if (newPart == null)
+					newPart = new TreeSet<>();
+				newPart.add(s);
+			}
+		}
+		if (newPart != null) {
+			part.removeAll(newPart);
+			if (newPart.size() == 1)
+				return Set.of(newPart.iterator().next());
+		}
+		return newPart;
+	}
+
+	private Set<Integer> splitOn(Set<Integer> part, Set<Integer> splitter,
+	                             String label)
+	{
+		Set<Integer> cannotReach = null;
+		for (Integer s : part) {
+			boolean canReach = false;
+			Map<Integer, Set<String>> ts = transitions.get(s);
+			for (Integer target : ts.keySet()) {
+				for (String l : ts.get(target)) {
+					if (!l.equals(label))
 						continue;
-					canChange.set(s);
-					changed = true;
+					if (splitter.contains(target))
+						canReach = true;
+				}
+			}
+			if (!canReach) {
+				if (cannotReach == null)
+					cannotReach = new TreeSet<>();
+				cannotReach.add(s);
+			}
+		}
+		if (cannotReach != null)
+			part.removeAll(cannotReach);
+		return cannotReach;
+	}
+
+	private Set<Integer> split(Set<Integer> part, Set<Integer> splitter)
+	{
+		Set<Integer> ret = splitRate(part, splitter);
+		if (ret != null)
+			return ret;
+		for (Integer s : part) {
+			Map<Integer, Set<String>> ts = transitions.get(s);
+			for (Integer target : ts.keySet()) {
+				for (String label : ts.get(target)) {
+					if (label.charAt(0) == 'r')
+						continue;
+					if (!splitter.contains(target))
+						continue;
+					ret = splitOn(part, splitter, label);
+					if (ret != null)
+						return ret;
+				}
+			}
+		}
+		return ret;
+	}
+
+	private boolean bisimulationReduction() {
+		HashSet<Set<Integer>> partitions = new HashSet<>();
+		HashMap<String, Set<Integer>> ip = new HashMap<>();
+		int i = 0;
+		for (String marking : markings) {
+			Set<Integer> states = ip.get(marking);
+			if (states == null) {
+				states = new TreeSet<>();
+				ip.put(marking, states);
+				partitions.add(states);
+			}
+			states.add(i++);
+		}
+		boolean stable = false;
+		while (!stable) {
+			stable = true;
+			Iterator<Set<Integer>> it = partitions.iterator();
+			while (it.hasNext()) {
+				Set<Integer> splitter = it.next();
+				Set<Set<Integer>> newParts = new HashSet<>();
+				for (Set<Integer> part : partitions) {
+					Set<Integer> newPart;
+					newPart = split(part, splitter);
+					if (newPart != null)
+						newParts.add(newPart);
+				}
+				partitions.addAll(newParts);
+				if (!newParts.isEmpty()) {
+					stable = false;
 					break;
 				}
-				s = canChange.nextClearBit(s + 1);
+				if (splitter.size() == 1)
+					it.remove();
 			}
-		} while (changed);
-		TreeMap<String, Integer> stateLabels = new TreeMap<>();
-		Map<Integer, String> emptyTransitions = Collections.emptyMap();
-		int s = minDeadend;
-		while (s < numStates) {
-			String mark = markings.get(s);
-			if (mark == null)
-				mark = "";
-			transitions.set(s, emptyTransitions);
-			if (!stateLabels.containsKey(mark)) {
-				stateLabels.put(mark, minDeadend);
-				canChange.set(minDeadend++);
-				minDeadend = canChange.nextClearBit(minDeadend);
-			}
-			s = canChange.nextClearBit(s + 1);
 		}
-		if (minDeadend == numStates)
-			return;
+
 		HashMap<Integer, Integer> renames = new HashMap<>();
-		s = canChange.nextClearBit(minDeadend);
-		int i = numStates - 1;
-		while (s < numStates) {
-			while (i > s && !canChange.get(i)) {
-				String mark = markings.remove(i);
-				if (mark == null)
-					mark = "";
-				transitions.remove(i);
-				renames.put(i, stateLabels.get(mark));
-				i--;
-				numStates--;
-			}
-			Map<Integer, String> ts = transitions.remove(i);
-			String sMark = markings.get(s);
-			if (sMark == null)
-				sMark = "";
-			String iMark = markings.remove(i);
-			renames.put(i, s);
-			renames.put(s, stateLabels.get(sMark));
-			if (s != i) {
-				transitions.set(s, ts);
-				markings.set(s, iMark);
-			}
-			i--;
-			numStates--;
-			s = canChange.nextClearBit(s + 1);
-		}
-		HashMap<Integer, String> tmpRenames = new HashMap<>();
-		for (i = 0; i < numStates; i++) {
-			Map<Integer, String> ts = transitions.get(i);
-			Iterator<Integer> trans_it = ts.keySet().iterator();
-			while (trans_it.hasNext()) {
-				Integer tgt = trans_it.next();
-				Integer rename = renames.get(tgt);
-				if (rename != null) {
-					String label = ts.get(tgt);
-					String rLabel = tmpRenames.get(rename);
-					label = MarkovReducedLTS.addLabels(label, rLabel);
-					tmpRenames.put(rename, label);
-					trans_it.remove();
+		for (Set<Integer> partition : partitions) {
+			Integer first = null;
+			if (partition.size() > 1) {
+				if (partition.contains(0))
+					first = 0;
+				for (Integer s : partition) {
+					if (first == null)
+						first = s;
+					else if (first != s)
+						renames.put(s, first);
 				}
 			}
-			if (tmpRenames.isEmpty())
+		}
+		if (renames.isEmpty())
+			return false;
+		int moves[] = new int[transitions.size()];
+		int j = 0;
+		for (i = 0; i < transitions.size(); i++) {
+			if (!renames.containsKey(i))
+				moves[i] = j++;
+			else
+				moves[i] = -1;
+		}
+		int statesLeft = j;
+		renames.replaceAll((from, to) -> moves[to]);
+		for (i = 0; i < transitions.size(); i++) {
+			j = moves[i];
+			if (j == -1)
 				continue;
-			for (Map.Entry<Integer, String> rn : tmpRenames.entrySet()) {
-				Integer tgt = rn.getKey();
-				String nLabel = rn.getValue();
-				String oLabel = ts.get(tgt);
-				ts.put(tgt, MarkovReducedLTS.addLabels(nLabel, oLabel));
+			Map<Integer, Set<String>> ts = transitions.get(i);
+			boolean needsChange = false;
+			for (Integer from : ts.keySet()) {
+				if (renames.containsKey(from)) {
+					needsChange = true;
+					break;
+				}
+				if (moves[from] != from) {
+					needsChange = true;
+					break;
+				}
 			}
-			tmpRenames.clear();
+			if (!needsChange) {
+				transitions.set(j, ts);
+				markings.set(j, markings.get(i));
+				continue;
+			}
+			Map<Integer, Set<String>> newTs = new HashMap<>();
+			for (Integer from : ts.keySet()) {
+				Integer to = renames.get(from);
+				if (to == null)
+					to = from;
+				to = moves[to];
+				Set<String> newLabels = newTs.get(to);
+				if (newLabels == null) {
+					newLabels = ts.get(from);
+					newTs.put(to, newLabels);
+					continue;
+				}
+				Set<String> oldLabels = ts.get(from);
+				String rate = null;
+				for (String l : oldLabels) {
+					if (l.charAt(0) == 'r') {
+						rate = l;
+						break;
+					}
+				}
+				for (String label : oldLabels) {
+					if (label.charAt(0) == 'r') {
+						label = MarkovReducedLTS.addLabels(rate, label);
+						if (rate != null)
+							newLabels.remove(rate);
+					}
+					newLabels.add(label);
+				}
+			}
+			markings.set(j, markings.get(i));
+			transitions.set(j, newTs);
 		}
-		for (Map.Entry<String, Integer> p : stateLabels.entrySet()) {
-			String mark = p.getKey();
-			if (mark.length() == 0)
-				mark = null;
-			markings.set(p.getValue(), mark);
+		while (transitions.size() > statesLeft) {
+			transitions.remove(transitions.size() - 1);
+			markings.remove(markings.size() - 1);
 		}
+		return true;
 	}
 }

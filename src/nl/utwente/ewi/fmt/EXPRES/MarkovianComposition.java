@@ -1,5 +1,6 @@
 package nl.utwente.ewi.fmt.EXPRES;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -71,6 +72,13 @@ public class MarkovianComposition implements LTS
 		return ret;
 	}
 
+	private boolean timedCompatible(String s, String t)
+	{
+		if (t.charAt(0) == 't')
+			return true;
+		return s.charAt(0) != 't';
+	}
+
 	/* Return a state at some maximal distance from this transition */
 	private Transition forward(Transition t) throws NondeterminismException
 	{
@@ -83,6 +91,8 @@ public class MarkovianComposition implements LTS
 			Set<Transition> outgoing = original.getTransitions(t.target);
 			for (Transition s : outgoing) {
 				if (s.label.charAt(0) == 'r')
+					continue;
+				if (!timedCompatible(s.label, t.label))
 					continue;
 				if (s.guard.evaluate(original, t.target).doubleValue() == 0)
 					continue;

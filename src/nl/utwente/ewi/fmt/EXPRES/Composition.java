@@ -58,12 +58,13 @@ public class Composition implements MarkableLTS
 	 * rejectedFor[2*t] being in state rejectedFor[2*t+1].
 	 */
 	private ThreadLocal<int[]> rejectedFor;
-	/* rateTransitions[haveRateTransitions[i]][s] is a list of the
-	 * transitions from state 's' of automata 'haveRateTransitions[i]'
-	 * that have a Markovian label.
+	/* indepTransitions[haveIndepTransitions[i]][s] is a list of the
+	 * transitions from state 's' of automata 'haveIndepTransitions[i]'
+	 * that are known to always be taken independently (i.e.,
+	 * Markovian or timed transitions).
 	 */
-	private int[] haveRateTransitions;
-	private int[][][] rateTransitions;
+	private int[] haveIndepTransitions;
+	private int[][][] indepTransitions;
 	private static final boolean DEBUG = true;
 
 	private class PartialState {
@@ -502,6 +503,8 @@ public class Composition implements MarkableLTS
 			String oldName = s[0];
 			if (oldName.startsWith("rate "))
 				oldName = 'r' + oldName.substring(5);
+			else if (oldName.startsWith("time "))
+				oldName = 't' + oldName.substring(5);
 			else
 				oldName = 'i' + oldName;
 			oldName = oldName.intern();
@@ -510,6 +513,8 @@ public class Composition implements MarkableLTS
 			String newName = s[1];
 			if (newName.startsWith("rate "))
 				newName = 'r' + newName.substring(5);
+			else if (newName.startsWith("time "))
+				newName = 't' + newName.substring(5);
 			else
 				newName = 'i' + newName;
 			newName = newName.intern();
@@ -529,6 +534,8 @@ public class Composition implements MarkableLTS
 				label = label.substring(0, label.length() - 1);
 			if (label.startsWith("rate "))
 				label = 'r' + label.substring(5);
+			else if (label.startsWith("time "))
+				label = 't' + label.substring(5);
 			else
 				label = 'i' + label;
 			hideLabels.add(label);
@@ -577,6 +584,8 @@ public class Composition implements MarkableLTS
 						String l = parts[i];
 						if (l.startsWith("rate "))
 							l = 'r'+l.substring(5);
+						else if (l.startsWith("time "))
+							l = 't'+l.substring(5);
 						else
 							l = 'i'+l;
 						labels[vectorPos] = l.intern();
@@ -1023,8 +1032,8 @@ public class Composition implements MarkableLTS
 		}
 
 		/* Build rate transition list */
-		haveRateTransitions = new int[0];
-		rateTransitions = new int[0][][];
+		haveIndepTransitions = new int[0];
+		indepTransitions = new int[0][][];
 		ArrayList<int[]> mStates = new ArrayList<>();
 		for (int i = 0; i < automata.length; i++) {
 			Automaton aut = automata[i];
@@ -1035,7 +1044,8 @@ public class Composition implements MarkableLTS
 					String l = aut.getTransitionLabel(j, k);
 					if (l == null)
 						break;
-					if (l.charAt(0) != 'r')
+					char type = l.charAt(0);
+					if (type != 'r' && type != 't')
 						continue;
 					if (mTransitions == null) {
 						mTransitions = new int[]{k};
@@ -1051,11 +1061,11 @@ public class Composition implements MarkableLTS
 				}
 			}
 			if (fromThisState != null) {
-				int n = haveRateTransitions.length;
-				haveRateTransitions = Arrays.copyOf(haveRateTransitions, n + 1);
-				haveRateTransitions[n] = i;
-				rateTransitions = Arrays.copyOf(rateTransitions, n + 1);
-				rateTransitions[n] = fromThisState;
+				int n = haveIndepTransitions.length;
+				haveIndepTransitions = Arrays.copyOf(haveIndepTransitions, n + 1);
+				haveIndepTransitions[n] = i;
+				indepTransitions = Arrays.copyOf(indepTransitions, n + 1);
+				indepTransitions[n] = fromThisState;
 			}
 		}
 	}
@@ -1213,13 +1223,13 @@ public class Composition implements MarkableLTS
 		/* First, 'rate' transitions are always taken
 		 * unsynchronized.
 		 */
-		for (int i = 0; i < haveRateTransitions.length; i++) {
-			int a = haveRateTransitions[i];
+		for (int i = 0; i < haveIndepTransitions.length; i++) {
+			int a = haveIndepTransitions[i];
 			Automaton aut = automata[a];
 			int orig = from[a];
-			if (rateTransitions[i][orig] == null)
+			if (indepTransitions[i][orig] == null)
 				continue;
-			for (int j : rateTransitions[i][orig]) {
+			for (int j : indepTransitions[i][orig]) {
 				String l = aut.getTransitionLabel(orig, j);
 				if (l == null)
 					break;
@@ -1351,7 +1361,8 @@ public class Composition implements MarkableLTS
 				int j = 0;
 				String l;
 				while ((l = a.getTransitionLabel(i, j++)) != null) {
-					if (l.charAt(0) != 'r')
+					char type = l.charAt(0);
+					if (type != 't')
 						ret.add(l);
 				}
 			}

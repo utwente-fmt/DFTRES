@@ -35,17 +35,24 @@ public class MarkovReducedLTS implements LTS
 	public int[] getInitialState()
 	{
 		try {
-			return markovTerminal(initialState);
+			return markovTerminal(initialState, new BigDecimal(-1));
 		} catch (NondeterminismException e) {
 			throw new RuntimeException(e);
 		}
 	}
 
-	/* data[0] = index, data[1] = lowlink, data[2] = onStack */
+	/* data[0] = index, data[1] = lowlink, data[2] = onStack.
+	 * If time < 0, we just performed a Markovian transition and
+	 * cannot immediately perform timed transitions.
+	 * Otherwise, we are at the specified time (so we treat timed
+	 * transitions that are compatible with that time as
+	 * interactive).
+	 * */
 	private void strongConnect(LTS.StateWrapper node,
 			ArrayList<LTS.StateWrapper> stack,
 			HashMap<LTS.StateWrapperLike, byte[]> bookkeeping,
-			int index, HashSet<LTS.StateWrapperLike> BSCC_Nodes)
+			int index, HashSet<LTS.StateWrapperLike> BSCC_Nodes,
+			BigDecimal time)
 		throws NondeterminismException
 	{
 		byte[] data = bookkeeping.get(node);
@@ -60,6 +67,13 @@ public class MarkovReducedLTS implements LTS
 		for (LTS.Transition t : outgoing) {
 			if (t.label.charAt(0) == 'r')
 				continue;
+			if (t.label.charAt(0) == 't') {
+				if (time.signum() < 0)
+					continue;
+				BigDecimal td = new BigDecimal(t.label.substring(1));
+				if (td.compareTo(time) != 0)
+					continue;
+			}
 			if (t.guard.evaluate(getVarValues(node.state)).doubleValue() == 0)
 				continue;
 			if (!t.assignments.isEmpty())
@@ -70,7 +84,7 @@ public class MarkovReducedLTS implements LTS
 				nData = new byte[3];
 				bookkeeping.put(targ.tryReduce(), nData);
 				strongConnect(targ, stack, bookkeeping, index,
-				              BSCC_Nodes);
+				              BSCC_Nodes, time);
 				int nd1 = ((int)nData[1]) & 0xff;
 				int d1 = ((int)data[1]) & 0xff;
 				if (d1 < nd1)
@@ -111,6 +125,8 @@ public class MarkovReducedLTS implements LTS
 			for (i = labels.length - 1; i >= 0; i--) {
 				if (labels[i].charAt(0) == 'r')
 					continue;
+				if (labels[i].charAt(0) == 't')
+					continue;
 				tb = LTS.wrapUncomparable(targets[i]);
 				targets[i] = null;
 				if (!newSCC.contains(tb)) {
@@ -123,35 +139,40 @@ public class MarkovReducedLTS implements LTS
 		}
 	}
 
-	private int[] markovTerminal(int from[]) throws NondeterminismException
+	private int[] markovTerminal(int from[], BigDecimal time)
+			throws NondeterminismException
 	{
+		int[] ret = null;
 		LTS.StateWrapper node = new LTS.StateWrapper(from);
 		ArrayList<LTS.StateWrapper> stack = new ArrayList<>();
 		HashMap<LTS.StateWrapperLike, byte[]> book = new HashMap<>();
 		HashSet<LTS.StateWrapperLike> BSCC_Nodes = new HashSet<>();
 		book.put(node, new byte[3]);
-		strongConnect(node, stack, book, 0, BSCC_Nodes);
+		strongConnect(node, stack, book, 0, BSCC_Nodes, time);
 		Set<LTS.Transition> finalTransitions = null;
 		for (LTS.StateWrapperLike n : BSCC_Nodes) {
 			int[] tmp = n.getState();
 			Set<LTS.Transition> out = original.getTransitions(tmp);
 			HashSet<LTS.Transition> markovian = new HashSet<>();
-			for (LTS.Transition t : out)
+			for (LTS.Transition t : out) {
 				if (t.label.charAt(0) == 'r')
 					markovian.add(t);
-			if (finalTransitions == null)
+				if (t.label.charAt(0) == 't')
+					markovian.add(t);
+			}
+			if (finalTransitions == null) {
 				finalTransitions = markovian;
-			else
-				if (!finalTransitions.equals(markovian)) {
-					System.err.println("From state: " + Arrays.toString(from));
-					System.err.println("Can reach:");
-					System.err.println(markovian);
-					System.err.println("and");
-					System.err.println(finalTransitions);
-					return null;
-				}
+				ret = tmp;
+			} else if (!finalTransitions.equals(markovian)) {
+				System.err.println("From state: " + Arrays.toString(from) + " @ " + time);
+				System.err.println("Can reach (" + Arrays.toString(ret) + "):");
+				System.err.println(markovian);
+				System.err.println("and (" + Arrays.toString(tmp) + "):");
+				System.err.println(finalTransitions);
+				return null;
+			}
 		}
-		return BSCC_Nodes.iterator().next().getState();
+		return ret;
 	}
 
 	public static String addLabels(String l1, String l2)
@@ -159,6 +180,8 @@ public class MarkovReducedLTS implements LTS
 		if (l1 == null)
 			return l2;
 		if (l2 == null)
+			return l1;
+		if (l1.charAt(0) == 't' && l2.charAt(0) == 't')
 			return l1;
 		if (l1.charAt(0) != 'r')
 			throw new UnsupportedOperationException("Tried to merge non-rate transitions.");
@@ -178,9 +201,14 @@ public class MarkovReducedLTS implements LTS
 		Set<LTS.Transition> outgoing = original.getTransitions(from);
 
 		for (LTS.Transition t : outgoing) {
-			if (t.label.charAt(0) != 'r')
+			BigDecimal time;
+			if (t.label.charAt(0) == 'r')
+				time = new BigDecimal(-1);
+			else if (t.label.charAt(0) == 't')
+				time = new BigDecimal(t.label.substring(1));
+			else
 				continue;
-			int[] endState = markovTerminal(t.target);
+			int[] endState = markovTerminal(t.target, time);
 			if (endState != null) {
 				LTS.Transition nt = new LTS.Transition(t.label, endState, null, null);
 				while (ret.contains(nt)) {
