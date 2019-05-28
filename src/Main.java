@@ -360,6 +360,10 @@ class Main {
 		ArrayList<SimulationResult> results = new ArrayList<>();
 		TreeSet<String> onlyProperties = new TreeSet<>();
 		String useRng = "XS128";
+		if (args.length == 1 && args[0].equals("--version")) {
+			System.out.println("Version: " + Version.version);
+			System.exit(0);
+		}
 		if (args.length == 0) {
 			System.err.println("No filename provided.");
 			System.exit(-1);
