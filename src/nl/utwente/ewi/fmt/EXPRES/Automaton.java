@@ -6,10 +6,12 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.ArrayDeque;
 import java.util.BitSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -149,8 +151,19 @@ public class Automaton implements LTS {
 		}
 		if (!anyHasAssignments)
 			assignments = null;
-		createTransitionArray();
 		initState = 0;
+		boolean anyChange = bisimulationReduction();
+		createTransitionArray();
+		if (anyChange) {
+			Automaton a = new Automaton(this, permitted);
+			if (a.initState == initState) {
+				labels = a.labels;
+				targets = a.targets;
+				assignments = a.assignments;
+				guards = a.guards;
+				transitions = a.transitions;
+			}
+		}
 	}
 
 	public Automaton(LTS system)
@@ -683,6 +696,100 @@ public class Automaton implements LTS {
 		if (!anyChange)
 			return this;
 		return new Automaton(this, keep);
+	}
+
+	private Set<Integer> splitOn(Set<Integer> part, Set<Integer> splitter,
+	                             String label)
+	{
+		Set<Integer> cannotReach = null;
+		for (Integer s : part) {
+			boolean canReach = false;
+			for (int l = labels[s].length - 1; l >= 0; l--) {
+				if (!labels[s][l].equals(label))
+					continue;
+				if (splitter.contains(targets[s][l]))
+					canReach = true;
+			}
+			if (!canReach) {
+				if (cannotReach == null)
+					cannotReach = new TreeSet<>();
+				cannotReach.add(s);
+			}
+		}
+		if (cannotReach != null)
+			part.removeAll(cannotReach);
+		return cannotReach;
+	}
+
+	private Set<Integer> split(Set<Integer> part, Set<Integer> splitter)
+	{
+		Set<Integer> ret = null;
+		for (Integer s : part) {
+			for (int l = labels[s].length - 1; l >= 0; l--) {
+				if (!splitter.contains(targets[s][l]))
+					continue;
+				String label = labels[s][l];
+				ret = splitOn(part, splitter, label);
+				if (ret != null)
+					return ret;
+			}
+		}
+		return ret;
+	}
+
+	private boolean bisimulationReduction() {
+		if (assignments != null || guards != null)
+			return false;
+		HashSet<Set<Integer>> partitions = new HashSet<>();
+		Set<Integer> initialPartition = new HashSet<>();
+		for (int i = 0; i < targets.length; i++)
+			initialPartition.add(i);
+		partitions.add(initialPartition);
+		boolean stable = false;
+		while (!stable) {
+			stable = true;
+			for (Set<Integer> splitter : partitions) {
+				Set<Set<Integer>> newParts = new HashSet<>();
+				for (Set<Integer> part : partitions) {
+					Set<Integer> newPart;
+					newPart = split(part, splitter);
+					if (newPart != null)
+						newParts.add(newPart);
+				}
+				partitions.addAll(newParts);
+				if (!newParts.isEmpty()) {
+					stable = false;
+					break;
+				}
+			}
+		}
+
+		HashMap<Integer, Integer> renames = new HashMap<>();
+		for (Set<Integer> partition : partitions) {
+			Integer first = null;
+			if (partition.size() > 1) {
+				if (partition.contains(initState))
+					first = initState;
+				for (Integer s : partition) {
+					if (first == null)
+						first = s;
+					else if (first != s)
+						renames.put(s, first);
+				}
+			}
+		}
+		if (renames.isEmpty())
+			return false;
+		System.err.println("Reducing modulo bisimulation classes: " + partitions);
+		System.err.println("Renames: " + renames);
+		for (int s = targets.length - 1; s >= 0; s--) {
+			for (int t = targets[s].length - 1; t >= 0; t--) {
+				Integer to = renames.get(targets[s][t]);
+				if (to != null)
+					targets[s][t] = to;
+			}
+		}
+		return true;
 	}
 
 	public int stateSize()

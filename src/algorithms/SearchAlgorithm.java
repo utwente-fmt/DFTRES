@@ -22,6 +22,7 @@ public class SearchAlgorithm {
 	private HashSet<State> neighboursSet = new HashSet<>();
 	private final StateSpace model;
 	private final Property prop;
+	private static final boolean VERBOSE = false;
 
 	private HashMap<State, Integer> dp;
 	public HashMap<State, Integer> d;
@@ -85,7 +86,7 @@ public class SearchAlgorithm {
 		// What follows is actually not the exact implementation described lines 1-16 of Algorithm 2 in the paper - we do not do A 
 		// and B at the same time as in lines 4-8, but rather first A and then B. This may result in the algorithm not terminating 
 		// within finite time if A is infinite.
-		if (Simulator.showProgress)
+		if (VERBOSE && Simulator.showProgress)
 			System.err.print("\nRemoving HPC.");
 		
 		while (!pot_A.isEmpty()) {
@@ -136,12 +137,12 @@ public class SearchAlgorithm {
 				System.out.println("HPC in states "+Ls);
 		}
 		if (Ls.size() == 1) {
-			if (Simulator.showProgress)
+			if (VERBOSE && Simulator.showProgress)
 				System.err.format("\r%s Found not to be HPC.\n", s);
 			nonHPCs.add(s);
 			return false; // false alarm: HPC consists of one state only
 		}
-		if (Simulator.showProgress)
+		if (VERBOSE && Simulator.showProgress)
 			System.err.format("\rRemoving HPC from %s, size %d\n", s, Ls.size());
 
 		A = B = null;
