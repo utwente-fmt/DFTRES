@@ -501,7 +501,7 @@ public class Composition implements MarkableLTS
 	}
 
 	/** We define a dependent automaton as one that has no
-	 * effect on any globally visible automaton except through the
+	 * effect on the globally visible automaton except through the
 	 * provided automaton.
 	 * In case of disconnected networks, this may include automata
 	 * that have no communication with globals or with the specified
@@ -512,12 +512,12 @@ public class Composition implements MarkableLTS
 	 * @param outwardActions Which interactive transitions of the
 	 * the automaton communicate outside of the dependents.
 	 */
-	private Set<Integer> getDependents(int automaton, Set<Integer> globals,
+	private Set<Integer> getDependents(int automaton, int global,
 	                                   Set<String> outwardTransitions)
 	{
 		TreeSet<Integer> ret = new TreeSet<>();
 		for (int i = 0; i < automata.length; i++) {
-			if (i != automaton && !globals.contains(i))
+			if (i != automaton && i != global)
 				ret.add(i);
 		}
 		boolean changed = true;
@@ -542,7 +542,7 @@ public class Composition implements MarkableLTS
 				}
 			}
 		}
-		if (globals.contains(automaton)) {
+		if (automaton == global) {
 			/* Special case: Actions that affect global
 			 * variables also need to be preserved.
 			 */
@@ -607,7 +607,11 @@ public class Composition implements MarkableLTS
 		List<Set<String>> preserveActions = new ArrayList<>();
 		for (int i = 0; i < automata.length; i++) {
 			Set<String> acts = new TreeSet<>();
-			dependents.add(getDependents(i, globalVisible, acts));
+			Set<Integer> deps = new TreeSet<>();
+			for (Integer g : globalVisible) {
+				deps.addAll(getDependents(i, g, acts));
+			}
+			dependents.add(deps);
 			preserveActions.add(acts);
 		}
 
