@@ -3,7 +3,6 @@ package nl.utwente.ewi.fmt.EXPRES;
 import java.io.IOException;
 import java.io.FileOutputStream;
 import java.io.PrintWriter;
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;

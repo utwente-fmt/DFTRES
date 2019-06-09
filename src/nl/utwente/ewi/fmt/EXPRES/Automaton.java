@@ -6,12 +6,14 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.ArrayDeque;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -721,20 +723,89 @@ public class Automaton implements LTS {
 		return cannotReach;
 	}
 
-	private Set<Integer> split(Set<Integer> part, Set<Integer> splitter)
+	private Set<Integer> splitRate(Set<Integer> part, Set<Integer> splitter)
 	{
-		Set<Integer> ret = null;
+		if (part == splitter)
+			return null;
+		Set<Integer> newPart = null;
+		BigDecimal rate = null;
 		for (Integer s : part) {
+			BigDecimal myRate = BigDecimal.ZERO;
 			for (int l = labels[s].length - 1; l >= 0; l--) {
+				String label = labels[s][l];
+				if (label.charAt(0) != 'r')
+					continue;
 				if (!splitter.contains(targets[s][l]))
 					continue;
+				label = label.substring(1);
+				BigDecimal newRate = new BigDecimal(label);
+				myRate = myRate.add(newRate);
+			}
+			if (rate == null) {
+				rate = myRate;
+				continue;
+			}
+			if (rate.compareTo(myRate) != 0) {
+				if (newPart == null)
+					newPart = new TreeSet<>();
+				newPart.add(s);
+			}
+		}
+		if (newPart != null) {
+			part.removeAll(newPart);
+			if (newPart.size() == 1)
+				return Set.of(newPart.iterator().next());
+		}
+		return newPart;
+	}
+
+	private Set<Integer> split(Set<Integer> part, Set<Integer> splitter)
+	{
+		Set<Integer> ret = splitRate(part, splitter);
+		if (ret != null)
+			return ret;
+		for (Integer s : part) {
+			for (int l = labels[s].length - 1; l >= 0; l--) {
 				String label = labels[s][l];
+				if (label.charAt(0) == 'r')
+					continue;
+				if (!splitter.contains(targets[s][l]))
+					continue;
 				ret = splitOn(part, splitter, label);
 				if (ret != null)
 					return ret;
 			}
 		}
 		return ret;
+	}
+
+	private void collapseSameMarkov() {
+		int idxs[] = new int[targets.length];
+		for (int i = labels.length - 1; i >= 0; i--) {
+			int[] ts = targets[i];
+			String[] ls = labels[i];
+			Arrays.fill(idxs, -1);
+			int offset = 0;
+			for (int j = 0; j < ts.length; j++) {
+				ls[j - offset] = ls[j];
+				ts[j - offset] = ts[j];
+				if (ls[j].charAt(0) != 'r')
+					continue;
+				int prev = idxs[ts[j]];
+				if (prev == -1) {
+					idxs[ts[j]] = j - offset;
+					continue;
+				}
+				String prevL = ls[prev], newL;
+				newL = MarkovReducedLTS.addLabels(prevL, ls[j]);
+				ls[prev] = newL;
+				offset++;
+			}
+			if (offset != 0) {
+				targets[i] = Arrays.copyOf(ts, ts.length - offset);
+				labels[i] = Arrays.copyOf(ls, ls.length - offset);
+			}
+		}
 	}
 
 	private boolean bisimulationReduction() {
@@ -748,7 +819,9 @@ public class Automaton implements LTS {
 		boolean stable = false;
 		while (!stable) {
 			stable = true;
-			for (Set<Integer> splitter : partitions) {
+			Iterator<Set<Integer>> it = partitions.iterator();
+			while (it.hasNext()) {
+				Set<Integer> splitter = it.next();
 				Set<Set<Integer>> newParts = new HashSet<>();
 				for (Set<Integer> part : partitions) {
 					Set<Integer> newPart;
@@ -761,6 +834,8 @@ public class Automaton implements LTS {
 					stable = false;
 					break;
 				}
+				if (splitter.size() == 1)
+					it.remove();
 			}
 		}
 
@@ -789,6 +864,7 @@ public class Automaton implements LTS {
 					targets[s][t] = to;
 			}
 		}
+		collapseSameMarkov();
 		return true;
 	}
 
