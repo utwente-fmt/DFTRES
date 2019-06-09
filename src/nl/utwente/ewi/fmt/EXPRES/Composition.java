@@ -14,6 +14,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -63,6 +64,7 @@ public class Composition implements MarkableLTS
 	 */
 	private int[] haveRateTransitions;
 	private int[][][] rateTransitions;
+	private static final boolean DEBUG = true;
 
 	private class PartialState {
 		private final Composition parent;
@@ -163,9 +165,213 @@ public class Composition implements MarkableLTS
 		this(filename, type, null, Collections.emptyMap());
 	}
 
-	Composition()
+	/* Create a subcomposition of only the given indices.
+	 * 'syncLabs' will be set to the new label of each synchronized
+	 * transitions (or null if the vector does not include any
+	 * affected automaton).
+	 */
+	private Composition(Composition orig, int[] automata, String[] syncLabs)
 	{
-		markLabels = new TreeMap<String, Integer>();
+		automata = automata.clone();
+		Arrays.sort(automata);
+		this.automata = new Automaton[automata.length];
+		for (int i = 0; i < automata.length; i++)
+			this.automata[i] = orig.automata[automata[i]];
+		List<Integer> keepVectors = new ArrayList<>();
+		int i = -1;
+		for (int[] auts : orig.vectorAutomata) {
+			i++;
+			for (int aut : auts) {
+				int idx = Arrays.binarySearch(automata, aut);
+				if (idx >= 0) {
+					keepVectors.add(i);
+					break;
+				}
+			}
+		}
+		vectorAutomata = new int[keepVectors.size()][];
+		vectorLabels = new String[keepVectors.size()][];
+		synchronizedLabels = new String[keepVectors.size()];
+		priorityVectors = new boolean[keepVectors.size()];
+		Set<String> usedLabels = new TreeSet<>();
+		i = 0;
+		for (int v : keepVectors) {
+			int[] oldAuts = orig.vectorAutomata[v];
+			int size = 0;
+			for (int aut : oldAuts) {
+				int idx = Arrays.binarySearch(automata, aut);
+				if (idx >= 0)
+					size++;
+			}
+			int auts[] = new int[size];
+			String labs[] = new String[size]; 
+			int k = 0;
+
+			for (int l = 0; l < oldAuts.length; l++) {
+				int aut = oldAuts[l];
+				int idx = Arrays.binarySearch(automata, aut);
+				if (idx >= 0) {
+					auts[k] = idx;
+					labs[k] = orig.vectorLabels[v][l];
+					k++;
+					size++;
+				}
+			}
+			String label = orig.synchronizedLabels[v];
+			label = makeUnique(usedLabels, label);
+			usedLabels.add(label);
+			synchronizedLabels[i] = label;
+			syncLabs[v] = label;
+			vectorAutomata[i] = auts;
+			vectorLabels[i] = labs;
+			if (size == oldAuts.length)
+				priorityVectors[i] = orig.priorityVectors[v];
+			i++;
+		}
+		globalVars = Map.of();
+		transientGlobals = Map.of();
+		markLabels = new TreeMap<>();
+	}
+
+	private Composition(Composition orig, int[] composed, Automaton aut,
+	                    String[] labels)
+	{
+		composed = composed.clone();
+		Arrays.sort(composed);
+		vectorAutomata = new int[orig.vectorAutomata.length][];
+		vectorLabels = new String[vectorAutomata.length][];
+		int renumber[] = new int[orig.automata.length];
+		int i = orig.automata.length - composed.length + 1;
+		automata = new Automaton[i];
+		i = 0;
+		int compPos = 0;
+		for (int oldPos = 0; oldPos < orig.automata.length; oldPos++) {
+			if (compPos != -1 && composed[compPos] == oldPos) {
+				compPos++;
+				if (compPos >= composed.length)
+					compPos = -1;
+				renumber[oldPos] = -1;
+			} else {
+				renumber[oldPos] = i;
+				automata[i++] = orig.automata[oldPos];
+			}
+		}
+		automata[i] = aut;
+
+		for (i = vectorLabels.length - 1; i >= 0; i--) {
+			boolean refComp = false, mod = false;
+			int size = 0;
+			int[] origa = orig.vectorAutomata[i];
+			for (int o : origa) {
+				if (renumber[o] != o)
+					mod = true;
+				if (renumber[o] != -1) {
+					size++;
+				} else if (!refComp) {
+					refComp = true;
+					size++;
+				}
+			}
+			if (!mod) {
+				vectorAutomata[i] = orig.vectorAutomata[i];
+				vectorLabels[i] = orig.vectorLabels[i];
+				continue;
+			}
+			vectorAutomata[i] = new int[size];
+			vectorLabels[i] = new String[size];
+			int j, k = 0;
+			for (j = 0; j < origa.length; j++) {
+				int o = origa[j];
+				if (renumber[o] != -1) {
+					vectorAutomata[i][k] = renumber[o];
+					vectorLabels[i][k] = orig.vectorLabels[i][j];
+					vectorLabels[i][k].length();
+					k++;
+				}
+			}
+			if (refComp) {
+				vectorAutomata[i][k] = automata.length - 1;
+				vectorLabels[i][k] = labels[i];
+				labels[i].length();
+				k++;
+			}
+			System.err.format("%d: %d %d\n", i, k, size);
+			for (String lab : vectorLabels[i])
+				lab.length();
+		}
+		synchronizedLabels = orig.synchronizedLabels;
+		priorityVectors = orig.priorityVectors;
+		hideLabels = orig.hideLabels;
+		markLabels = orig.markLabels;
+		if (!orig.globalVars.isEmpty())
+			globalVars = new HashMap<>();
+		else
+			globalVars = Map.of();
+		for (Map.Entry<String, int[]> e : orig.globalVars.entrySet())
+			globalVars.put(e.getKey(), e.getValue().clone());
+		transientGlobals = orig.transientGlobals;
+	}
+
+	public Composition partialCompose(int stateLimit)
+	{
+		Composition ret = this;
+		Automaton auts[] = ret.automata;
+		for (int i = 0; i < auts.length; i++) {
+			if (auts[i].getNumStates() > stateLimit)
+				continue;
+			TreeSet<Integer> toComp = new TreeSet<>();
+			toComp.add(i);
+			int nStates = auts[i].getNumStates();
+			int max = stateLimit / nStates;
+			for (int j = i + 1; j < auts.length; j++) {
+				if (auts[j].getNumStates() > max)
+					continue;
+				toComp.add(j);
+				nStates *= auts[j].getNumStates();
+				max = stateLimit / nStates;
+			}
+			if (toComp.size() <= 1)
+				continue;
+			int[] arr = new int[toComp.size()];
+			i = 0;
+			for (Integer c : toComp)
+				arr[i++] = c;
+			String labels[] = new String[ret.vectorLabels.length];
+			Automaton aut = null;
+			try {
+				if (DEBUG) {
+					System.out.println("Composing : " + toComp);
+					ret.printAutomata();
+				}
+				Composition sub;
+				sub = new Composition(ret, arr, labels);
+				sub.afterParsing();
+				if (DEBUG)
+					sub.printAutomata();
+				aut = new Automaton(sub);
+				if (DEBUG) {
+					System.out.println("Result:");
+					System.out.println(aut);
+					System.out.println("Labels: " + Arrays.toString(labels));
+				}
+				ret = new Composition(ret, arr, aut, labels);
+				if (DEBUG) {
+					System.out.println("Recomposed:");
+					ret.printAutomata();
+					if (1 == 1) {
+						ret.afterParsing();
+						return ret;
+					}
+				}
+				auts = ret.automata;
+				i = -1;
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		if (ret != this)
+			ret.afterParsing();
+		return ret;
 	}
 
 	public void markStatesAfter(String label, int val)
@@ -189,6 +395,18 @@ public class Composition implements MarkableLTS
 		BigDecimal v2 = new BigDecimal(r2.substring(1));
 		BigDecimal result = v1.multiply(v2);
 		return 'r' + result.toString();
+	}
+
+	private String makeUnique(Set<String> others, String prefix) {
+		if (!others.contains(prefix))
+			return prefix;
+		prefix += "%";
+		if (!others.contains(prefix))
+			return prefix;
+		Random rng = new Random(prefix.hashCode() + others.hashCode());
+		while (others.contains(prefix))
+			prefix += (char)('A' + rng.nextInt(26));
+		return prefix;
 	}
 
 	private void fixCombinedActions()
@@ -708,7 +926,8 @@ public class Composition implements MarkableLTS
 	private void afterParsing()
 	{
 		removeInternalNondeterminism();
-		priorityVectors = new boolean[vectorAutomata.length];
+		if (priorityVectors == null)
+			priorityVectors = new boolean[vectorAutomata.length];
 		boolean changed = true;
 		while (changed) {
 			changed = removeImpossibleActions();
@@ -1112,6 +1331,14 @@ public class Composition implements MarkableLTS
 
 	public void printAutomata()
 	{
+		for (int i = 0; i < synchronizedLabels.length; i++) {
+			boolean first = true;
+			for (int j = 0; j < vectorLabels[i].length; j++) {
+				System.out.format("%s[%d: %s]", first ? "" : " * ", vectorAutomata[i][j], vectorLabels[i][j]);
+				first = false;
+			}
+			System.out.format(" -> %s\n", synchronizedLabels[i]);
+		}
 		for (Automaton a : automata)
 			System.out.println(a);
 	}
