@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.ArrayDeque;
 import java.util.BitSet;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -33,6 +34,7 @@ public class Automaton implements LTS {
 	private Map<String, Expression> assignments[][];
 	private Map<String, Integer> transitions[];
 	private final static boolean VERBOSE = false;
+	private final static boolean DEBUG = false;
 
 	/** Construct an automaton by reading it from a file.
 	 * @param filename The name of the file to read.
@@ -68,10 +70,18 @@ public class Automaton implements LTS {
 	 * will be kept that are either Markovian or contained in the
 	 * permitted action set.
 	 *
+	 * If a set of internal actions is provided, these transitions
+	 * may be taken (nondeterministically) without being visible as
+	 * a transition, though they may also remain externally visible.
+	 * Furthermore, the labels of internal transitions may be
+	 * replaced by other internal labels.
+	 *
 	 * @param system	The system to make explicit.
 	 * @param permitted	The set of permitted actions.
+	 * @param internal	The set of internal actions.
 	 */
-	public Automaton(LTS system, Set<String> permitted)
+	public Automaton(LTS system, Set<String> permitted,
+	                 Set<String> internal)
 	{
 		HashMap<LTS.StateWrapper, Integer> states = new HashMap<>();
 		ArrayDeque<LTS.StateWrapper> queue = new ArrayDeque<>();
@@ -81,6 +91,8 @@ public class Automaton implements LTS {
 		labels = new String[1][];
 		assignments = createAssignmentArray(1);
 		boolean anyHasAssignments = false;
+		if (DEBUG && internal != null)
+			System.err.println("Internal actions: " + internal);
 		while (!queue.isEmpty()) {
 			if (targets.length < states.size()) {
 				int n = states.size();
@@ -91,12 +103,14 @@ public class Automaton implements LTS {
 			LTS.StateWrapper cur = queue.poll();
 			int[] state = cur.state;
 			int num = states.get(cur);
-			Set<LTS.Transition> ts;
+			Collection<LTS.Transition> ts;
 			try {
 				ts = system.getTransitions(state);
 			} catch (NondeterminismException e) {
 				throw new UnsupportedOperationException(e);
 			}
+			if (internal != null)
+				ts = cleanupInternal(ts, cur, internal);
 			targets[num] = new int[ts.size()];
 			labels[num] = new String[ts.size()];
 			assignments[num] = Arrays.copyOf(assignments[0], ts.size());
@@ -156,9 +170,11 @@ public class Automaton implements LTS {
 			assignments = null;
 		initState = 0;
 		boolean anyChange = bisimulationReduction();
+		if (internal != null && !internal.isEmpty())
+			anyChange |= tauCollapse(internal);
 		createTransitionArray();
 		if (anyChange) {
-			Automaton a = new Automaton(this, permitted);
+			Automaton a = new Automaton(this, permitted, internal);
 			if (a.initState == initState) {
 				labels = a.labels;
 				targets = a.targets;
@@ -171,7 +187,7 @@ public class Automaton implements LTS {
 
 	public Automaton(LTS system)
 	{
-		this(system, null);
+		this(system, null, null);
 	}
 
 	public static Automaton fromJani(Map janiData,
@@ -295,6 +311,78 @@ public class Automaton implements LTS {
 			}
 		}
 		return ret;
+	}
+
+	private Collection<LTS.Transition> cleanupInternal(
+			Collection<LTS.Transition> ts, LTS.StateWrapper current,
+	                Set<String> internal)
+	{
+		boolean markovian = false, unstable = false, collapse = false;
+		boolean selfLoop = false;
+		Set<LTS.StateWrapper> tauReachable = null;
+		for (LTS.Transition t : ts) {
+			if (internal.contains(t.label) && t.guard == ConstantExpression.TRUE) {
+				unstable = true;
+				if (t.assignments == null) {
+					if (tauReachable == null)
+						tauReachable = new TreeSet<>();
+					LTS.StateWrapper wrap;
+					wrap = new LTS.StateWrapper(t.target);
+					if (tauReachable.contains(wrap))
+						collapse = true;
+					else if (wrap.equals(current))
+						selfLoop = true;
+					else
+						tauReachable.add(wrap);
+				}
+			}
+			if (t.label.charAt(0) == 'r')
+				markovian = true;
+			if (t.label.charAt(0) == 't')
+				markovian = true;
+		}
+		if ((!markovian || !unstable) && !collapse && !selfLoop)
+			return ts;
+		ArrayList<LTS.Transition> ret = new ArrayList<>(ts.size() - 1);
+		if (selfLoop) {
+			for (LTS.Transition t : ts) {
+				LTS.StateWrapper wrap;
+				wrap = new LTS.StateWrapper(t.target);
+				if (internal.contains(t.label)
+					&& t.assignments == null
+					&& wrap.equals(current))
+				{
+					continue;
+				}
+				ret.add(t);
+			}
+			ts = ret;
+		}
+		if ((!markovian || !unstable) && !collapse)
+			return ts;
+		ret = new ArrayList<>(ts.size() - 1);
+		if ((markovian && unstable) || collapse) {
+			for (LTS.Transition t : ts) {
+				if (t.label.charAt(0) == 'r')
+					continue;
+				if (t.label.charAt(0) == 't')
+					continue;
+				if (!internal.contains(t.label)
+					|| t.guard != null
+					|| t.assignments != null)
+				{
+					ret.add(t);
+					continue;
+				}
+				LTS.StateWrapper wrap;
+				wrap = new LTS.StateWrapper(t.target);
+				if (!tauReachable.contains(wrap))
+					continue;
+				tauReachable.remove(wrap);
+				ret.add(t);
+			}
+		}
+		return new LTS.TransitionSet(ret, true);
 	}
 
 	public Automaton removeInternalNondet(Map<String, String> renames)
@@ -704,7 +792,7 @@ public class Automaton implements LTS {
 		}
 		if (!anyChange)
 			return this;
-		return new Automaton(this, keep);
+		return new Automaton(this, keep, null);
 	}
 
 	private Set<Integer> splitOn(Set<Integer> part, Set<Integer> splitter,
@@ -822,6 +910,8 @@ public class Automaton implements LTS {
 		Set<Integer> initialPartition = new HashSet<>();
 		for (int i = 0; i < targets.length; i++)
 			initialPartition.add(i);
+		if (VERBOSE)
+			System.out.println("Bisimulation reducing:\n" + toString());
 		partitions.add(initialPartition);
 		boolean stable = false;
 		while (!stable) {
@@ -862,8 +952,10 @@ public class Automaton implements LTS {
 		}
 		if (renames.isEmpty())
 			return false;
-		System.err.println("Reducing modulo bisimulation classes: " + partitions);
-		System.err.println("Renames: " + renames);
+		if (DEBUG) {
+			System.err.println("Reducing modulo bisimulation classes: " + partitions);
+			System.err.println("Renames: " + renames);
+		}
 		for (int s = targets.length - 1; s >= 0; s--) {
 			for (int t = targets[s].length - 1; t >= 0; t--) {
 				Integer to = renames.get(targets[s][t]);
@@ -872,6 +964,139 @@ public class Automaton implements LTS {
 			}
 		}
 		collapseSameMarkov();
+		return true;
+	}
+
+	private Set<LTS.Transition> getTransitionsExcept(int from,
+	                                                 Set<Integer> except)
+	{
+		ArrayList<LTS.Transition> ret = new ArrayList<>();
+		for (int i = targets[from].length - 1; i >= 0; i--) {
+			if (except.contains(targets[from][i])) {
+				Map<?, ?> assigns = getAssignments(from, i);
+				if (assigns == null || assigns.isEmpty())
+					continue;
+			}
+			int[] target = new int[]{targets[from][i]};
+			String label = labels[from][i];
+			if (label == null)
+				throw new NullPointerException(from + " -> " + targets[from][i] + " (" + i + ")");
+			Expression guard = getTransitionGuard(from, i);
+			Map<String, Expression> asgn = getAssignments(from, i);
+			ret.add(new LTS.Transition(label, target, guard, asgn));
+		}
+		return new LTS.TransitionSet(ret, true);
+	}
+
+	private boolean tauCollapse(Set<String> internals)
+	{
+		boolean markovian[] = new boolean[targets.length];
+		boolean tau[][] = new boolean[targets.length][];
+		boolean any = false;
+		ArrayList<Set<Integer>> tauReachable = new ArrayList<>();
+		if (VERBOSE) {
+			System.out.println("Collapsing:");
+			System.out.println(toString());
+		}
+		for (int i = 0; i < targets.length; i++) {
+			TreeSet<Integer> reach = new TreeSet<Integer>();
+			tau[i] = new boolean[labels[i].length];
+			tauReachable.add(reach);
+			for (int j = labels[i].length - 1; j >= 0; j--) {
+				if (labels[i][j].charAt(0) != 'i')
+					markovian[i] = true;
+				if (!internals.contains(labels[i][j]))
+					continue;
+				if (getTransitionGuard(i, j) != null)
+					continue;
+				Map<String, Expression> assigns
+					= getAssignments(i, j);
+				if (assigns != null && !assigns.isEmpty())
+					continue;
+				tau[i][j] = true;
+				any = true;
+				reach.add(targets[i][j]);
+			}
+		}
+		if (!any) {
+			if (DEBUG)
+				System.err.println("No effect");
+			return false;
+		}
+		if (DEBUG)
+			System.err.println("Tau-reachable: " + tauReachable);
+		boolean change = true;
+		while (change) {
+			change = false;
+			for (int i = 0; i < targets.length; i++) {
+				Set<Integer> reach = tauReachable.get(i);
+				Iterator<Integer> it = reach.iterator();
+				while (it.hasNext()) {
+					int t = it.next();
+					Set<Integer> tgt = tauReachable.get(t);
+					if (reach.addAll(tgt)) {
+						change = true;
+						it = reach.iterator();
+					}
+				}
+			}
+		}
+		for (int i = targets.length - 1; i >= 0; i--) {
+			Set<Integer> reach = tauReachable.get(i);
+			int markovCount = 0;
+			for (int r : reach) {
+				if (markovian[r])
+					markovCount++;
+			}
+			if (markovCount > 1) {
+				Iterator<Integer> it = reach.iterator();
+				while (it.hasNext()) {
+					if (markovian[it.next()])
+						it.remove();
+				}
+			}
+			reach.remove(i);
+			Set<LTS.Transition> ts = new TreeSet<>();
+			ts.addAll(getTransitionsExcept(i, reach));
+			for (int j : reach)
+				ts.addAll(getTransitionsExcept(j, reach));
+			int targets[] = new int[ts.size()];
+			String labels[] = new String[ts.size()];
+			Expression[] guards = null;
+			Map<String, Expression>[] assignments = null;
+			int j = 0;
+			for (LTS.Transition t : ts) {
+				targets[j] = t.target[0];
+				labels[j] = t.label;
+				if (t.guard != ConstantExpression.TRUE) {
+					if (guards == null)
+						guards = new Expression[ts.size()];
+					guards[j] = t.guard;
+				}
+				if (!t.assignments.isEmpty()) {
+					if (assignments == null)
+						assignments = Arrays.copyOf(this.assignments[0], ts.size());
+					assignments[j] = t.assignments;
+				}
+				j++;
+			}
+			this.targets[i] = targets;
+			this.labels[i] = labels;
+			if (guards != null) {
+				if (this.guards.length <= i)
+					this.guards = Arrays.copyOf(this.guards, i + 1);
+				this.guards[i] = guards;
+			}
+			if (assignments != null) {
+				if (this.assignments.length <= i)
+					this.assignments = Arrays.copyOf(this.assignments, i + 1);
+				this.assignments[i] = assignments;
+			}
+		}
+		if (DEBUG) {
+			System.err.println("Result:");
+			System.err.println(toString());
+		}
 		return true;
 	}
 

@@ -312,7 +312,12 @@ class Main {
 			c.markStatesAfter("ONLINE", 0);
 			if (doDontCareElimination)
 				c.addDontCares();
-			ret = c.partialCompose(256);
+			ret = null;
+			while (ret != c) {
+				ret = c;
+				c = c.partialCompose(256);
+			}
+			ret = c;
 		} else if (filename.endsWith(".aut")
 		           || filename.endsWith(".bcg"))
 		{

@@ -66,7 +66,8 @@ public class Composition implements MarkableLTS
 	 */
 	private int[] haveIndepTransitions;
 	private int[][][] indepTransitions;
-	private static final boolean DEBUG = true;
+	private final static boolean VERBOSE = false;
+	private final static boolean DEBUG = false;
 
 	private class PartialState {
 		private final Composition parent;
@@ -219,7 +220,6 @@ public class Composition implements MarkableLTS
 					labs[k] = orig.vectorLabels[v][l];
 					vec.add(idx + ":" + labs[k]);
 					k++;
-					size++;
 				}
 			}
 			String label = newLabels.get(vec);
@@ -304,9 +304,6 @@ public class Composition implements MarkableLTS
 				labels[i].length();
 				k++;
 			}
-			System.err.format("%d: %d %d\n", i, k, size);
-			for (String lab : vectorLabels[i])
-				lab.length();
 		}
 		synchronizedLabels = orig.synchronizedLabels;
 		priorityVectors = orig.priorityVectors;
@@ -321,7 +318,62 @@ public class Composition implements MarkableLTS
 		transientGlobals = orig.transientGlobals;
 	}
 
-	public Composition partialCompose(int stateLimit)
+	/* Returns the set of string in `labels' where `labels[i]' is
+	 * included iff the i'th synchronization vector does not refer
+	 * to automata outside `auts'.
+	 */
+	private Set<String> getInternalActions(int[] auts, String[] labels)
+	{
+		Arrays.sort(auts);
+		if (DEBUG)
+			System.out.format("Getting internals for %s\n", Arrays.toString(auts));
+		TreeSet<String> ret = new TreeSet<>();
+		for (int i = labels.length - 1; i >= 0; i--) {
+			String current = labels[i];
+			if (current == null)
+				continue;
+			if (markLabels.containsKey(current))
+				continue;
+			for (int a : vectorAutomata[i]) {
+				if (Arrays.binarySearch(auts, a) < 0) {
+					if (DEBUG)
+						System.out.format("%s not internal due to %d at %d\n", current, a, i);
+					current = null;
+					break;
+				}
+			}
+			if (current != null) {
+				ret.add(current);
+				if (DEBUG)
+					System.out.format("%s internal: %s \n", current, Arrays.toString(vectorAutomata[i]));
+			}
+		}
+		return ret;
+	}
+
+	private Composition compose(int[] auts)
+	{
+		String labels[] = new String[vectorLabels.length];
+		if (VERBOSE)
+			System.out.println("Composing "+ Arrays.toString(auts));
+		Composition sub = new Composition(this, auts, labels);
+		sub.afterParsing();
+		Set<String> internals = getInternalActions(auts, labels);
+		if (DEBUG)
+			sub.printAutomata();
+		Automaton aut = new Automaton(sub, null, internals);
+		sub = null;
+		if (DEBUG)
+			System.out.println("Labels: "+ Arrays.toString(labels));
+		Composition ret = new Composition(this, auts, aut, labels);
+		if (DEBUG) {
+			System.out.println("Recomposed:");
+			ret.printAutomata();
+		}
+		return ret;
+	}
+
+	private Composition composeAny(int stateLimit)
 	{
 		Composition ret = this;
 		Automaton auts[] = ret.automata;
@@ -342,36 +394,13 @@ public class Composition implements MarkableLTS
 			if (toComp.size() <= 1)
 				continue;
 			int[] arr = new int[toComp.size()];
-			i = 0;
+			int j = 0;
 			for (Integer c : toComp)
-				arr[i++] = c;
-			String labels[] = new String[ret.vectorLabels.length];
-			Automaton aut = null;
+				arr[j++] = c;
 			try {
-				if (DEBUG) {
-					System.out.println("Composing : " + toComp);
-				}
-				Composition sub;
-				sub = new Composition(ret, arr, labels);
-				sub.afterParsing();
-				if (DEBUG)
-					sub.printAutomata();
-				aut = new Automaton(sub);
-				if (DEBUG) {
-					System.out.println("Result:");
-					System.out.println(aut);
-					System.out.println("Labels: " + Arrays.toString(labels));
-				}
-				ret = new Composition(ret, arr, aut, labels);
-				if (DEBUG) {
-					System.out.println("Recomposed:");
-					ret.printAutomata();
-					if (1 == 1) {
-						ret.afterParsing();
-						return ret;
-					}
-				}
-				auts = ret.automata;
+				Composition newRet = ret.compose(arr);
+				auts = newRet.automata;
+				ret = newRet;
 				i = -1;
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -380,6 +409,64 @@ public class Composition implements MarkableLTS
 		if (ret != this)
 			ret.afterParsing();
 		return ret;
+	}
+
+	public Composition partialCompose(int stateLimit)
+	{
+		if (stateLimit > 0)
+			return composeAny(stateLimit);
+		HashMap<Set<Integer>, Integer> counts = new HashMap<>();
+		for (int i = vectorLabels.length - 1; i >= 0; i--) {
+			Set<Integer> auts = new TreeSet<>();
+			long states = 1;
+			if (vectorAutomata[i].length < 2)
+				continue;
+			if (!hideLabels.contains(synchronizedLabels[i]))
+				continue;
+			for (int j : vectorAutomata[i]) {
+				auts.add(j);
+				states *= automata[j].getNumStates();
+				if (states > stateLimit)
+					break;
+			}
+			if (stateLimit > 0 && states > stateLimit)
+				continue;
+			Integer prev = counts.get(auts);
+			if (prev == null)
+				prev = 1;
+			else
+				prev = prev + 1;
+			counts.put(auts, prev);
+		}
+		double bestScore = 0;
+		Set<Integer> best = null;
+		if (DEBUG)
+			System.out.println("Choosing composition from: " + counts);
+		for (Set<Integer> auts : counts.keySet()) {
+			double score = counts.get(auts);
+			if (auts.size() > 30)
+				continue;
+			score /= (1 << auts.size());
+			if (score > bestScore) {
+				best = auts;
+				bestScore = score;
+			}
+		}
+		if (best != null) {
+			int auts[] = new int[best.size()];
+			int i = 0;
+			for (Integer s : best)
+				auts[i++] = s;
+			try {
+				return compose(auts);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+
+		if (stateLimit > 0)
+			return composeAny(stateLimit);
+		return this;
 	}
 
 	public void markStatesAfter(String label, int val)
