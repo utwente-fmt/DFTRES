@@ -651,8 +651,9 @@ public class MakeTraLab {
 			for (Integer from : ts.keySet()) {
 				Integer to = renames.get(from);
 				if (to == null)
-					to = from;
-				to = moves[to];
+					to = moves[from];
+				if (to == j)
+					continue;
 				Set<String> newLabels = newTs.get(to);
 				if (newLabels == null) {
 					newLabels = ts.get(from);

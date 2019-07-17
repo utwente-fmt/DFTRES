@@ -20,6 +20,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import nl.ennoruijters.util.JSONParser;
 import nl.utwente.ewi.fmt.EXPRES.expression.ConstantExpression;
+import nl.utwente.ewi.fmt.EXPRES.expression.BinaryExpression;
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 import nl.utwente.ewi.fmt.EXPRES.expression.VariableExpression;
 
@@ -881,6 +882,8 @@ public class Composition implements MarkableLTS
 		i = 0;
 		while (existingLabels.contains(notCared))
 			notCared = "iNOTCARED_" + (i++);
+		String dcLabel = makeUnique(Set.of(synchronizedLabels), "iDC");
+		hideLabels.add(dcLabel);
 
 		for (i = 0; i < automata.length; i++) {
 			automata[i] = automata[i].addDontCares(dontCare,
@@ -922,7 +925,7 @@ public class Composition implements MarkableLTS
 			synchronizedLabels = Arrays.copyOf(synchronizedLabels, n);
 			vectorAutomata[n - 1] = auts;
 			vectorLabels[n - 1] = labs;
-			synchronizedLabels[n - 1] = "i";
+			synchronizedLabels[n - 1] = dcLabel;
 			priorityVectors = Arrays.copyOf(priorityVectors, n);
 			priorityVectors[n - 1] = true;
 		}
@@ -1362,7 +1365,7 @@ public class Composition implements MarkableLTS
 				String l;
 				while ((l = a.getTransitionLabel(i, j++)) != null) {
 					char type = l.charAt(0);
-					if (type != 't')
+					if (type != 'r' && type != 't')
 						ret.add(l);
 				}
 			}
@@ -1390,7 +1393,7 @@ public class Composition implements MarkableLTS
 					"\"type\":{\"kind\":\"bounded\",\"base\":\"int\",\"upper-bound\":1},"+
 					"\"initial-value\":0}],");
 			if (props.isEmpty()) {
-				out.println("\"constants\":[\n");
+				out.println("\"constants\":[");
 				out.println("\t{\"name\":\"T\", \"type\":\"real\"},");
 				out.println("\t{\"name\":\"L\", \"type\":\"real\"}],");
 			}
@@ -1550,9 +1553,9 @@ public class Composition implements MarkableLTS
 		if (props.isEmpty() && !markLabels.isEmpty()) {
 			/* Special cases as we write min/max. */
 			props = new HashSet<>();
-			Property av = new Property(Property.Type.STEADY_STATE, new VariableExpression("marked"), "Unavailability");
+			Property av = new Property(Property.Type.STEADY_STATE, new BinaryExpression(BinaryExpression.Operator.GREATER, new VariableExpression("marked"), ConstantExpression.FALSE), "Unavailability");
 			props.add(av);
-			Property mttf = new Property(Property.Type.EXPECTED_VALUE, Double.POSITIVE_INFINITY, new VariableExpression("marked"), "MTTF", new ConstantExpression(1), null);
+			Property mttf = new Property(Property.Type.EXPECTED_VALUE, Double.POSITIVE_INFINITY, new BinaryExpression(BinaryExpression.Operator.NOT_EQUALS, new VariableExpression("marked"), ConstantExpression.FALSE), "MTTF", new ConstantExpression(1), null);
 			props.add(mttf);
 			out.println("\t{\"name\":\"TBLmax_Unreliability\",");
 			out.println("\t \"expression\":{");
