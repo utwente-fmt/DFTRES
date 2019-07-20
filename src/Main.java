@@ -2,6 +2,7 @@ import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.security.SecureRandom;
 import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
@@ -300,7 +301,8 @@ class Main {
 
 	private static LTS loadModel(String filename,
 	                             Map<String, Number> constants,
-				     boolean doDontCareElimination)
+				     boolean doDontCareElimination,
+				     int compLimit)
 			throws IOException
 	{
 		LTS ret;
@@ -312,10 +314,12 @@ class Main {
 			c.markStatesAfter("ONLINE", 0);
 			if (doDontCareElimination)
 				c.addDontCares();
-			ret = null;
-			while (ret != c) {
-				ret = c;
-				c = c.partialCompose(256);
+			if (compLimit != 0) {
+				ret = null;
+				while (ret != c) {
+					ret = c;
+					c = c.partialCompose(compLimit);
+				}
 			}
 			ret = c;
 		} else if (filename.endsWith(".aut")
@@ -329,7 +333,15 @@ class Main {
 			m.markStatesAfter("ONLINE", 0);
 			ret = m;
 		} else if (filename.endsWith(".jani")) {
-			ret = new Composition(filename, "jani", properties, constants);
+			Composition c = new Composition(filename, "jani", properties, constants);
+			if (compLimit != 0) {
+				ret = null;
+				while (ret != c) {
+					ret = c;
+					c = c.partialCompose(compLimit);
+				}
+			}
+			ret = c;
 		} else if (filename.endsWith(".dft")) {
 			String[] cmd = new String[]{"dftcalc", "-x", filename};
 			Process dftc = Runtime.getRuntime().exec(cmd);
@@ -348,17 +360,101 @@ class Main {
 			if (basename.lastIndexOf('/') != -1)
 				basename = basename.substring(basename.lastIndexOf('/') + 1, basename.length());
 			basename = basename.substring(0, basename.length() - 4);
-			return loadModel("output/" + basename + ".exp", null, doDontCareElimination);
+			return loadModel("output/" + basename + ".exp", null, doDontCareElimination, compLimit);
 		} else {
 			throw new IllegalArgumentException("Type of file " + filename + " unknown");
 		}
 		return ret;
 	}
 
+	private static void usage(PrintStream out) {
+		String[][] options = new String[][] {
+			{"General options:"},
+			{"-h", "--help", "Show this message and exit."},
+			{"-p N", "Use N threads in parallel."},
+			{"--progress", "Show progress during simulations."},
+			{"--version", "Show the program version and exit."},
+			{"Available queries:"},
+			{"-a", "Compute system unavailability."},
+			{"-r T", "Compute unreliability up to time T."},
+			{"--mttf", "Compute mean time to failure."},
+			{"--prop P", "(For JANI models): compute the property named P."},
+			{"-u", "Compute time-unbounded unreliability."},
+			{"Simulation options:"},
+			{"-e E", "Simulate until an absolute of E has been reached."},
+			{"--relErr E", "Simulate until a relative of E has been reached."},
+			{"-n N", "Simulate exactly N runs."},
+			{"--rng <rng>", "Set the RNG type, available choices are:"},
+			{"",            "  \"XS128\":   Xoroshiro-128"},
+			{"",            "  \"mt19937\": Mersenne Twister"},
+			{"-s N", "Set initial seed for the RNG."},
+			{"-t T", "Simulate for approximately T seconds."},
+			{"Rare event simulation options:"},
+			{"--acc F", "Accelerate transitions by the constant factor F."},
+			{"--mc", "Using standard Monte Carlo to choose transition probabilities."},
+			{"--unif", "Transform outgoing transitions to uniform probabilities."},
+			{"--zvad", "Using ZVA-d to choose transition probabilities."},
+			{"--zvav", "Using ZVA-v to choose transition probabilities."},
+			{"-f F", "Stop time-forcing when the importance factor drops below F."},
+			{"--no-forcing", "Do not apply time-forcing."},
+			{"Model (optimization) options:"},
+			{"--compose full", "Compute the full parallel composition explicitly."},
+			{"--compose none", "Do not explicitly compute any parallel composition."},
+			{"--compose N", "Explicitly compute parallel compositions of automata as"},
+			{"",            "long as the resulting automata as guaranteed smaller"},
+			{"",            "than N states each (default: 256)."},
+			{"--def P V", "(for JANI models): Define constant P to value V."},
+			{"--no-dc", "Do not perform \"don't care\" optimizations."},
+			/* Undocumented option: --unsafe-scheduling */
+			{"Output options:"},
+			{"--json", "Format the output in JSON format following the QComp"},
+			{"",       "2018 schema."},
+			{"--export-jani F", "Export the model in JANI format to a file named F."},
+			{"--export-tralab F", "Export the model in .tra/.lab format to files named"},
+			{"",                  "F.tra and F.lab"}
+		};
+		int len = 0;
+		for (String[] option : options) {
+			if (option.length < 2)
+				continue;
+			int thisLen = 1;
+			for (int i = 0; i < option.length - 1; i++) {
+				thisLen += option[i].length();
+				if (i != 0)
+					thisLen += 2; /* For the ", " */
+			}
+			if (thisLen > len)
+				len = thisLen;
+		}
+		out.println("Usage: DFTRES [options] <model.file>");
+		out.println("Available options:");
+		for (String[] option : options) {
+			int spaces = len, i = 0;
+			if (option.length == 1) {
+				out.println();
+				out.println(option[0]);
+				continue;
+			}
+			for (i = 0; i < option.length - 1; i++) {
+				if (i != 0) {
+					spaces -= 2;
+					out.print(", ");
+				}
+				out.print(option[i]);
+				spaces -= option[i].length();
+			}
+			while (spaces --> 0)
+				out.print(' ');
+			System.err.println(option[i]);
+		}
+		System.exit(out == System.err ? -1 : 0);
+	}
+
 	public static void main(String args[]) throws Exception
 	{
 		long startTime = System.nanoTime();
 		long seed = 0;
+		int compositionStateLimit = 256;
 		boolean haveSeed = false;
 		boolean doDontCareElimination = true;
 		TreeMap<String, Number> constants = new TreeMap<>();
@@ -369,14 +465,14 @@ class Main {
 			System.out.println("Version: " + Version.version);
 			System.exit(0);
 		}
-		if (args.length == 0) {
-			System.err.println("No filename provided.");
-			System.exit(-1);
-		}
+		if (args.length == 0)
+			usage(System.err);
 		String filename = args[args.length - 1];
 		String janiOutputFile = null, traLabOutputFile = null;
 
 		for (int i = 0; i < args.length - 1; i++) {
+			if (args[i].equals("--help"))
+				usage(System.out);
 			if (args[i].equals("-a")) {
 				Property av = new Property(Property.Type.STEADY_STATE, new VariableExpression("marked"), "Unavailability");
 				properties.add(av);
@@ -454,6 +550,17 @@ class Main {
 				janiOutputFile = args[++i];
 			else if (args[i].equals("--export-tralab"))
 				traLabOutputFile = args[++i];
+			else if (args[i].equals("--compose")) {
+				int limit = 0;
+				i++;
+				if (args[i].equalsIgnoreCase("full"))
+					limit = -1;
+				else if (args[i].equalsIgnoreCase("none"))
+					limit = 0;
+				else
+					limit = Integer.parseInt(args[i]);
+				compositionStateLimit = limit;
+			}
 			else if (args[i].equals("--unsafe-scheduling"))
 				unsafeComposition = true;
 			else if (args[i].equals("--no-forcing"))
@@ -469,7 +576,7 @@ class Main {
 			rng = new MersenneTwisterFast(seed);
 		}
 
-		model = loadModel(filename, constants, doDontCareElimination);
+		model = loadModel(filename, constants, doDontCareElimination, compositionStateLimit);
 		if (janiOutputFile != null)
 			MakeJani.makeJani(model, janiOutputFile, jsonOutput ? filename : null, args, properties);
 		if (traLabOutputFile != null) {
@@ -478,7 +585,7 @@ class Main {
 				mtl.convert(traLabOutputFile);
 			} catch (NondeterminismException e) {
 				e.printStackTrace();
-				LTS tmpModel = loadModel(filename, constants, false);
+				LTS tmpModel = loadModel(filename, constants, false, compositionStateLimit);
 				MakeTraLab mtl = new MakeTraLab(tmpModel, unsafeComposition);
 				mtl.convert(traLabOutputFile);
 			}
