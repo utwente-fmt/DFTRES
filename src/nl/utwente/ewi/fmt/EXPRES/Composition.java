@@ -750,8 +750,10 @@ public class Composition implements MarkableLTS
 			vectorAutomata = Arrays.copyOf(vectorAutomata, pos + 1);
 			vectorLabels = Arrays.copyOf(vectorLabels, pos + 1);
 			synchronizedLabels = Arrays.copyOf(synchronizedLabels, pos + 1);
+			priorityVectors = Arrays.copyOf(priorityVectors, pos + 1);
 			vectorAutomata[pos] = vectorAutomata[i];
 			synchronizedLabels[pos] = synchronizedLabels[i];
+			priorityVectors[pos] = priorityVectors[i];
 			vectorLabels[pos] = vectorLabels[i].clone();
 			vectorLabels[pos][j] = to;
 		}
