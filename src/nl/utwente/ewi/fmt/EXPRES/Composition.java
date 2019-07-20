@@ -197,6 +197,7 @@ public class Composition implements MarkableLTS
 		priorityVectors = new boolean[keepVectors.size()];
 		Set<String> usedLabels = new TreeSet<>();
 		i = 0;
+		HashMap<Set<String>, String> newLabels = new HashMap<>();
 		for (int v : keepVectors) {
 			int[] oldAuts = orig.vectorAutomata[v];
 			int size = 0;
@@ -208,6 +209,7 @@ public class Composition implements MarkableLTS
 			int auts[] = new int[size];
 			String labs[] = new String[size]; 
 			int k = 0;
+			Set<String> vec = new TreeSet<>();
 
 			for (int l = 0; l < oldAuts.length; l++) {
 				int aut = oldAuts[l];
@@ -215,13 +217,18 @@ public class Composition implements MarkableLTS
 				if (idx >= 0) {
 					auts[k] = idx;
 					labs[k] = orig.vectorLabels[v][l];
+					vec.add(idx + ":" + labs[k]);
 					k++;
 					size++;
 				}
 			}
-			String label = orig.synchronizedLabels[v];
-			label = makeUnique(usedLabels, label);
-			usedLabels.add(label);
+			String label = newLabels.get(vec);
+			if (label == null) {
+				label = orig.synchronizedLabels[v];
+				label = makeUnique(usedLabels, label);
+				newLabels.put(vec, label);
+				usedLabels.add(label);
+			}
 			synchronizedLabels[i] = label;
 			syncLabs[v] = label;
 			vectorAutomata[i] = auts;
@@ -343,7 +350,6 @@ public class Composition implements MarkableLTS
 			try {
 				if (DEBUG) {
 					System.out.println("Composing : " + toComp);
-					ret.printAutomata();
 				}
 				Composition sub;
 				sub = new Composition(ret, arr, labels);
