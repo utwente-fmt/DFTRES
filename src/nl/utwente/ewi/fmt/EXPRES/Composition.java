@@ -739,8 +739,7 @@ public class Composition implements MarkableLTS
 
 	private void duplicateAutAction(int aut, String from, String to)
 	{
-		System.err.println("Removing nondeterminism for " + from);
-		for (int i = vectorAutomata.length - 1; i > 0; i--) {
+		for (int i = vectorAutomata.length - 1; i >= 0; i--) {
 			int j;
 			for (j = 0; j < vectorAutomata[i].length; j++) {
 				if (vectorAutomata[i][j] == aut

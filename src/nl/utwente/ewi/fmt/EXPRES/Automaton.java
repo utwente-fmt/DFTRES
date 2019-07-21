@@ -393,6 +393,7 @@ public class Automaton implements LTS {
 	{
 		boolean needsChanges = false;
 		TreeSet<String> presentActions = new TreeSet<>();
+		Map<String, Set<String>> newNames = new HashMap<>();
 		for(int i = 0; i < targets.length; i++) {
 			TreeSet<String> stateActions = new TreeSet<>();
 			for (int j = 0; j < targets[i].length; j++) {
@@ -417,15 +418,28 @@ public class Automaton implements LTS {
 					continue;
 				if (stateActions.add(act))
 					continue;
-				act = renames.get(act);
-				if (act == null)
-					act = "ia" + (k++);
-				while (presentActions.contains(act))
-					act = "ia" + (k++);
-				presentActions.add(act);
-				renames.put(act, labels[i][j]);
+				Set<String> acts = newNames.get(act);
+				if (acts == null) {
+					acts = new TreeSet<>();
+					newNames.put(act, acts);
+				}
+				String newName = null;
+				for (String a : acts) {
+					if (!stateActions.contains(a)) {
+						newName = a;
+						break;
+					}
+				}
+				if (newName == null) {
+					newName = "ia" + (k++);
+					while (presentActions.contains(newName))
+						newName = "ia" + (k++);
+					acts.add(newName);
+				}
+				presentActions.add(newName);
+				renames.put(newName, labels[i][j]);
 				ret.labels[i] = ret.labels[i].clone();
-				ret.labels[i][j] = act;
+				ret.labels[i][j] = newName;
 			}
 		}
 		ret.createTransitionArray();
