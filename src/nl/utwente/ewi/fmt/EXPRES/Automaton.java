@@ -123,6 +123,8 @@ public class Automaton implements LTS {
 				{
 					continue;
 				}
+				if (t.label.equals("r0"))
+					continue;
 				LTS.StateWrapper tgt = new LTS.StateWrapper(t.target);
 				Integer tgtNum = states.get(tgt);
 				if (tgtNum == null) {
@@ -174,13 +176,15 @@ public class Automaton implements LTS {
 			anyChange |= tauCollapse(internal);
 		createTransitionArray();
 		if (anyChange) {
-			Automaton a = new Automaton(this, permitted, internal);
+			Automaton a = new Automaton(this, permitted, null);
 			if (a.initState == initState) {
 				labels = a.labels;
 				targets = a.targets;
 				assignments = a.assignments;
 				guards = a.guards;
 				transitions = a.transitions;
+			} else {
+				throw new AssertionError("Change of initial state number in automaton generation");
 			}
 		}
 	}
@@ -415,9 +419,10 @@ public class Automaton implements LTS {
 					continue;
 				act = renames.get(act);
 				if (act == null)
-					act = "a" + (k++);
+					act = "ia" + (k++);
 				while (presentActions.contains(act))
-					act = "a" + (k++);
+					act = "ia" + (k++);
+				presentActions.add(act);
 				renames.put(act, labels[i][j]);
 				ret.labels[i] = ret.labels[i].clone();
 				ret.labels[i][j] = act;
@@ -879,6 +884,22 @@ public class Automaton implements LTS {
 		for (int i = labels.length - 1; i >= 0; i--) {
 			int[] ts = targets[i];
 			String[] ls = labels[i];
+			int length = ts.length;
+			for (int j = ts.length - 1; j >= 0; j--) {
+				if (ts[j] != i)
+					continue;
+				if (ls[j].charAt(0) != 'r')
+					continue;
+				length--;
+				ts[j] = ts[length];
+				ls[j] = ls[length];
+			}
+			if (length != ts.length) {
+				ts = Arrays.copyOf(ts, length);
+				targets[i] = ts;
+				ls = Arrays.copyOf(ls, length);
+				labels[i] = ls;
+			}
 			Arrays.fill(idxs, -1);
 			int offset = 0;
 			for (int j = 0; j < ts.length; j++) {
@@ -1098,6 +1119,41 @@ public class Automaton implements LTS {
 			System.err.println(toString());
 		}
 		return true;
+	}
+
+	public Automaton applyMaxProgress()
+	{
+		Automaton copy = new Automaton(this);
+		Automaton reduced = copy.maxProg();
+		if (reduced != copy)
+			return reduced;
+		else
+			return copy;
+	}
+
+	private Automaton maxProg()
+	{
+		boolean change = false;
+		for (int i = targets.length - 1; i >= 0; i--) {
+			boolean interactive = false, markov = false;
+			for (String l : labels[i]) {
+				if (l.charAt(0) == 'i')
+					interactive = true;
+				else
+					markov = true;
+			}
+			if (interactive && markov) {
+				for (int j = 0; j < labels[i].length; j++) {
+					if (labels[i][j].charAt(0) == 'r') {
+						labels[i][j] = "r0";
+						change = true;
+					}
+				}
+			}
+		}
+		if (change)
+			return new Automaton(this);
+		return this;
 	}
 
 	public int stateSize()

@@ -359,9 +359,12 @@ public class Composition implements MarkableLTS
 		Composition sub = new Composition(this, auts, labels);
 		sub.afterParsing();
 		Set<String> internals = getInternalActions(auts, labels);
+		System.out.println("Internal actions: " + internals);
 		if (DEBUG)
 			sub.printAutomata();
 		Automaton aut = new Automaton(sub, null, internals);
+		if (auts.length == automata.length)
+			aut = aut.applyMaxProgress();
 		sub = null;
 		if (DEBUG)
 			System.out.println("Labels: "+ Arrays.toString(labels));
@@ -377,6 +380,8 @@ public class Composition implements MarkableLTS
 	{
 		Composition ret = this;
 		Automaton auts[] = ret.automata;
+		if (stateLimit <= 0)
+			stateLimit = Integer.MAX_VALUE;
 		for (int i = 0; i < auts.length; i++) {
 			if (auts[i].getNumStates() > stateLimit)
 				continue;
@@ -426,7 +431,7 @@ public class Composition implements MarkableLTS
 			for (int j : vectorAutomata[i]) {
 				auts.add(j);
 				states *= automata[j].getNumStates();
-				if (states > stateLimit)
+				if (stateLimit > 0 && states > stateLimit)
 					break;
 			}
 			if (stateLimit > 0 && states > stateLimit)
@@ -458,15 +463,15 @@ public class Composition implements MarkableLTS
 			for (Integer s : best)
 				auts[i++] = s;
 			try {
-				return compose(auts);
+				Composition ret = compose(auts);
+				ret.afterParsing();
+				return ret;
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
 		}
 
-		if (stateLimit > 0)
-			return composeAny(stateLimit);
-		return this;
+		return composeAny(stateLimit);
 	}
 
 	public void markStatesAfter(String label, int val)
