@@ -359,9 +359,10 @@ public class Composition implements MarkableLTS
 		Composition sub = new Composition(this, auts, labels);
 		sub.afterParsing();
 		Set<String> internals = getInternalActions(auts, labels);
-		System.out.println("Internal actions: " + internals);
-		if (DEBUG)
+		if (DEBUG) {
+			System.out.println("Internal actions: " + internals);
 			sub.printAutomata();
+		}
 		Automaton aut = new Automaton(sub, null, internals);
 		if (auts.length == automata.length)
 			aut = aut.applyMaxProgress();
