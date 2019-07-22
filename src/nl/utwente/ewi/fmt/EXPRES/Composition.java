@@ -24,6 +24,8 @@ import nl.utwente.ewi.fmt.EXPRES.expression.BinaryExpression;
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 import nl.utwente.ewi.fmt.EXPRES.expression.VariableExpression;
 
+import algorithms.Simulator;
+
 public class Composition implements MarkableLTS
 {
 	public static int statesExplored;
@@ -421,6 +423,17 @@ public class Composition implements MarkableLTS
 	{
 		if (stateLimit > 0)
 			return composeAny(stateLimit);
+		if (Simulator.showProgress) {
+			boolean first = true;
+			System.out.print("Building composition, current sizes: [");
+			for (Automaton a : automata) {
+				if (!first)
+					System.out.print(", ");
+				first = false;
+				System.out.format("%d", a.getNumStates());
+			}
+			System.out.println("]");
+		}
 		HashMap<Set<Integer>, Integer> counts = new HashMap<>();
 		for (int i = vectorLabels.length - 1; i >= 0; i--) {
 			Set<Integer> auts = new TreeSet<>();

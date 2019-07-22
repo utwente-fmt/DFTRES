@@ -15,6 +15,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -814,11 +815,260 @@ public class Automaton implements LTS {
 		return new Automaton(this, keep, null);
 	}
 
-	private Set<Integer> splitOn(Set<Integer> part, Set<Integer> splitter,
+	/** Set of states.
+	 * Note: equality does not consider the 'done' status.
+	 */
+	private class Partition implements Set<Integer> {
+		public int[] states;
+		public boolean done;
+
+		public Partition() {
+			states = new int[0];
+		}
+
+		public Partition(Set<Integer> existing) {
+			if (existing instanceof Partition) {
+				Partition p = (Partition)existing;
+				states = p.states.clone();
+				done = p.done;
+				return;
+			}
+			states = new int[existing.size()];
+			int i = 0;
+			for (Integer e : existing)
+				states[i++] = e;
+			Arrays.sort(states);
+		}
+
+		public Partition(int min, int max) {
+			states = new int[max - min + 1];
+			int i = 0;
+			while (min < max)
+				states[i++] = min++;
+			states[i] = max;
+		}
+
+		public boolean add(int e) {
+			int idx = Arrays.binarySearch(states, e);
+			if (idx >= 0)
+				return false;
+			int[] newStates = new int[states.length + 1];
+			idx = -idx - 1;
+			System.arraycopy(states, 0, newStates, 0, idx);
+			System.arraycopy(states, idx, newStates, idx + 1,
+			                 states.length - idx);
+			states = newStates;
+			newStates[idx] = e;
+			return true;
+		}
+
+		public boolean addAll(Collection<? extends Integer> c) {
+			boolean change = false;
+			for (Integer e : c)
+				change |= add((int)e);
+			return change;
+		}
+
+		public boolean add(Integer e) {
+			return add((int)e);
+		}
+
+		public void clear() {
+			states = new int[0];
+		}
+
+		public boolean contains(int e) {
+			return Arrays.binarySearch(states, e) >= 0;
+		}
+
+		public boolean contains(Object o) {
+			if (!(o instanceof Integer))
+				return false;
+			return contains((int)(Integer)o);
+		}
+
+		public boolean containsAll(Collection<?> c) {
+			boolean ret = true;
+			for (Object o : c)
+				ret |= contains(o);
+			return ret;
+		}
+
+		public boolean equals(Object o) {
+			if (o instanceof Partition) {
+				Partition other = (Partition)o;
+				return Arrays.equals(states, other.states);
+			} else if (o instanceof Set) {
+				Set<?> s = (Set<?>)o;
+				if (s.size() != states.length)
+					return false;
+				return containsAll(s);
+			} else {
+				return false;
+			}
+		}
+
+		public int hashCode() {
+			int ret = 0;
+			for (int i : states)
+				ret += i;
+			return ret;
+		}
+
+		public boolean isEmpty() {
+			return states.length == 0;
+		}
+
+		public Iterator<Integer> iterator() {
+			return new Iterator<Integer>() {
+				private int pos = 0;
+				public boolean hasNext() {
+					return pos < states.length;
+				}
+
+				public Integer next() {
+					return states[pos++];
+				}
+
+				public void remove() {
+					removeIdx(--pos);
+				}
+			};
+		}
+
+		public boolean removeIdx(int idx) {
+			int[] newStates = new int[states.length - 1];
+			System.arraycopy(states, 0, newStates, 0, idx);
+			System.arraycopy(states, idx + 1, newStates, idx,
+			                 states.length - idx);
+			states = newStates;
+			return true;
+		}
+
+		public boolean remove(int e) {
+			int idx = Arrays.binarySearch(states, e);
+			if (idx < 0)
+				return false;
+			return removeIdx(e);
+		}
+
+		public boolean remove(Object e) {
+			if (!(e instanceof Integer))
+				return false;
+			return remove((int)(Integer)e);
+		}
+
+		public boolean removeAll(Collection<?> c) {
+			boolean ret = false;
+			if (c instanceof Partition) {
+				Partition p = (Partition)c;
+				/*
+				if (p.states.length == 1)
+					return remove(p.states[0]);
+					*/
+				if (states.length == 0 || p.states.length == 0)
+					return false;
+				int p1 = 0, p2 = 0, left = 0;
+				while (p1 < states.length
+				       && p2 < p.states.length)
+				{
+					if (states[p1] < p.states[p2]) {
+						left++;
+						p1++;
+					} else {
+						if (states[p1] == p.states[p2])
+							p1++;
+						p2++;
+					}
+				}
+				left += states.length - p1;
+				int[] newStates = new int[left];
+				int i = 0;
+				p1 = p2 = 0;
+				while (i < left) {
+					if (p2 >= p.states.length
+					    || states[p1] < p.states[p2]) 
+					{
+						newStates[i++] = states[p1];
+						p1++;
+					} else {
+						if (p2 < p.states.length
+						    && states[p1] == p.states[p2])
+						{
+							p1++;
+						}
+						if (p2 < p.states.length)
+							p2++;
+					}
+				}
+				states = newStates;
+			} else {
+				for (Object o : c)
+					ret |= remove(o);
+			}
+			return ret;
+		}
+
+		public boolean retainAll(Collection<?> c) {
+			Partition ret = new Partition();
+			for (Object o : c) {
+				if (contains(o))
+					ret.add((Integer)o);
+			}
+			boolean change = (ret.states.length != states.length);
+			states = ret.states;
+			return change;
+		}
+
+		public int size() {
+			return states.length;
+		}
+
+		public Object[] toArray() {
+			Object[] ret = new Object[states.length];
+			for (int i = 0; i < ret.length; i++)
+				ret[i] = states[i];
+			return ret;
+		}
+
+		public <T> T[] toArray(T[] in) {
+			if (!(in instanceof Integer[]))
+				throw new ArrayStoreException();
+			Integer[] arr = (Integer[]) in;
+			if (arr.length < states.length) {
+				in = Arrays.copyOf(in, states.length);
+				/*
+				if (!(in instanceof Integer[]))
+					throw new ArrayStoreException();
+					*/
+				arr = (Integer[]) in;
+			}
+			int i = 0;
+			for (i = 0; i < states.length; i++)
+				arr[i] = states[i];
+			return in;
+		}
+
+		public String toString() {
+			StringBuffer out = new StringBuffer();
+			out.append('[');
+			boolean first = true;
+			for (int s : states) {
+				if (!first)
+					out.append(", ");
+				first = false;
+				out.append(s);
+			}
+			out.append(']');
+			return out.toString();
+		}
+	}
+
+	private Partition splitOn(Partition part, Partition splitter,
 	                             String label)
 	{
-		Set<Integer> cannotReach = null;
-		for (Integer s : part) {
+		Partition cannotReach = null;
+		for (int s : part.states) {
 			boolean canReach = false;
 			for (int l = labels[s].length - 1; l >= 0; l--) {
 				if (!labels[s][l].equals(label))
@@ -828,8 +1078,9 @@ public class Automaton implements LTS {
 			}
 			if (!canReach) {
 				if (cannotReach == null)
-					cannotReach = new TreeSet<>();
-				cannotReach.add(s);
+					cannotReach = new Partition(s, s);
+				else
+					cannotReach.add(s);
 			}
 		}
 		if (cannotReach != null)
@@ -837,13 +1088,13 @@ public class Automaton implements LTS {
 		return cannotReach;
 	}
 
-	private Set<Integer> splitRate(Set<Integer> part, Set<Integer> splitter)
+	private Partition splitRate(Partition part, Partition splitter)
 	{
 		if (part == splitter)
 			return null;
-		Set<Integer> newPart = null;
+		Partition newPart = null;
 		BigDecimal rate = null;
-		for (Integer s : part) {
+		for (int s : part.states) {
 			BigDecimal myRate = BigDecimal.ZERO;
 			for (int l = labels[s].length - 1; l >= 0; l--) {
 				String label = labels[s][l];
@@ -861,24 +1112,21 @@ public class Automaton implements LTS {
 			}
 			if (rate.compareTo(myRate) != 0) {
 				if (newPart == null)
-					newPart = new TreeSet<>();
+					newPart = new Partition();
 				newPart.add(s);
 			}
 		}
-		if (newPart != null) {
+		if (newPart != null)
 			part.removeAll(newPart);
-			if (newPart.size() == 1)
-				return Set.of(newPart.iterator().next());
-		}
 		return newPart;
 	}
 
-	private Set<Integer> split(Set<Integer> part, Set<Integer> splitter)
+	private Partition split(Partition part, Partition splitter)
 	{
-		Set<Integer> ret = splitRate(part, splitter);
+		Partition ret = splitRate(part, splitter);
 		if (ret != null)
 			return ret;
-		for (Integer s : part) {
+		for (int s : part.states) {
 			for (int l = labels[s].length - 1; l >= 0; l--) {
 				String label = labels[s][l];
 				if (label.charAt(0) == 'r')
@@ -941,26 +1189,30 @@ public class Automaton implements LTS {
 	private boolean bisimulationReduction() {
 		if (assignments != null || guards != null)
 			return false;
-		HashSet<Set<Integer>> partitions = new HashSet<>();
-		Set<Integer> initialPartition = new HashSet<>();
-		for (int i = 0; i < targets.length; i++)
-			initialPartition.add(i);
+		HashSet<Partition> partitions = new HashSet<>();
+		Partition initialPartition = new Partition(0, targets.length-1);
 		if (VERBOSE)
 			System.out.println("Bisimulation reducing:\n" + toString());
 		partitions.add(initialPartition);
 		boolean stable = false;
 		while (!stable) {
 			stable = true;
-			Iterator<Set<Integer>> it = partitions.iterator();
+			Iterator<Partition> it = partitions.iterator();
 			while (it.hasNext()) {
-				Set<Integer> splitter = it.next();
-				Set<Set<Integer>> newParts = new HashSet<>();
-				for (Set<Integer> part : partitions) {
-					Set<Integer> newPart;
+				Partition splitter = it.next();
+				if (splitter.done)
+					continue;
+				boolean done = true;
+				List<Partition> newParts = new ArrayList<>();
+				for (Partition part : partitions) {
+					Partition newPart;
 					newPart = split(part, splitter);
-					if (newPart != null)
+					if (newPart != null) {
 						newParts.add(newPart);
+						done = false;
+					}
 				}
+				splitter.done = done;
 				partitions.addAll(newParts);
 				if (!newParts.isEmpty()) {
 					stable = false;
@@ -972,7 +1224,7 @@ public class Automaton implements LTS {
 		}
 
 		HashMap<Integer, Integer> renames = new HashMap<>();
-		for (Set<Integer> partition : partitions) {
+		for (Partition partition : partitions) {
 			Integer first = null;
 			if (partition.size() > 1) {
 				if (partition.contains(initState))
