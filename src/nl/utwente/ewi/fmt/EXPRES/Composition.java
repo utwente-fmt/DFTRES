@@ -200,7 +200,8 @@ public class Composition implements MarkableLTS
 		priorityVectors = new boolean[keepVectors.size()];
 		Set<String> usedLabels = new TreeSet<>();
 		i = 0;
-		HashMap<Set<String>, String> newLabels = new HashMap<>();
+		HashMap<Set<List<Object>>, String> newLabels = new HashMap<>();
+		HashMap<Set<List<Object>>, String> contexts = new HashMap<>();
 		for (int v : keepVectors) {
 			int[] oldAuts = orig.vectorAutomata[v];
 			int size = 0;
@@ -212,25 +213,36 @@ public class Composition implements MarkableLTS
 			int auts[] = new int[size];
 			String labs[] = new String[size]; 
 			int k = 0;
-			Set<String> vec = new TreeSet<>();
+			Set<List<Object>> vec = new HashSet<>();
+			Set<List<Object>> context = new HashSet<>();
+			context.add(List.of(orig.synchronizedLabels[v]));
 
 			for (int l = 0; l < oldAuts.length; l++) {
 				int aut = oldAuts[l];
 				int idx = Arrays.binarySearch(automata, aut);
+				String label = orig.vectorLabels[v][l];
 				if (idx >= 0) {
 					auts[k] = idx;
-					labs[k] = orig.vectorLabels[v][l];
-					vec.add(idx + ":" + labs[k]);
+					labs[k] = label;
+					vec.add(List.of(idx, label));
 					k++;
+				} else {
+					context.add(List.of(aut, label));
 				}
 			}
 			String label = newLabels.get(vec);
+			if (label != null) {
+				syncLabs[v] = label;
+				continue;
+			}
+			label = contexts.get(context);
 			if (label == null) {
 				label = orig.synchronizedLabels[v];
 				label = makeUnique(usedLabels, label);
-				newLabels.put(vec, label);
+				contexts.put(context, label);
 				usedLabels.add(label);
 			}
+			newLabels.put(vec, label);
 			synchronizedLabels[i] = label;
 			syncLabs[v] = label;
 			vectorAutomata[i] = auts;
@@ -238,6 +250,12 @@ public class Composition implements MarkableLTS
 			if (size == oldAuts.length)
 				priorityVectors[i] = orig.priorityVectors[v];
 			i++;
+		}
+		if (i != vectorAutomata.length) {
+			vectorAutomata = Arrays.copyOf(vectorAutomata, i);
+			vectorLabels = Arrays.copyOf(vectorLabels, i);
+			synchronizedLabels = Arrays.copyOf(synchronizedLabels, i);
+			priorityVectors = Arrays.copyOf(priorityVectors, i);
 		}
 		globalVars = Map.of();
 		transientGlobals = Map.of();
@@ -323,18 +341,22 @@ public class Composition implements MarkableLTS
 	/* Returns the set of string in `labels' where `labels[i]' is
 	 * included iff the i'th synchronization vector does not refer
 	 * to automata outside `auts'.
+	 * If 'visible' is set, returns only those transitions that have
+	 * external effects (i.e., markLabels). Otherwise, return only
+	 * those that do not (and can thus safely be removed).
 	 */
-	private Set<String> getInternalActions(int[] auts, String[] labels)
+	private Set<String> getInternalActions(int[] auts, String[] labels,
+	                                       boolean visible)
 	{
 		Arrays.sort(auts);
 		if (DEBUG)
 			System.out.format("Getting internals for %s\n", Arrays.toString(auts));
 		TreeSet<String> ret = new TreeSet<>();
 		for (int i = labels.length - 1; i >= 0; i--) {
-			String current = labels[i];
+			String current = labels[i], sl = synchronizedLabels[i];
 			if (current == null)
 				continue;
-			if (markLabels.containsKey(current))
+			if (markLabels.containsKey(sl) != visible)
 				continue;
 			for (int a : vectorAutomata[i]) {
 				if (Arrays.binarySearch(auts, a) < 0) {
@@ -356,22 +378,34 @@ public class Composition implements MarkableLTS
 	private Composition compose(int[] auts)
 	{
 		String labels[] = new String[vectorLabels.length];
-		if (VERBOSE)
+		if (VERBOSE) {
 			System.out.println("Composing "+ Arrays.toString(auts));
+			System.out.print("Sizes: [");
+			boolean first = true;
+			for (int a : auts) {
+				if (!first)
+					System.out.print(", ");
+				first = false;
+				System.out.print(automata[a].getNumStates());
+			}
+			System.out.println("]");
+		}
 		Composition sub = new Composition(this, auts, labels);
 		sub.afterParsing();
-		Set<String> internals = getInternalActions(auts, labels);
+		Set<String> internals = getInternalActions(auts, labels, false);
+		Set<String> maxProg = getInternalActions(auts, labels, true);
 		if (DEBUG) {
 			System.out.println("Internal actions: " + internals);
+			System.out.println("Max-Prog actions: " + maxProg);
 			sub.printAutomata();
 		}
-		Automaton aut = new Automaton(sub, null, internals);
-		if (auts.length == automata.length)
-			aut = aut.applyMaxProgress();
+		maxProg.addAll(internals);
+		Automaton aut = new Automaton(sub, null, internals, maxProg);
 		sub = null;
 		if (DEBUG)
 			System.out.println("Labels: "+ Arrays.toString(labels));
 		Composition ret = new Composition(this, auts, aut, labels);
+		ret.removeImpossibleActions();
 		if (DEBUG) {
 			System.out.println("Recomposed:");
 			ret.printAutomata();
@@ -801,9 +835,12 @@ public class Composition implements MarkableLTS
 			syncs.add(new TreeSet<>());
 		}
 
+		HashSet<Set<Object>> existing = new HashSet<>();
 		for (int i = 0; i < vectorAutomata.length; i++) {
 			int auts[] = vectorAutomata[i];
 			String labels[] = vectorLabels[i];
+			Set<Object> summary = new HashSet<>();
+			summary.add(synchronizedLabels[i]);
 			boolean ok = true;
 			for (int j = 0; j < auts.length; j++) {
 				Set<String> acts = actions.get(auts[j]);
@@ -811,7 +848,10 @@ public class Composition implements MarkableLTS
 					ok = false;
 					break;
 				}
+				summary.add(List.of(auts[j], labels[j]));
 			}
+			if (!existing.add(summary))
+				ok = false;
 			if (!ok) {
 				int j = vectorAutomata.length - 1;
 				vectorAutomata[i] = vectorAutomata[j];
