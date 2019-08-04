@@ -662,7 +662,7 @@ public class MakeTraLab {
 				}
 				Set<String> oldLabels = ts.get(from);
 				String rate = null;
-				for (String l : oldLabels) {
+				for (String l : newLabels) {
 					if (l.charAt(0) == 'r') {
 						rate = l;
 						break;
