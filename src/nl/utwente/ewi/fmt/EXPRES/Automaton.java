@@ -15,6 +15,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -870,20 +871,24 @@ public class Automaton implements LTS {
 	}
 
 	/** Set of states.
-	 * Note: equality does not consider the 'done' status.
 	 */
-	private class Partition implements Iterable<Integer>, Comparable<Partition> {
+	private class Partition implements Iterable<Integer> {
 		private BitSet contents;
 		private int hash;
 		private int size;
-		public boolean done;
+		public IdentityHashMap<Partition, Object> predecessors;
+		public IdentityHashMap<Partition, Object> successors;
 
 		public Partition() {
+			predecessors = new IdentityHashMap<>();
+			successors = new IdentityHashMap<>();
 			contents = new BitSet();
 		}
 
 		public Partition(Partition existing) {
 			contents = (BitSet)existing.contents.clone();
+			predecessors = new IdentityHashMap<>(existing.predecessors);
+			successors = new IdentityHashMap<>(existing.successors);
 			hash = existing.hash;
 			size = existing.size;
 		}
@@ -923,10 +928,26 @@ public class Automaton implements LTS {
 		}
 
 		public String toString() {
-			String ret = contents.toString();
-			if (done)
-				ret = "D" + ret;
-			return ret;
+			StringBuffer ret = new StringBuffer();
+			ret.append(contents.toString());
+			ret.append("(pre: ");
+			boolean first = true;
+			for (Partition p : predecessors.keySet()) {
+				if (!first)
+					ret.append(",");
+				first = false;
+				ret.append(p.contents.toString());
+			}
+			ret.append(")(succ: ");
+			first = true;
+			for (Partition p : successors.keySet()) {
+				if (!first)
+					ret.append(",");
+				first = false;
+				ret.append(p.contents.toString());
+			}
+			ret.append(')');
+			return ret.toString();
 		}
 
 		public boolean add(int p) {
@@ -973,23 +994,16 @@ public class Automaton implements LTS {
 		public int size() {
 			return size;
 		}
-
-		public int compareTo(Partition p2) {
-			if (this == p2)
-				return 0;
-			if (!done && p2.done)
-				return -1;
-			if (done && !p2.done)
-				return 1;
-			return size - p2.size;
-		}
 	}
 
 	private List<Partition> split(Partition part, Partition splitter,
 	                              Set<String> internal)
 	{
 		if (part.size() == 1) {
-			ArrayList<Partition> ret = new ArrayList<>();
+			for (Partition s : part.successors.keySet())
+				s.predecessors.remove(part);
+			part.successors.clear();
+			ArrayList<Partition> ret = new ArrayList<>(1);
 			ret.add(part);
 			return ret;
 		}
@@ -1041,16 +1055,48 @@ public class Automaton implements LTS {
 		}
 		ArrayList<Partition> ret = new ArrayList<>();
 		if (partitions.size() == (anyUnreach ? 0 : 1)) {
+			if (anyUnreach) {
+				splitter.predecessors.remove(part);
+				part.successors.remove(splitter);
+			}
 			ret.add(part);
 			return ret;
 		}
 		ret.addAll(partitions.values());
-		if (anyUnreach) {
-			Partition unreach = new Partition(part);
-			for (Partition p : ret)
-				unreach.removeAll(p);
-			ret.add(unreach);
+		for (Partition p : ret) {
+			p.successors.put(splitter, null);
+			splitter.predecessors.put(p, null);
 		}
+		partitions = null;
+		if (anyUnreach) {
+			for (Partition p : ret)
+				part.removeAll(p);
+		} else {
+			for (int i = ret.size() - 2; i >= 0; i--)
+				part.removeAll(ret.get(i));
+			Partition p = ret.remove(ret.size() - 1);
+			splitter.predecessors.remove(p);
+		}
+		IdentityHashMap<Partition, Object> mutual = new IdentityHashMap<>();
+		for (Partition p : ret) {
+			mutual.put(p, null);
+		}
+		for (Partition pred : part.predecessors.keySet())
+			pred.successors.putAll(mutual);
+		for (Partition succ : part.successors.keySet())
+			succ.predecessors.putAll(mutual);
+		part.predecessors.putAll(mutual);
+		part.successors.putAll(mutual);
+		mutual = null;
+		for (Partition p : ret) {
+			p.predecessors.putAll(part.predecessors);
+			p.successors.putAll(part.successors);
+			p.predecessors.remove(p);
+			p.successors.remove(p);
+			p.predecessors.put(part, null);
+			p.successors.put(part, null);
+		}
+		ret.add(part);
 		return ret;
 	}
 
@@ -1106,10 +1152,10 @@ public class Automaton implements LTS {
 		}
 	}
 
-	private Collection<Partition> initialPartition(Set<?> internal)
+	private Map<Partition, Object> initialPartition(Set<?> internal)
 	{
 		if (labels.length > 1) {
-			return List.of(new Partition(0, targets.length - 1));
+			return Map.of(new Partition(0, targets.length - 1), this);
 		}
 		HashMap<Set<String>, Partition> byActions = new HashMap<>();
 		for (int i = labels.length - 1; i >= 0; i--) {
@@ -1129,7 +1175,17 @@ public class Automaton implements LTS {
 			}
 			part.add(i);
 		}
-		return byActions.values();
+		IdentityHashMap<Partition, Object> ret = new IdentityHashMap<>();
+		for (Partition p : byActions.values()) {
+			for (Partition q : byActions.values()) {
+				if (p == q)
+					continue;
+				p.predecessors.put(q, null);
+				p.successors.put(q, null);
+			}
+			ret.put(p, null);
+		}
+		return ret;
 	}
 
 	private boolean bisimulationReduction(Set<String> internal) {
@@ -1139,39 +1195,68 @@ public class Automaton implements LTS {
 			return false;
 		if (internal == null)
 			internal = Set.of();
-		if (VERBOSE)
-			System.out.println("Bisimulation reducing:\n" + toString());
-		PriorityQueue<Partition> partitions = new PriorityQueue<>();
-		partitions.addAll(initialPartition(internal));
-		while (!partitions.isEmpty() && !partitions.peek().done) {
-			Partition splitter = partitions.poll();
+		if (VERBOSE) {
+			System.out.println("Bisimulation reducing (internal actions: " + internal + "):\n" + toString());
+			try {
+				throw new Exception();
+			} catch (Exception e) {
+				e.printStackTrace(System.out);
+			}
+		}
+		IdentityHashMap<Partition, Object> queue = new IdentityHashMap<>();
+		IdentityHashMap<Partition, Object> done = new IdentityHashMap<>();
+		queue.putAll(initialPartition(internal));
+		while (!queue.isEmpty()) {
+			Iterator<Partition> pIt = queue.keySet().iterator();
+			Partition splitter = pIt.next();
+			if (DEBUG)
+				System.out.println("Partitions: splitter= " + splitter + ", queue=" + queue.keySet() + ", done=" + done.keySet());
+			queue.remove(splitter);
 			List<Partition> newParts = new ArrayList<>();
 			newParts = split(splitter, splitter, internal);
 			if (newParts.size() > 1) {
-				partitions.addAll(newParts);
+				for (Partition p : newParts)
+					queue.put(p, null);
 				continue;
 			}
-			Iterator<Partition> it = partitions.iterator();
-			while (it.hasNext()) {
-				Partition part = it.next();
+			ArrayList<Partition> preds;
+			preds = new ArrayList<>(splitter.predecessors.keySet());
+			for (Partition part : preds) {
 				if (part.size() == 1) {
-					if (part.done)
-						it.remove();
+					for (Partition s : part.successors.keySet())
+						s.predecessors.remove(part);
+					part.successors.clear();
 					continue;
 				}
-				it.remove();
 				List<Partition> newPartsS;
-				newPartsS = split(part, splitter, internal);
-				newParts.addAll(newPartsS);
+				newParts = split(part, splitter, internal);
+				if (newParts.size() == 1) {
+					if (part != newParts.get(0))
+						throw new AssertionError();
+				} else {
+					done.remove(part);
+					for (Partition p : newParts) {
+						queue.put(p, null);
+					}
+				}
 			}
-			splitter.done = true;
-			partitions.addAll(newParts);
-			if (splitter.size() == 1)
-				partitions.remove(splitter);
+			if (splitter.size() > 1) {
+				done.put(splitter, null);
+			} else {
+				Set<Partition> predSet, succs;
+				predSet = splitter.predecessors.keySet();
+				for (Partition p : predSet)
+					p.successors.remove(splitter);
+				splitter.predecessors.clear();
+				succs = splitter.successors.keySet();
+				for (Partition s : succs)
+					s.predecessors.remove(splitter);
+				splitter.successors.clear();
+			}
 		}
 
 		HashMap<Integer, Integer> renames = new HashMap<>();
-		for (Partition partition : partitions) {
+		for (Partition partition : done.keySet()) {
 			Integer first = null;
 			if (partition.size() > 1) {
 				if (partition.contains(initState))
@@ -1190,10 +1275,10 @@ public class Automaton implements LTS {
 			return false;
 		}
 		if (DEBUG) {
-			System.out.println("Reducing modulo bisimulation classes: " + partitions);
+			System.out.println("Reducing modulo bisimulation classes: " + done.keySet());
 			System.out.println("Renames: " + renames);
 		}
-		partitions = null;
+		done = null;
 
 		for (int s = targets.length - 1; s >= 0; s--) {
 			for (int t = targets[s].length - 1; t >= 0; t--) {
@@ -1240,7 +1325,7 @@ public class Automaton implements LTS {
 		boolean any = false;
 		ArrayList<Set<Integer>> tauReachable = new ArrayList<>();
 		if (VERBOSE) {
-			System.out.println("Collapsing:");
+			System.out.println("Collapsing under " + internals + ":");
 			System.out.println(toString());
 		}
 		for (int i = 0; i < targets.length; i++) {
