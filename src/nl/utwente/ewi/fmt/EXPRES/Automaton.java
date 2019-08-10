@@ -1333,8 +1333,10 @@ public class Automaton implements LTS {
 			tau[i] = new boolean[labels[i].length];
 			tauReachable.add(reach);
 			for (int j = labels[i].length - 1; j >= 0; j--) {
-				if (labels[i][j].charAt(0) != 'i')
+				if (labels[i][j].charAt(0) != 'i') {
 					markovian[i] = true;
+					continue;
+				}
 				if (!internals.contains(labels[i][j])) {
 					visible[i] = true;
 					continue;
