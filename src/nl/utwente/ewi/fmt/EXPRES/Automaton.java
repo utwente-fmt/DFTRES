@@ -872,29 +872,32 @@ public class Automaton implements LTS {
 
 	/** Set of states.
 	 */
-	private class Partition implements Iterable<Integer> {
+	private static class Partition implements Iterable<Integer> {
 		private BitSet contents;
 		private int hash;
 		private int size;
-		public IdentityHashMap<Partition, Object> predecessors;
-		public IdentityHashMap<Partition, Object> successors;
+		public BitSet predecessors;
+		public BitSet successors;
+		public final int number;
 
-		public Partition() {
-			predecessors = new IdentityHashMap<>();
-			successors = new IdentityHashMap<>();
+		public Partition(int number) {
+			predecessors = new BitSet();
+			successors = new BitSet();
 			contents = new BitSet();
+			this.number = number;
 		}
 
-		public Partition(Partition existing) {
+		public Partition(int number, Partition existing) {
 			contents = (BitSet)existing.contents.clone();
-			predecessors = new IdentityHashMap<>(existing.predecessors);
-			successors = new IdentityHashMap<>(existing.successors);
+			predecessors = (BitSet)existing.predecessors.clone();
+			successors = (BitSet)existing.successors.clone();
 			hash = existing.hash;
 			size = existing.size;
+			this.number = number;
 		}
 
-		public Partition(int min, int max) {
-			this();
+		public Partition(int number, int min, int max) {
+			this(number);
 			contents.set(min, max);
 			contents.set(max);
 			size = max - min + 1;
@@ -903,50 +906,77 @@ public class Automaton implements LTS {
 			hash += max;
 		}
 
+		private class BitSetIterator implements Iterator<Integer>
+		{
+			private BitSet set;
+			private int next, prev = -1;
+
+			public BitSetIterator(BitSet set) {
+				this.set = set;
+				next = set.nextSetBit(0);
+			}
+
+			public boolean hasNext() {
+				return next != -1;
+			}
+
+			public Integer next() {
+				Integer ret = next;
+				prev = next;
+				next = set.nextSetBit(next + 1);
+				return ret;
+			}
+
+			public void remove() {
+				set.clear(prev);
+				hash -= prev;
+				size--;
+			}
+		}
+
 		public Iterator<Integer> iterator() {
-			return new Iterator<Integer>() {
-				private int next = contents.nextSetBit(0);
-				private int prev = -1;
+			return new BitSetIterator(contents);
+		}
 
-				public boolean hasNext() {
-					return next != -1;
-				}
+		public Iterator<Integer> predIterator() {
+			return new BitSetIterator(predecessors);
+		}
 
-				public Integer next() {
-					Integer ret = next;
-					prev = next;
-					next = contents.nextSetBit(next + 1);
-					return ret;
-				}
-
-				public void remove() {
-					contents.clear(prev);
-					hash -= prev;
-					size--;
-				}
-			};
+		public Iterator<Integer> succIterator() {
+			return new BitSetIterator(successors);
 		}
 
 		public String toString() {
 			StringBuffer ret = new StringBuffer();
 			ret.append(contents.toString());
-			ret.append("(pre: ");
-			boolean first = true;
-			for (Partition p : predecessors.keySet()) {
-				if (!first)
-					ret.append(",");
-				first = false;
-				ret.append(p.contents.toString());
+			ret.append('=');
+			ret.append(number);
+			if (!predecessors.isEmpty()) {
+				ret.append("(pre: ");
+				boolean first = true;
+				int i = predecessors.nextSetBit(0);
+				while (i >= 0) {
+					if (!first)
+						ret.append(",");
+					first = false;
+					ret.append(i);
+					i = predecessors.nextSetBit(i + 1);
+				}
+				ret.append(')');
 			}
-			ret.append(")(succ: ");
-			first = true;
-			for (Partition p : successors.keySet()) {
-				if (!first)
-					ret.append(",");
-				first = false;
-				ret.append(p.contents.toString());
+			if (!successors.isEmpty()) {
+				ret.append("(succ: ");
+				boolean first = true;
+				int i = predecessors.nextSetBit(0);
+				while (i >= 0) {
+					if (!first)
+						ret.append(",");
+					first = false;
+					ret.append(i);
+					i = successors.nextSetBit(i + 1);
+				}
+				ret.append(')');
 			}
-			ret.append(')');
 			return ret.toString();
 		}
 
@@ -997,15 +1027,16 @@ public class Automaton implements LTS {
 	}
 
 	private List<Partition> split(Partition part, Partition splitter,
-	                              Set<String> internal)
+	                              Set<String> internal,
+	                              ArrayList<Partition> allPartitions)
 	{
 		if (part.size() == 1) {
-			for (Partition s : part.successors.keySet())
-				s.predecessors.remove(part);
-			part.successors.clear();
-			ArrayList<Partition> ret = new ArrayList<>(1);
-			ret.add(part);
-			return ret;
+			part.successors.stream().forEach(si -> {
+				Partition s = allPartitions.get(si);
+				s.predecessors.clear(part.number);
+			});
+			part.successors = new BitSet();
+			return null;
 		}
 		HashMap<Set<Object>, Partition> partitions = new HashMap<>();
 		boolean anyUnreach = false;
@@ -1045,8 +1076,9 @@ public class Automaton implements LTS {
 			if (transitions != null) {
 				Partition p = partitions.get(transitions);
 				if (p == null) {
-					p = new Partition();
+					p = new Partition(allPartitions.size());
 					partitions.put(transitions, p);
+					allPartitions.add(p);
 				}
 				p.add(s);
 			} else {
@@ -1056,45 +1088,58 @@ public class Automaton implements LTS {
 		ArrayList<Partition> ret = new ArrayList<>();
 		if (partitions.size() == (anyUnreach ? 0 : 1)) {
 			if (anyUnreach) {
-				splitter.predecessors.remove(part);
-				part.successors.remove(splitter);
+				splitter.predecessors.clear(part.number);
+				part.successors.clear(splitter.number);
+			} else {
+				allPartitions.remove(allPartitions.size() - 1);
 			}
-			ret.add(part);
-			return ret;
+			return null;
 		}
 		ret.addAll(partitions.values());
 		for (Partition p : ret) {
-			p.successors.put(splitter, null);
-			splitter.predecessors.put(p, null);
+			p.successors.set(splitter.number);
+			splitter.predecessors.set(p.number);
 		}
 		partitions = null;
 		if (anyUnreach) {
 			for (Partition p : ret)
 				part.removeAll(p);
 		} else {
-			for (int i = ret.size() - 2; i >= 0; i--)
-				part.removeAll(ret.get(i));
-			Partition p = ret.remove(ret.size() - 1);
-			splitter.predecessors.remove(p);
+			Partition del;
+			del = allPartitions.remove(allPartitions.size() - 1);
+			for (int i = ret.size() - 1; i >= 0; i--) {
+				Partition p = ret.get(i);
+				if (p == del)
+					ret.remove(i);
+				else
+					part.removeAll(p);
+			}
+			splitter.predecessors.clear(del.number);
 		}
-		IdentityHashMap<Partition, Object> mutual = new IdentityHashMap<>();
+		BitSet mutual = new BitSet();
 		for (Partition p : ret) {
-			mutual.put(p, null);
+			mutual.set(p.number);
 		}
-		for (Partition pred : part.predecessors.keySet())
-			pred.successors.putAll(mutual);
-		for (Partition succ : part.successors.keySet())
-			succ.predecessors.putAll(mutual);
-		part.predecessors.putAll(mutual);
-		part.successors.putAll(mutual);
+		Iterator<Integer> pred = part.predIterator();
+		while (pred.hasNext()) {
+			Partition p = allPartitions.get((int)pred.next());
+			p.successors.or(mutual);
+		}
+		Iterator<Integer> succ = part.succIterator();
+		while (succ.hasNext()) {
+			Partition p = allPartitions.get((int)succ.next());
+			p.predecessors.or(mutual);
+		}
+		part.predecessors.or(mutual);
+		part.successors.or(mutual);
 		mutual = null;
 		for (Partition p : ret) {
-			p.predecessors.putAll(part.predecessors);
-			p.successors.putAll(part.successors);
-			p.predecessors.remove(p);
-			p.successors.remove(p);
-			p.predecessors.put(part, null);
-			p.successors.put(part, null);
+			p.predecessors.or(part.predecessors);
+			p.successors.or(part.successors);
+			p.predecessors.clear(p.number);
+			p.successors.clear(p.number);
+			p.predecessors.set(part.number);
+			p.successors.set(part.number);
 		}
 		ret.add(part);
 		return ret;
@@ -1152,10 +1197,12 @@ public class Automaton implements LTS {
 		}
 	}
 
-	private Map<Partition, Object> initialPartition(Set<?> internal)
+	private ArrayList<Partition> initialPartition(Set<?> internal)
 	{
+		ArrayList<Partition> ret = new ArrayList<>();
 		if (labels.length > 1) {
-			return Map.of(new Partition(0, targets.length - 1), this);
+			ret.add(new Partition(0, 0, targets.length - 1));
+			return ret;
 		}
 		HashMap<Set<String>, Partition> byActions = new HashMap<>();
 		for (int i = labels.length - 1; i >= 0; i--) {
@@ -1170,20 +1217,17 @@ public class Automaton implements LTS {
 			}
 			Partition part = byActions.get(myLabels);
 			if (part == null) {
-				part = new Partition();
+				part = new Partition(ret.size());
 				byActions.put(myLabels, part);
+				ret.add(part);
 			}
 			part.add(i);
 		}
-		IdentityHashMap<Partition, Object> ret = new IdentityHashMap<>();
 		for (Partition p : byActions.values()) {
-			for (Partition q : byActions.values()) {
-				if (p == q)
-					continue;
-				p.predecessors.put(q, null);
-				p.successors.put(q, null);
-			}
-			ret.put(p, null);
+			p.predecessors.set(0, ret.size());
+			p.predecessors.clear(p.number);
+			p.successors.set(0, ret.size());
+			p.successors.clear(p.number);
 		}
 		return ret;
 	}
@@ -1203,60 +1247,54 @@ public class Automaton implements LTS {
 				e.printStackTrace(System.out);
 			}
 		}
-		IdentityHashMap<Partition, Object> queue = new IdentityHashMap<>();
-		IdentityHashMap<Partition, Object> done = new IdentityHashMap<>();
-		queue.putAll(initialPartition(internal));
+		BitSet queue = new BitSet();
+		BitSet done = new BitSet();
+		final ArrayList<Partition> allPartitions = initialPartition(internal);
+		queue.set(0, allPartitions.size());
 		while (!queue.isEmpty()) {
-			Iterator<Partition> pIt = queue.keySet().iterator();
-			Partition splitter = pIt.next();
+			int pos = queue.nextSetBit(0);
+			Partition splitter = allPartitions.get(pos);
 			if (DEBUG)
-				System.out.println("Partitions: splitter= " + splitter + ", queue=" + queue.keySet() + ", done=" + done.keySet());
-			queue.remove(splitter);
+				System.out.println("Partitions: " + allPartitions + ", splitter= " + splitter + ", queue=" + queue + ", done=" + done);
+			queue.clear(pos);
 			List<Partition> newParts = new ArrayList<>();
-			newParts = split(splitter, splitter, internal);
-			if (newParts.size() > 1) {
+			newParts = split(splitter, splitter, internal, allPartitions);
+			if (newParts != null && newParts.size() > 1) {
 				for (Partition p : newParts)
-					queue.put(p, null);
+					queue.set(p.number);
 				continue;
 			}
-			ArrayList<Partition> preds;
-			preds = new ArrayList<>(splitter.predecessors.keySet());
-			for (Partition part : preds) {
-				if (part.size() == 1) {
-					for (Partition s : part.successors.keySet())
-						s.predecessors.remove(part);
-					part.successors.clear();
-					continue;
-				}
+			Iterator<Integer> predIt = splitter.predIterator();
+			while (predIt.hasNext()) {
+				Partition part = allPartitions.get(predIt.next());
 				List<Partition> newPartsS;
-				newParts = split(part, splitter, internal);
-				if (newParts.size() == 1) {
-					if (part != newParts.get(0))
-						throw new AssertionError();
-				} else {
-					done.remove(part);
-					for (Partition p : newParts) {
-						queue.put(p, null);
-					}
+				newParts = split(part, splitter, internal, allPartitions);
+				if (newParts != null && newParts.size() != 1) {
+					done.clear(part.number);
+					for (Partition p : newParts)
+						queue.set(p.number);
 				}
 			}
 			if (splitter.size() > 1) {
-				done.put(splitter, null);
+				done.set(splitter.number);
 			} else {
-				Set<Partition> predSet, succs;
-				predSet = splitter.predecessors.keySet();
-				for (Partition p : predSet)
-					p.successors.remove(splitter);
-				splitter.predecessors.clear();
-				succs = splitter.successors.keySet();
-				for (Partition s : succs)
-					s.predecessors.remove(splitter);
-				splitter.successors.clear();
+				splitter.predecessors.stream().forEach(i -> {
+					Partition p = allPartitions.get(i);
+					p.successors.clear(splitter.number);
+				});
+				splitter.predecessors = new BitSet();
+				splitter.successors.stream().forEach(i -> {
+					Partition p = allPartitions.get(i);
+					p.predecessors.clear(splitter.number);
+				});
+				splitter.successors = new BitSet();
+				allPartitions.set(splitter.number, null);
 			}
 		}
 
 		HashMap<Integer, Integer> renames = new HashMap<>();
-		for (Partition partition : done.keySet()) {
+		done.stream().forEach(i-> {
+			Partition partition = allPartitions.get(i);
 			Integer first = null;
 			if (partition.size() > 1) {
 				if (partition.contains(initState))
@@ -1268,17 +1306,20 @@ public class Automaton implements LTS {
 						renames.put(s, first);
 				}
 			}
-		}
+		});
 		if (renames.isEmpty()) {
 			if (DEBUG)
 				System.out.println("No change");
 			return false;
 		}
 		if (DEBUG) {
-			System.out.println("Reducing modulo bisimulation classes: " + done.keySet());
+			System.out.println("Final partitions: " + allPartitions);
+			System.out.println("Reducing modulo bisimulation classes: " + done);
 			System.out.println("Renames: " + renames);
 		}
 		done = null;
+		queue = null;
+		allPartitions.clear();
 
 		for (int s = targets.length - 1; s >= 0; s--) {
 			for (int t = targets[s].length - 1; t >= 0; t--) {
