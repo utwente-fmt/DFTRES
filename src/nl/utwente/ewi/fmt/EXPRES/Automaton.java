@@ -1026,7 +1026,7 @@ public class Automaton implements LTS {
 		}
 	}
 
-	private List<Partition> split(Partition part, Partition splitter,
+	private List<Partition> split(Partition part, int[] blockNums,
 	                              Set<String> internal,
 	                              ArrayList<Partition> allPartitions)
 	{
@@ -1038,84 +1038,87 @@ public class Automaton implements LTS {
 			part.successors = new BitSet();
 			return null;
 		}
-		HashMap<Set<Object>, Partition> partitions = new HashMap<>();
-		boolean anyUnreach = false;
+		HashMap<Map<Integer, Set<Object>>, Partition> partitions = new HashMap<>();
+		BitSet notSuccessors = (BitSet)part.successors.clone();
 		for (int s : part) {
-			Set<Object> transitions = null;
-			BigDecimal rate = BigDecimal.ZERO;
+			Map<Integer, Set<Object>> signature = new HashMap<>();
+			Map<Integer, BigDecimal> rates = new TreeMap<>();
 			for (int l = labels[s].length - 1; l >= 0; l--) {
-				if (!splitter.contains(targets[s][l]))
-					continue;
+				int block = targets[s][l];
+				block = blockNums[block];
+				notSuccessors.clear(block);
 				String label = labels[s][l];
 				if (label.charAt(0) == 'r') {
-					if (part == splitter)
+					if (part.number == block)
 						continue;
 					label = label.substring(1);
 					BigDecimal r = new BigDecimal(label);
-					rate = rate.add(r);
+					BigDecimal rate = rates.get(block);
+					if (rate == null)
+						rate = r;
+					else
+						rate = rate.add(r);
+					rates.put(block, rate);
 					continue;
 				}
 				if (internal.contains(label)) {
-					if (part == splitter)
+					if (part.number == block)
 						continue;
 					label = "";
 				}
-				if (transitions == null)
+				Set<Object> transitions = signature.get(block);
+				if (transitions == null) {
 					transitions = new HashSet<>();
+					signature.put(block, transitions);
+				}
 				transitions.add(label);
 			}
-			if (rate != BigDecimal.ZERO) {
-				rate = rate.stripTrailingZeros();
+			for (Integer t : rates.keySet()) {
+				BigDecimal rate = rates.get(t);
 				if (rate != BigDecimal.ZERO) {
+					Set<Object> transitions;
+					transitions = signature.get(t);
+					rate = rate.stripTrailingZeros();
 					if (transitions == null)
-						transitions = Set.of(rate);
+						signature.put(t, Set.of(rate));
 					else
 						transitions.add(rate);
 				}
 			}
-			if (transitions != null) {
-				Partition p = partitions.get(transitions);
-				if (p == null) {
-					p = new Partition(allPartitions.size());
-					partitions.put(transitions, p);
-					allPartitions.add(p);
-				}
-				p.add(s);
-			} else {
-				anyUnreach = true;
+			Partition p = partitions.get(signature);
+			if (p == null) {
+				p = new Partition(allPartitions.size());
+				partitions.put(signature, p);
+				allPartitions.add(p);
 			}
+			p.add(s);
 		}
-		ArrayList<Partition> ret = new ArrayList<>();
-		if (partitions.size() == (anyUnreach ? 0 : 1)) {
-			if (anyUnreach) {
-				splitter.predecessors.clear(part.number);
-				part.successors.clear(splitter.number);
-			} else {
-				allPartitions.remove(allPartitions.size() - 1);
-			}
+		for (int s = notSuccessors.nextSetBit(0);
+		     s != -1;
+		     s = notSuccessors.nextSetBit(s + 1))
+		{
+			allPartitions.get(s).predecessors.clear(part.number);
+		}
+		part.successors.andNot(notSuccessors);
+		if (partitions.size() == 1) {
+			allPartitions.remove(allPartitions.size() - 1);
 			return null;
 		}
-		ret.addAll(partitions.values());
-		for (Partition p : ret) {
-			p.successors.set(splitter.number);
-			splitter.predecessors.set(p.number);
-		}
+		notSuccessors = null;
+
+		ArrayList<Partition> ret = new ArrayList<>(partitions.values());
 		partitions = null;
-		if (anyUnreach) {
-			for (Partition p : ret)
+
+		Partition del;
+		del = allPartitions.remove(allPartitions.size() - 1);
+		for (int i = ret.size() - 1; i >= 0; i--) {
+			Partition p = ret.get(i);
+			if (p == del)
+				ret.remove(i);
+			else
 				part.removeAll(p);
-		} else {
-			Partition del;
-			del = allPartitions.remove(allPartitions.size() - 1);
-			for (int i = ret.size() - 1; i >= 0; i--) {
-				Partition p = ret.get(i);
-				if (p == del)
-					ret.remove(i);
-				else
-					part.removeAll(p);
-			}
-			splitter.predecessors.clear(del.number);
 		}
+
 		BitSet mutual = new BitSet();
 		for (Partition p : ret) {
 			mutual.set(p.number);
@@ -1140,6 +1143,8 @@ public class Automaton implements LTS {
 			p.successors.clear(p.number);
 			p.predecessors.set(part.number);
 			p.successors.set(part.number);
+			for (int s : p)
+				blockNums[s] = p.number;
 		}
 		ret.add(part);
 		return ret;
@@ -1197,10 +1202,11 @@ public class Automaton implements LTS {
 		}
 	}
 
-	private ArrayList<Partition> initialPartition(Set<?> internal)
+	private ArrayList<Partition> initialPartition(Set<?> internal,
+	                                              int[] blockNums)
 	{
 		ArrayList<Partition> ret = new ArrayList<>();
-		if (labels.length > 1) {
+		if (labels.length == 1) {
 			ret.add(new Partition(0, 0, targets.length - 1));
 			return ret;
 		}
@@ -1221,6 +1227,7 @@ public class Automaton implements LTS {
 				byActions.put(myLabels, part);
 				ret.add(part);
 			}
+			blockNums[i] = part.number;
 			part.add(i);
 		}
 		for (Partition p : byActions.values()) {
@@ -1240,16 +1247,20 @@ public class Automaton implements LTS {
 		if (internal == null)
 			internal = Set.of();
 		if (VERBOSE) {
-			System.out.println("Bisimulation reducing (internal actions: " + internal + "):\n" + toString());
-			try {
-				throw new Exception();
-			} catch (Exception e) {
-				e.printStackTrace(System.out);
+			System.out.println("Bisimulation reducing from " + targets.length + " states (internal actions: " + internal + ")");
+			if (DEBUG) {
+				System.out.println(toString());
+				try {
+					throw new Exception();
+				} catch (Exception e) {
+					e.printStackTrace(System.out);
+				}
 			}
 		}
 		BitSet queue = new BitSet();
 		BitSet done = new BitSet();
-		final ArrayList<Partition> allPartitions = initialPartition(internal);
+		int blockNums[] = new int[labels.length];
+		final ArrayList<Partition> allPartitions = initialPartition(internal, blockNums);
 		queue.set(0, allPartitions.size());
 		while (!queue.isEmpty()) {
 			int pos = queue.nextSetBit(0);
@@ -1258,17 +1269,11 @@ public class Automaton implements LTS {
 				System.out.println("Partitions: " + allPartitions + ", splitter= " + splitter + ", queue=" + queue + ", done=" + done);
 			queue.clear(pos);
 			List<Partition> newParts = new ArrayList<>();
-			newParts = split(splitter, splitter, internal, allPartitions);
-			if (newParts != null && newParts.size() > 1) {
-				for (Partition p : newParts)
-					queue.set(p.number);
-				continue;
-			}
 			Iterator<Integer> predIt = splitter.predIterator();
 			while (predIt.hasNext()) {
 				Partition part = allPartitions.get(predIt.next());
 				List<Partition> newPartsS;
-				newParts = split(part, splitter, internal, allPartitions);
+				newParts = split(part, blockNums, internal, allPartitions);
 				if (newParts != null && newParts.size() != 1) {
 					done.clear(part.number);
 					for (Partition p : newParts)
@@ -1292,6 +1297,7 @@ public class Automaton implements LTS {
 			}
 		}
 
+		blockNums = null;
 		HashMap<Integer, Integer> renames = new HashMap<>();
 		done.stream().forEach(i-> {
 			Partition partition = allPartitions.get(i);
@@ -1366,8 +1372,9 @@ public class Automaton implements LTS {
 		boolean any = false;
 		ArrayList<Set<Integer>> tauReachable = new ArrayList<>();
 		if (VERBOSE) {
-			System.out.println("Collapsing under " + internals + ":");
-			System.out.println(toString());
+			System.out.println("Collapsing under " + internals);
+			if (DEBUG)
+				System.out.println(toString());
 		}
 		for (int i = 0; i < targets.length; i++) {
 			TreeSet<Integer> reach = new TreeSet<Integer>();
