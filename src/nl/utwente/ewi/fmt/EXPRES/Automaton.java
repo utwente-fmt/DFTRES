@@ -106,6 +106,10 @@ public class Automaton implements LTS {
 		while (!queue.isEmpty()) {
 			if (targets.length < states.size()) {
 				int n = states.size();
+				if (n > Integer.MAX_VALUE / 2)
+					n = Integer.MAX_VALUE;
+				else
+					n = 2*n;
 				targets = Arrays.copyOf(targets, n);
 				labels = Arrays.copyOf(labels, n);
 				assignments = Arrays.copyOf(assignments, n);
@@ -178,8 +182,12 @@ public class Automaton implements LTS {
 					guards[num] = Arrays.copyOf(guards[num], i);
 			}
 		}
+		targets = Arrays.copyOf(targets, states.size());
+		labels = Arrays.copyOf(labels, states.size());
 		if (!anyHasAssignments)
 			assignments = null;
+		else
+			assignments = Arrays.copyOf(assignments, states.size());
 		initState = 0;
 		int num_states;
 		boolean change = false;
