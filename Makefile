@@ -4,10 +4,13 @@ SOURCES = $(subst $(SOURCE_DIR),,$(shell find $(SOURCE_DIR) -type f -name '*.jav
 SOURCES += nl/utwente/ewi/fmt/EXPRES/Version.java
 OBJECTS = $(addprefix $(CLASS_DIR), $(addsuffix .class, $(basename $(SOURCES))))
 COMMIT = $(shell git rev-parse HEAD)
+VERSION_MAJOR=0
+VERSION_MINOR=9
+VERSION_PATCH=0
+VERSIONSTRING="${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}"
 ifeq ($(shell git status --porcelain),)
-	DIRTY=""
 else
-	DIRTY="-dirty"
+	VERSIONSTRING += + "+" + "$(COMMIT)".substring(0,8) + "-dirty"
 endif
 MAIN_CLASS = Main
 JFLAGS = -Xlint:deprecation -g
@@ -30,7 +33,7 @@ dir: $(SOURCE_DIR)/nl/utwente/ewi/fmt/EXPRES/Version.java
 $(SOURCE_DIR)/nl/utwente/ewi/fmt/EXPRES/Version.java: FORCE
 	@echo "package nl.utwente.ewi.fmt.EXPRES;" > $@
 	@echo "public class Version {" >> $@
-	@echo '	public static final String version = "$(COMMIT)".substring(0,8) + $(DIRTY);' >> $@
+	@echo '	public static final String version = ${VERSIONSTRING};' >> $@
 	@echo "}" >> $@
 
 $(CLASS_DIR)%.class: $(SOURCE_DIR)%.java
