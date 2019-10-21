@@ -455,8 +455,8 @@ public class Composition implements MarkableLTS
 
 	public Composition partialCompose(int stateLimit)
 	{
-		if (stateLimit > 0)
-			return composeAny(stateLimit);
+		if (stateLimit <= 0)
+			stateLimit = Integer.MAX_VALUE;
 		if (Simulator.showProgress) {
 			boolean first = true;
 			System.err.print("Building composition, current sizes: [");
