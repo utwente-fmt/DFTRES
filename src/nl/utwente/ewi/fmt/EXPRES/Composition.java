@@ -350,7 +350,7 @@ public class Composition implements MarkableLTS
 	{
 		Arrays.sort(auts);
 		if (DEBUG)
-			System.out.format("Getting internals for %s\n", Arrays.toString(auts));
+			System.err.format("Getting internals for %s\n", Arrays.toString(auts));
 		TreeSet<String> ret = new TreeSet<>();
 		for (int i = labels.length - 1; i >= 0; i--) {
 			String current = labels[i], sl = synchronizedLabels[i];
@@ -361,7 +361,7 @@ public class Composition implements MarkableLTS
 			for (int a : vectorAutomata[i]) {
 				if (Arrays.binarySearch(auts, a) < 0) {
 					if (DEBUG)
-						System.out.format("%s not internal due to %d at %d\n", current, a, i);
+						System.err.format("%s not internal due to %d at %d\n", current, a, i);
 					current = null;
 					break;
 				}
@@ -369,7 +369,7 @@ public class Composition implements MarkableLTS
 			if (current != null) {
 				ret.add(current);
 				if (DEBUG)
-					System.out.format("%s internal: %s \n", current, Arrays.toString(vectorAutomata[i]));
+					System.err.format("%s internal: %s \n", current, Arrays.toString(vectorAutomata[i]));
 			}
 		}
 		return ret;
@@ -379,36 +379,36 @@ public class Composition implements MarkableLTS
 	{
 		String labels[] = new String[vectorLabels.length];
 		if (VERBOSE) {
-			System.out.println("Composing "+ Arrays.toString(auts));
-			System.out.print("Sizes: [");
+			System.err.println("Composing "+ Arrays.toString(auts));
+			System.err.print("Sizes: [");
 			boolean first = true;
 			for (int a : auts) {
 				if (!first)
-					System.out.print(", ");
+					System.err.print(", ");
 				first = false;
-				System.out.print(automata[a].getNumStates());
+				System.err.print(automata[a].getNumStates());
 			}
-			System.out.println("]");
+			System.err.println("]");
 		}
 		Composition sub = new Composition(this, auts, labels);
 		sub.afterParsing();
 		Set<String> internals = getInternalActions(auts, labels, false);
 		Set<String> maxProg = getInternalActions(auts, labels, true);
 		if (DEBUG) {
-			System.out.println("Internal actions: " + internals);
-			System.out.println("Max-Prog actions: " + maxProg);
-			sub.printAutomata();
+			System.err.println("Internal actions: " + internals);
+			System.err.println("Max-Prog actions: " + maxProg);
+			sub.printAutomata(System.err);
 		}
 		maxProg.addAll(internals);
 		Automaton aut = new Automaton(sub, null, internals, maxProg);
 		sub = null;
 		if (DEBUG)
-			System.out.println("Labels: "+ Arrays.toString(labels));
+			System.err.println("Labels: "+ Arrays.toString(labels));
 		Composition ret = new Composition(this, auts, aut, labels);
 		ret.removeImpossibleActions();
 		if (DEBUG) {
-			System.out.println("Recomposed:");
-			ret.printAutomata();
+			System.err.println("Recomposed:");
+			ret.printAutomata(System.err);
 		}
 		return ret;
 	}
@@ -459,14 +459,14 @@ public class Composition implements MarkableLTS
 			return composeAny(stateLimit);
 		if (Simulator.showProgress) {
 			boolean first = true;
-			System.out.print("Building composition, current sizes: [");
+			System.err.print("Building composition, current sizes: [");
 			for (Automaton a : automata) {
 				if (!first)
-					System.out.print(", ");
+					System.err.print(", ");
 				first = false;
-				System.out.format("%d", a.getNumStates());
+				System.err.format("%d", a.getNumStates());
 			}
-			System.out.println("]");
+			System.err.println("]");
 		}
 		HashMap<Set<Integer>, Integer> counts = new HashMap<>();
 		for (int i = vectorLabels.length - 1; i >= 0; i--) {
@@ -494,7 +494,7 @@ public class Composition implements MarkableLTS
 		double bestScore = 0;
 		Set<Integer> best = null;
 		if (DEBUG)
-			System.out.println("Choosing composition from: " + counts);
+			System.err.println("Choosing composition from: " + counts);
 		for (Set<Integer> auts : counts.keySet()) {
 			double score = counts.get(auts);
 			if (auts.size() > 30)
@@ -1495,18 +1495,18 @@ public class Composition implements MarkableLTS
 		return new LTS.TransitionSet(ret, true);
 	}
 
-	public void printAutomata()
+	public void printAutomata(PrintStream out)
 	{
 		for (int i = 0; i < synchronizedLabels.length; i++) {
 			boolean first = true;
 			for (int j = 0; j < vectorLabels[i].length; j++) {
-				System.out.format("%s[%d: %s]", first ? "" : " * ", vectorAutomata[i][j], vectorLabels[i][j]);
+				out.format("%s[%d: %s]", first ? "" : " * ", vectorAutomata[i][j], vectorLabels[i][j]);
 				first = false;
 			}
-			System.out.format(" -> %s\n", synchronizedLabels[i]);
+			out.format(" -> %s\n", synchronizedLabels[i]);
 		}
 		for (Automaton a : automata)
-			System.out.println(a);
+			out.println(a);
 	}
 
 	private TreeSet<String> getAllTransitionLabels()

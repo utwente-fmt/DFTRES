@@ -102,7 +102,9 @@ public class Automaton implements LTS {
 		assignments = createAssignmentArray(1);
 		boolean anyHasAssignments = false;
 		if (DEBUG && internal != null)
-			System.out.println("Internal actions: " + internal);
+			System.err.println("Internal actions: " + internal);
+		if (DEBUG && permitted != null)
+			System.err.println("Permitted actions: " + permitted);
 		while (!queue.isEmpty()) {
 			if (targets.length < states.size()) {
 				int n = states.size();
@@ -297,7 +299,6 @@ public class Automaton implements LTS {
 			for (int j = 0; j < labels[i].length; j++) {
 				String label = renames.get(orig.labels[i][j]);
 				if (label != null) {
-					//System.out.println("Renaming to " + label);
 					changed = true;
 				} else
 					label = orig.labels[i][j];
@@ -1255,9 +1256,9 @@ public class Automaton implements LTS {
 		if (internal == null)
 			internal = Set.of();
 		if (VERBOSE) {
-			System.out.println("Bisimulation reducing from " + targets.length + " states (internal actions: " + internal + ")");
+			System.err.println("Bisimulation reducing from " + targets.length + " states (internal actions: " + internal + ")");
 			if (DEBUG) {
-				System.out.println(toString());
+				System.err.println(toString());
 				try {
 					throw new Exception();
 				} catch (Exception e) {
@@ -1274,7 +1275,7 @@ public class Automaton implements LTS {
 			int pos = queue.nextSetBit(0);
 			Partition splitter = allPartitions.get(pos);
 			if (DEBUG)
-				System.out.println("Partitions: " + allPartitions + ", splitter= " + splitter + ", queue=" + queue + ", done=" + done);
+				System.err.println("Partitions: " + allPartitions + ", splitter= " + splitter + ", queue=" + queue + ", done=" + done);
 			queue.clear(pos);
 			List<Partition> newParts = new ArrayList<>();
 			Iterator<Integer> predIt = splitter.predIterator();
@@ -1323,13 +1324,13 @@ public class Automaton implements LTS {
 		});
 		if (renames.isEmpty()) {
 			if (DEBUG)
-				System.out.println("No change");
+				System.err.println("No change");
 			return false;
 		}
 		if (DEBUG) {
-			System.out.println("Final partitions: " + allPartitions);
-			System.out.println("Reducing modulo bisimulation classes: " + done);
-			System.out.println("Renames: " + renames);
+			System.err.println("Final partitions: " + allPartitions);
+			System.err.println("Reducing modulo bisimulation classes: " + done);
+			System.err.println("Renames: " + renames);
 		}
 		done = null;
 		queue = null;
@@ -1380,9 +1381,9 @@ public class Automaton implements LTS {
 		boolean any = false;
 		ArrayList<Set<Integer>> tauReachable = new ArrayList<>();
 		if (VERBOSE) {
-			System.out.println("Collapsing under " + internals);
+			System.err.println("Collapsing under " + internals);
 			if (DEBUG)
-				System.out.println(toString());
+				System.err.println(toString());
 		}
 		for (int i = 0; i < targets.length; i++) {
 			TreeSet<Integer> reach = new TreeSet<Integer>();
@@ -1414,11 +1415,11 @@ public class Automaton implements LTS {
 		}
 		if (!any) {
 			if (DEBUG)
-				System.out.println("No effect");
+				System.err.println("No effect");
 			return false;
 		}
 		if (DEBUG)
-			System.out.println("Tau-reachable: " + tauReachable);
+			System.err.println("Tau-collapsible: " + tauCollapsible);
 		boolean change = true;
 		while (change) {
 			change = false;
@@ -1435,6 +1436,8 @@ public class Automaton implements LTS {
 				}
 			}
 		}
+		if (DEBUG)
+			System.err.println("Tau-closed: " + tauCollapsible);
 		for (int i = targets.length - 1; i >= 0; i--) {
 			Set<Integer> reach = tauReachable.get(i);
 			int markovCount = 0;
@@ -1488,8 +1491,8 @@ public class Automaton implements LTS {
 			}
 		}
 		if (DEBUG) {
-			System.out.println("Result:");
-			System.out.println(toString());
+			System.err.println("Result:");
+			System.err.println(toString());
 		}
 		return true;
 	}
