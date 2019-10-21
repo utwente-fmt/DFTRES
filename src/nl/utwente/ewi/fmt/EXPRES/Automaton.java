@@ -7,6 +7,7 @@ import java.io.InputStreamReader;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.math.BigDecimal;
+import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.ArrayDeque;
@@ -19,10 +20,12 @@ import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.PrimitiveIterator;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.IntConsumer;
 
 import nl.utwente.ewi.fmt.EXPRES.expression.ConstantExpression;
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
@@ -192,16 +195,34 @@ public class Automaton implements LTS {
 			assignments = Arrays.copyOf(assignments, states.size());
 		initState = 0;
 		int num_states;
-		boolean change = false;
+		boolean change = false, first = true;
 		do {
 			num_states = targets.length;
-			bisimulationReduction(internal);
-			change = false;
-			if (internal != null && !internal.isEmpty())
-				change = tauCollapse(internal);
-			removeUnreachable();
-			if (!change)
+			try {
+				change = bisimulationReduction(internal);
+			} catch (OutOfMemoryError e) {
+				try {
+					change = bisimulationReductionLowMem(internal);
+				} catch (OutOfMemoryError f) {
+					change = false;
+				}
+			}
+			try {
+				if (change || first) {
+					if (internal != null && !internal.isEmpty())
+						change = tauCollapse(internal);
+					else
+						change = false;
+				} else {
+					change = false;
+				}
+				removeUnreachable();
+				if (!change)
+					num_states = targets.length;
+			} catch (OutOfMemoryError e) {
 				num_states = targets.length;
+			}
+			first = false;
 		} while (num_states > targets.length);
 		createTransitionArray();
 	}
@@ -215,7 +236,7 @@ public class Automaton implements LTS {
 	                                 Map<String, Number> constants)
 	{
 		return new Automaton(SymbolicAutomaton.fromJani(janiData, constants));
-	}	
+	}
 
 	public int hashCode()
 	{
@@ -555,7 +576,7 @@ public class Automaton implements LTS {
 				}
 			}
 		}
-		
+
 		/* Fint or create a target state that can do nothing
 		 * (except tell others we have stopped caring).
 		 */
@@ -879,159 +900,356 @@ public class Automaton implements LTS {
 		this.labels = newLs;
 	}
 
+	private static class BitSetIterator implements PrimitiveIterator.OfInt
+	{
+		private BitSet set;
+		private int next, prev = -1;
+
+		public BitSetIterator(BitSet set) {
+			this.set = set;
+			next = set.nextSetBit(0);
+		}
+
+		public boolean hasNext() {
+			return next != -1;
+		}
+
+		public Integer next() {
+			Integer ret = next;
+			prev = next;
+			next = set.nextSetBit(next + 1);
+			return ret;
+		}
+
+		public int nextInt() {
+			Integer ret = next;
+			prev = next;
+			next = set.nextSetBit(next + 1);
+			return ret;
+		}
+
+		public void remove() {
+			set.clear(prev);
+		}
+	}
+
+	private static class IntSet extends AbstractSet<Integer> {
+		private HashSet<Integer> hashSet;
+		private BitSet bitset;
+		private int size;
+		private int max;
+		private static int TO_HASHSET_BITS = 8;
+		private static int TO_BITSET_BITS = 7;
+
+		public IntSet() {
+			bitset = new BitSet();
+		}
+
+		public IntSet(int min, int max) {
+			size = max - min + 1;
+			this.max = max;
+			int minSz = max >> TO_HASHSET_BITS;
+			if (size >= minSz) {
+				bitset = new BitSet();
+				bitset.set(min, max);
+				bitset.set(max);
+			} else {
+				hashSet = new HashSet<>();
+				while (min < max)
+					hashSet.add(min++);
+				hashSet.add(max);
+			}
+		}
+
+		public IntSet(IntSet other) {
+			size = other.size;
+			max = other.max;
+			if (other.bitset != null)
+				bitset = (BitSet)other.bitset.clone();
+			else
+				hashSet = new HashSet<>(other.hashSet);
+		}
+
+		public void clear() {
+			bitset = new BitSet();
+			hashSet = null;
+		}
+
+		public Iterator<Integer> iterator() {
+			if (bitset != null)
+				return new BitSetIterator(bitset);
+			else
+				return hashSet.iterator();
+		}
+
+		public IntSet clone() {
+			return new IntSet(this);
+		}
+
+		private void maybeConvert() {
+			if (bitset != null) {
+				int minSz = max >> TO_HASHSET_BITS;
+				if (size >= minSz)
+					return;
+				HashSet<Integer> tmp = new HashSet<>();
+				bitset.stream().forEach(i -> tmp.add(i));
+				hashSet = tmp;
+				bitset = null;
+			} else {
+				int maxSz = max >> TO_BITSET_BITS;
+				if (size <= maxSz)
+					return;
+				bitset = new BitSet();
+				for (Integer i : hashSet)
+					bitset.set(i);
+				hashSet = null;
+			}
+		}
+
+		public boolean add(int e) {
+			boolean ret;
+			if (bitset != null) {
+				ret = !bitset.get(e);
+				bitset.set(e);
+			} else {
+				ret = hashSet.add(e);
+			}
+			if (e > max)
+				max = e;
+			if (ret)
+				size++;
+			maybeConvert();
+			return ret;
+		}
+
+		public boolean remove(int e) {
+			boolean ret;
+			if (bitset != null) {
+				ret = bitset.get(e);
+				bitset.clear(e);
+			} else {
+				ret = hashSet.remove(e);
+			}
+			if (ret && e == max) {
+				if (bitset != null) {
+					max = bitset.previousSetBit(e - 1);
+					if (max < 0)
+						max = 0;
+				} else {
+					max = 0;
+					for (Integer i : hashSet) {
+						if (i > max)
+							max = i;
+					}
+				}
+			}
+			if (ret)
+				size--;
+			maybeConvert();
+			return ret;
+		}
+
+		public void removeKnown(int e) {
+			if (bitset != null) {
+				bitset.clear(e);
+			} else {
+				hashSet.remove(e);
+			}
+			if (e == max) {
+				if (bitset != null) {
+					max = bitset.previousSetBit(e - 1);
+					if (max < 0)
+						max = 0;
+				} else {
+					max = 0;
+					for (Integer i : hashSet) {
+						if (i > max)
+							max = i;
+					}
+				}
+			}
+			size--;
+			maybeConvert();
+		}
+
+		public boolean addAll(Collection<? extends Integer> c) {
+			if (!(c instanceof IntSet))
+				return super.addAll(c);
+			IntSet is = (IntSet)c;
+			if (size == 0) {
+				if (is.bitset != null) {
+					hashSet = null;
+					bitset = (BitSet)is.bitset.clone();
+				} else {
+					bitset = null;
+					hashSet = new HashSet<>(is.hashSet);
+				}
+				size = is.size;
+				max = is.max;
+				return size != 0;
+			}
+			boolean ret;
+			if (is.bitset != null) {
+				if (bitset != null) {
+					bitset.or(is.bitset);
+					int newSize = bitset.size();
+					ret = size != newSize;
+					size = newSize;
+				} else {
+					int delta;
+					delta = is.bitset.stream().reduce(0,
+					                          (i, d) -> {
+						d += hashSet.add(i) ? 1 : 0;
+						return d;
+					});
+					size += delta;
+					ret = delta > 0;
+				}
+			} else {
+				if (bitset != null) {
+					int delta = 0;
+					for (Integer ii : is.hashSet) {
+						int i = ii;
+						delta += bitset.get(i) ? 0 : 1;
+						bitset.set(i);
+					}
+					ret = delta > 0;
+					size += delta;
+				} else {
+					ret = hashSet.addAll(is.hashSet);
+					size = hashSet.size();
+				}
+			}
+			if (is.max > max)
+				max = is.max;
+			maybeConvert();
+			return ret;
+		}
+
+		public boolean removeAll(Collection<?> c) {
+			if (!(c instanceof IntSet))
+				return super.removeAll(c);
+			IntSet is = (IntSet)c;
+			boolean ret;
+			if (is.bitset != null) {
+				if (bitset != null) {
+					bitset.andNot(is.bitset);
+					int newSize = bitset.size();
+					ret = size != newSize;
+					size = newSize;
+				} else {
+					int delta;
+					delta = is.bitset.stream().reduce(0,
+					                          (i, d) -> {
+						d += hashSet.remove(i) ? 1 : 0;
+						return d;
+					});
+					size -= delta;
+					ret = delta > 0;
+				}
+			} else {
+				if (bitset != null) {
+					int delta = 0;
+					for (Integer ii : is.hashSet) {
+						int i = ii;
+						delta += bitset.get(i) ? 1 : 0;
+						bitset.clear(i);
+					}
+					ret = delta > 0;
+					size -= delta;
+				} else {
+					ret = hashSet.removeAll(is.hashSet);
+					size = hashSet.size();
+				}
+			}
+			if (is.max > max)
+				max = is.max;
+			maybeConvert();
+			return ret;
+		}
+
+		public void forEachI(IntConsumer f) {
+			if (bitset != null)
+				bitset.stream().forEach(f);
+			else
+				hashSet.forEach(i -> f.accept(i));
+		}
+
+		public String toString() {
+			if (bitset != null)
+				return bitset.toString();
+			else
+				return hashSet.toString();
+		}
+
+		public boolean contains(int e) {
+			if (bitset != null)
+				return bitset.get(e);
+			else
+				return hashSet.contains(e);
+		}
+
+		public int size() {
+			return size;
+		}
+	}
+
 	/** Set of states.
 	 */
-	private static class Partition implements Iterable<Integer> {
-		private BitSet contents;
-		private int hash;
-		private int size;
-		public BitSet predecessors;
-		public BitSet successors;
+	private static class Partition extends IntSet {
+		public final IntSet predecessors;
+		public final IntSet successors;
 		public final int number;
 
 		public Partition(int number) {
-			predecessors = new BitSet();
-			successors = new BitSet();
-			contents = new BitSet();
+			super();
+			predecessors = new IntSet();
+			successors = new IntSet();
 			this.number = number;
 		}
 
 		public Partition(int number, Partition existing) {
-			contents = (BitSet)existing.contents.clone();
-			predecessors = (BitSet)existing.predecessors.clone();
-			successors = (BitSet)existing.successors.clone();
-			hash = existing.hash;
-			size = existing.size;
+			super(existing);
+			predecessors = existing.predecessors.clone();
+			successors = existing.successors.clone();
 			this.number = number;
 		}
 
 		public Partition(int number, int min, int max) {
-			this(number);
-			contents.set(min, max);
-			contents.set(max);
-			size = max - min + 1;
-			while (min < max)
-				hash += min++;
-			hash += max;
-		}
-
-		private class BitSetIterator implements Iterator<Integer>
-		{
-			private BitSet set;
-			private int next, prev = -1;
-
-			public BitSetIterator(BitSet set) {
-				this.set = set;
-				next = set.nextSetBit(0);
-			}
-
-			public boolean hasNext() {
-				return next != -1;
-			}
-
-			public Integer next() {
-				Integer ret = next;
-				prev = next;
-				next = set.nextSetBit(next + 1);
-				return ret;
-			}
-
-			public void remove() {
-				set.clear(prev);
-				hash -= prev;
-				size--;
-			}
-		}
-
-		public Iterator<Integer> iterator() {
-			return new BitSetIterator(contents);
-		}
-
-		public Iterator<Integer> predIterator() {
-			return new BitSetIterator(predecessors);
-		}
-
-		public Iterator<Integer> succIterator() {
-			return new BitSetIterator(successors);
+			super(min, max);
+			predecessors = new IntSet();
+			successors = new IntSet();
+			this.number = number;
 		}
 
 		public String toString() {
 			StringBuffer ret = new StringBuffer();
-			ret.append(contents.toString());
+			ret.append(super.toString());
 			ret.append('=');
 			ret.append(number);
 			if (!predecessors.isEmpty()) {
 				ret.append("(pre: ");
 				boolean first = true;
-				int i = predecessors.nextSetBit(0);
-				while (i >= 0) {
+				for (int i : predecessors) {
 					if (!first)
 						ret.append(",");
 					first = false;
 					ret.append(i);
-					i = predecessors.nextSetBit(i + 1);
 				}
 				ret.append(')');
 			}
 			if (!successors.isEmpty()) {
 				ret.append("(succ: ");
 				boolean first = true;
-				int i = predecessors.nextSetBit(0);
-				while (i >= 0) {
+				for (int i : successors) {
 					if (!first)
 						ret.append(",");
 					first = false;
 					ret.append(i);
-					i = successors.nextSetBit(i + 1);
 				}
 				ret.append(')');
 			}
 			return ret.toString();
-		}
-
-		public boolean add(int p) {
-			boolean ret = !contents.get(p);
-			if (ret) {
-				size++;
-				hash += p;
-				contents.set(p);
-			}
-			return ret;
-		}
-
-		public boolean remove(int p) {
-			boolean ret = contents.get(p);
-			if (ret) {
-				hash -= p;
-				size--;
-				contents.clear(p);
-			}
-			return ret;
-		}
-
-		public void removeKnown(int p) {
-			hash -= p;
-			size--;
-			contents.clear(p);
-		}
-
-		public boolean removeAll(Partition p) {
-			boolean ret = false;
-			for (Integer i : p)
-				ret |= remove(i);
-			return ret;
-		}
-
-		public boolean contains(int i) {
-			return contents.get(i);
-		}
-
-		public int hashCode() {
-			return hash;
-		}
-
-		public int size() {
-			return size;
 		}
 	}
 
@@ -1040,22 +1258,26 @@ public class Automaton implements LTS {
 	                              ArrayList<Partition> allPartitions)
 	{
 		if (part.size() == 1) {
-			part.successors.stream().forEach(si -> {
+			part.successors.forEachI(si -> {
 				Partition s = allPartitions.get(si);
-				s.predecessors.clear(part.number);
+				if (s == null) {
+					System.err.println("WARNING: pred/succ inconsistency at successor " + si + " of " + part.number + ":");
+					System.err.println(allPartitions);
+				}
+				s.predecessors.removeKnown(part.number);
 			});
-			part.successors = new BitSet();
+			part.successors.clear();
 			return null;
 		}
 		HashMap<Map<Integer, Set<Object>>, Partition> partitions = new HashMap<>();
-		BitSet notSuccessors = (BitSet)part.successors.clone();
+		IntSet notSuccessors = part.successors.clone();
 		for (int s : part) {
 			Map<Integer, Set<Object>> signature = new HashMap<>();
 			Map<Integer, BigDecimal> rates = new TreeMap<>();
 			for (int l = labels[s].length - 1; l >= 0; l--) {
 				int block = targets[s][l];
 				block = blockNums[block];
-				notSuccessors.clear(block);
+				notSuccessors.remove(block);
 				String label = labels[s][l];
 				if (label.charAt(0) == 'r') {
 					if (part.number == block)
@@ -1102,13 +1324,11 @@ public class Automaton implements LTS {
 			}
 			p.add(s);
 		}
-		for (int s = notSuccessors.nextSetBit(0);
-		     s != -1;
-		     s = notSuccessors.nextSetBit(s + 1))
-		{
-			allPartitions.get(s).predecessors.clear(part.number);
-		}
-		part.successors.andNot(notSuccessors);
+		notSuccessors.forEachI(s -> {
+			Partition ps = allPartitions.get(s);
+			ps.predecessors.removeKnown(part.number);
+		});
+		part.successors.removeAll(notSuccessors);
 		if (partitions.size() == 1) {
 			allPartitions.remove(allPartitions.size() - 1);
 			return null;
@@ -1128,30 +1348,26 @@ public class Automaton implements LTS {
 				part.removeAll(p);
 		}
 
-		BitSet mutual = new BitSet();
+		final IntSet mutual = new IntSet();
+		for (Partition p : ret)
+			mutual.add(p.number);
+		part.predecessors.forEachI(pn -> {
+			Partition p = allPartitions.get(pn);
+			p.successors.addAll(mutual);
+		});
+		part.successors.forEachI(pn -> {
+			Partition p = allPartitions.get(pn);
+			p.predecessors.addAll(mutual);
+		});
+		part.predecessors.addAll(mutual);
+		part.successors.addAll(mutual);
 		for (Partition p : ret) {
-			mutual.set(p.number);
-		}
-		Iterator<Integer> pred = part.predIterator();
-		while (pred.hasNext()) {
-			Partition p = allPartitions.get((int)pred.next());
-			p.successors.or(mutual);
-		}
-		Iterator<Integer> succ = part.succIterator();
-		while (succ.hasNext()) {
-			Partition p = allPartitions.get((int)succ.next());
-			p.predecessors.or(mutual);
-		}
-		part.predecessors.or(mutual);
-		part.successors.or(mutual);
-		mutual = null;
-		for (Partition p : ret) {
-			p.predecessors.or(part.predecessors);
-			p.successors.or(part.successors);
-			p.predecessors.clear(p.number);
-			p.successors.clear(p.number);
-			p.predecessors.set(part.number);
-			p.successors.set(part.number);
+			p.predecessors.addAll(part.predecessors);
+			p.successors.addAll(part.successors);
+			p.predecessors.removeKnown(p.number);
+			p.successors.removeKnown(p.number);
+			p.predecessors.add(part.number);
+			p.successors.add(part.number);
 			for (int s : p)
 				blockNums[s] = p.number;
 		}
@@ -1160,7 +1376,6 @@ public class Automaton implements LTS {
 	}
 
 	private void collapseSameMarkov(Set<String> internal) {
-		int idxs[] = new int[targets.length];
 		Set<List<Object>> nonMarkov = new HashSet<>();
 		for (int i = labels.length - 1; i >= 0; i--) {
 			nonMarkov.clear();
@@ -1187,16 +1402,16 @@ public class Automaton implements LTS {
 				ts[j] = ts[length];
 				ls[j] = ls[length];
 			}
-			Arrays.fill(idxs, -1);
+			HashMap<Integer, Integer> idxs = new HashMap<>();
 			int offset = 0;
 			for (int j = 0; j < length; j++) {
 				ls[j - offset] = ls[j];
 				ts[j - offset] = ts[j];
 				if (ls[j].charAt(0) != 'r')
 					continue;
-				int prev = idxs[ts[j]];
-				if (prev == -1) {
-					idxs[ts[j]] = j - offset;
+				Integer prev = idxs.get(ts[j]);
+				if (prev == null) {
+					idxs.put(ts[j], j - offset);
 					continue;
 				}
 				String prevL = ls[prev], newL;
@@ -1239,11 +1454,12 @@ public class Automaton implements LTS {
 			blockNums[i] = part.number;
 			part.add(i);
 		}
+		IntSet mutual = new IntSet(0, ret.size() - 1);
 		for (Partition p : byActions.values()) {
-			p.predecessors.set(0, ret.size());
-			p.predecessors.clear(p.number);
-			p.successors.set(0, ret.size());
-			p.successors.clear(p.number);
+			p.predecessors.addAll(mutual);
+			p.predecessors.removeKnown(p.number);
+			p.successors.addAll(mutual);
+			p.successors.removeKnown(p.number);
 		}
 		return ret;
 	}
@@ -1254,7 +1470,7 @@ public class Automaton implements LTS {
 		if (assignments != null || guards != null)
 			return false;
 		if (internal == null)
-			internal = Set.of();
+			return bisimulationReduction(Set.of());
 		if (VERBOSE) {
 			System.err.println("Bisimulation reducing from " + targets.length + " states (internal actions: " + internal + ")");
 			if (DEBUG) {
@@ -1273,35 +1489,35 @@ public class Automaton implements LTS {
 		queue.set(0, allPartitions.size());
 		while (!queue.isEmpty()) {
 			int pos = queue.nextSetBit(0);
+			final int nums[] = blockNums;
 			Partition splitter = allPartitions.get(pos);
 			if (DEBUG)
 				System.err.println("Partitions: " + allPartitions + ", splitter= " + splitter + ", queue=" + queue + ", done=" + done);
 			queue.clear(pos);
-			List<Partition> newParts = new ArrayList<>();
-			Iterator<Integer> predIt = splitter.predIterator();
-			while (predIt.hasNext()) {
-				Partition part = allPartitions.get(predIt.next());
-				List<Partition> newPartsS;
-				newParts = split(part, blockNums, internal, allPartitions);
+			IntSet preds = new IntSet(splitter.predecessors);
+			preds.forEachI(idx -> {
+				Partition part = allPartitions.get(idx);
+				List<Partition> newParts;
+				newParts = split(part, nums, internal, allPartitions);
 				if (newParts != null && newParts.size() != 1) {
 					done.clear(part.number);
 					for (Partition p : newParts)
 						queue.set(p.number);
 				}
-			}
+			});
 			if (splitter.size() > 1) {
 				done.set(splitter.number);
 			} else {
-				splitter.predecessors.stream().forEach(i -> {
+				if (DEBUG)
+					System.err.println("Done with " + splitter);
+				splitter.predecessors.forEachI(i -> {
 					Partition p = allPartitions.get(i);
-					p.successors.clear(splitter.number);
+					p.successors.removeKnown(splitter.number);
 				});
-				splitter.predecessors = new BitSet();
-				splitter.successors.stream().forEach(i -> {
+				splitter.successors.forEachI(i -> {
 					Partition p = allPartitions.get(i);
-					p.predecessors.clear(splitter.number);
+					p.predecessors.removeKnown(splitter.number);
 				});
-				splitter.successors = new BitSet();
 				allPartitions.set(splitter.number, null);
 			}
 		}
@@ -1332,9 +1548,160 @@ public class Automaton implements LTS {
 			System.err.println("Reducing modulo bisimulation classes: " + done);
 			System.err.println("Renames: " + renames);
 		}
-		done = null;
-		queue = null;
 		allPartitions.clear();
+
+		for (int s = targets.length - 1; s >= 0; s--) {
+			for (int t = targets[s].length - 1; t >= 0; t--) {
+				Integer to = renames.get(targets[s][t]);
+				if (to != null)
+					targets[s][t] = to;
+			}
+		}
+		collapseSameMarkov(internal);
+		return true;
+	}
+
+	private int partitionLowMem(int[] pre, int[] post, BitSet done,
+	                            Set<String> internal)
+	{
+		HashMap<List<Object>, Integer> signatures = new HashMap<>();
+		BitSet newDone = new BitSet();
+		int nStates = labels.length;
+		for (int i = 0; i < nStates; i++) {
+			if (done.get(pre[i])) {
+				List<Object> bList = List.of(pre[i]);
+				Integer block = signatures.get(bList);
+				if (block == null) {
+					block = signatures.size();
+					signatures.put(bList, block);
+				}
+				post[i] = block;
+				newDone.set(block);
+				continue;
+			}
+			boolean notDone = false;
+			Map<Integer, Set<String>> signature = new HashMap<>();
+			Map<Integer, BigDecimal> rates = new HashMap<>();
+			for (int l = labels[i].length - 1; l >= 0; l--) {
+				int block = targets[i][l];
+				block = pre[block];
+				String label = labels[i][l];
+				notDone |= !done.get(block);
+				if (label.charAt(0) == 'r') {
+					if (pre[i] == block)
+						continue;
+					label = label.substring(1);
+					BigDecimal r = new BigDecimal(label);
+					BigDecimal rate = rates.get(block);
+					if (rate == null)
+						rate = r;
+					else
+						rate = rate.add(r);
+					rates.put(block, rate);
+					continue;
+				}
+				if (internal.contains(label)) {
+					if (pre[i] == block)
+						continue;
+					label = "";
+				}
+				Set<String> transitions = signature.get(block);
+				if (transitions == null) {
+					transitions = new TreeSet<>();
+					signature.put(block, transitions);
+				}
+				transitions.add(label);
+			}
+			for (Integer t : rates.keySet()) {
+				BigDecimal rate = rates.get(t);
+				if (rate != BigDecimal.ZERO) {
+					rate = rate.stripTrailingZeros();
+					rates.replace(t, rate);
+				}
+			}
+			List<Object> compressed = new ArrayList<>();
+			Set<Integer> targets = new TreeSet<>();
+			targets.addAll(signature.keySet());
+			targets.addAll(rates.keySet());
+			int lastBlock = 0;
+			for (Integer j : targets) {
+				compressed.add(j - lastBlock - 128);
+				lastBlock = j;
+				Set<String> ls = signature.get(j);
+				if (ls != null)
+					compressed.addAll(ls);
+				BigDecimal rate = rates.get(j);
+				if (rate != null) {
+					rates.remove(j);
+					compressed.add(rate);
+				}
+			}
+			Integer newBlock = signatures.get(compressed);
+			if (newBlock == null) {
+				newBlock = signatures.size();
+				compressed = List.copyOf(compressed);
+				signatures.put(compressed, newBlock);
+				newDone.set(newBlock);
+			} else {
+				if (notDone)
+					newDone.clear(newBlock);
+			}
+			post[i] = newBlock;
+		}
+		done.clear();
+		done.or(newDone);
+		return signatures.size();
+	}
+
+	private boolean bisimulationReductionLowMem(Set<String> internal) {
+		if (targets.length == 1)
+			return false;
+		if (assignments != null || guards != null)
+			return false;
+		if (internal == null)
+			return bisimulationReductionLowMem(Set.of());
+		if (VERBOSE) {
+			System.err.println("LMBisimulation reducing from " + targets.length + " states (internal actions: " + internal + ")");
+			if (DEBUG)
+				System.err.println(toString());
+		}
+		int blockNumsPre[] = new int[labels.length];
+		int blockNumsPost[] = new int[labels.length];
+		BitSet done = new BitSet();
+		int numPreBlocks = 0, numPostBlocks = labels.length;
+		while (numPreBlocks != numPostBlocks) {
+			numPreBlocks = numPostBlocks;
+			int[] tmp = blockNumsPost;
+			blockNumsPost = blockNumsPre;
+			blockNumsPre = tmp;
+			numPostBlocks = partitionLowMem(blockNumsPre, blockNumsPost, done, internal);
+			if (VERBOSE)
+				System.err.println("Currently have " + numPostBlocks + " blocks");
+		}
+		done = null;
+
+		/* Implementation node: Since partitions are assigned
+		 * sequentially, we will never visit a state with a
+		 * block number higher than the state number.
+		 */
+		HashMap<Integer, Integer> renames = new HashMap<>();
+		for (int i = 0; i < targets.length; i++) {
+			int block = blockNumsPost[i];
+			blockNumsPre[i] = 0;
+			if (blockNumsPre[block] != 0)
+				renames.put(i, blockNumsPost[block]);
+			else
+				blockNumsPost[block] = i;
+			blockNumsPre[block]++;
+		}
+		if (renames.isEmpty()) {
+			if (DEBUG)
+				System.err.println("No change");
+			return false;
+		}
+		if (DEBUG)
+			System.err.println("Renames: " + renames);
+		blockNumsPre = blockNumsPost = null;
 
 		for (int s = targets.length - 1; s >= 0; s--) {
 			for (int t = targets[s].length - 1; t >= 0; t--) {
@@ -1373,45 +1740,102 @@ public class Automaton implements LTS {
 		return new LTS.TransitionSet(ret, true);
 	}
 
+	private void replaceTargets(int from, int t, Set<Integer> newTgts)
+	{
+		int toAdd = newTgts.size() - 1;
+		Iterator<Integer> it = newTgts.iterator();
+		targets[from][t] = it.next();
+		if (toAdd == 0)
+			return;
+		int oldSize = targets[from].length;
+		int newSize = oldSize + toAdd;
+		int[] newTargets = Arrays.copyOf(targets[from], newSize);
+		targets[from] = newTargets;
+		String[] newLabels = Arrays.copyOf(labels[from], newSize);
+		String label = newLabels[t];
+		labels[from] = newLabels;
+		Expression guard = null;
+		Expression[] newGuards = null;
+		Map<String, Expression> assigns = null;
+		Map<String, Expression>[] newAssigns = null;
+		if (guards != null && guards.length > from) {
+			Expression gs[] = guards[from];
+			if (gs != null && gs.length >= t) {
+				guard = gs[t];
+				newGuards = Arrays.copyOf(gs, newSize);
+				guards[from] = newGuards;
+			}
+		}
+		if (assignments != null && assignments.length > from) {
+			Map<String, Expression> as[] = assignments[from];
+			if (as != null && as.length >= t) {
+				assigns = as[t];
+				newAssigns = Arrays.copyOf(as, newSize);
+				assignments[from] = newAssigns;
+			}
+		}
+		int i = oldSize;
+		while (it.hasNext()) {
+			newTargets[i] = it.next();
+			newLabels[i] = label;
+			if (assigns != null)
+				newAssigns[i] = assigns;
+			if (guard != null)
+				newGuards[i] = guard;
+			i++;
+		}
+	}
+
 	private boolean tauCollapse(Set<String> internals)
 	{
-		boolean markovian[] = new boolean[targets.length];
 		boolean visible[] = new boolean[targets.length];
-		boolean tau[][] = new boolean[targets.length][];
 		boolean any = false;
-		ArrayList<Set<Integer>> tauReachable = new ArrayList<>();
+		ArrayList<Set<Integer>> tauCollapsible = new ArrayList<>(targets.length);
+		int emptyTarget = -1;
 		if (VERBOSE) {
 			System.err.println("Collapsing under " + internals);
 			if (DEBUG)
 				System.err.println(toString());
 		}
+stateLoop:
 		for (int i = 0; i < targets.length; i++) {
-			TreeSet<Integer> reach = new TreeSet<Integer>();
-			tau[i] = new boolean[labels[i].length];
-			tauReachable.add(reach);
+			if (targets[i].length == 0) {
+				Set<Integer> tgt = null;
+				if (emptyTarget == -1) {
+					emptyTarget = i;
+				} else {
+					tgt = new TreeSet<Integer>();
+					tgt.add(emptyTarget);
+				}
+				tauCollapsible.add(tgt);
+				continue;
+			}
+			tauCollapsible.add(null);
 			for (int j = labels[i].length - 1; j >= 0; j--) {
 				if (labels[i][j].charAt(0) != 'i') {
-					markovian[i] = true;
-					continue;
+					visible[i] = true;
+					continue stateLoop;
 				}
 				if (!internals.contains(labels[i][j])) {
 					visible[i] = true;
-					continue;
+					continue stateLoop;
 				}
 				if (getTransitionGuard(i, j) != null) {
 					visible[i] = true;
-					continue;
+					continue stateLoop;
 				}
 				Map<String, Expression> assigns
 					= getAssignments(i, j);
 				if (assigns != null && !assigns.isEmpty()) {
 					visible[i] = true;
-					continue;
+					continue stateLoop;
 				}
-				tau[i][j] = true;
-				any = true;
-				reach.add(targets[i][j]);
 			}
+			TreeSet<Integer> reach = new TreeSet<Integer>();
+			tauCollapsible.set(i, reach);
+			any = true;
+			for (int j = labels[i].length - 1; j >= 0; j--)
+				reach.add(targets[i][j]);
 		}
 		if (!any) {
 			if (DEBUG)
@@ -1424,70 +1848,76 @@ public class Automaton implements LTS {
 		while (change) {
 			change = false;
 			for (int i = 0; i < targets.length; i++) {
-				Set<Integer> reach = tauReachable.get(i);
+				if (visible[i])
+					continue;
+				Set<Integer> reach = tauCollapsible.get(i);
+				if (reach == null)
+					continue;
 				Iterator<Integer> it = reach.iterator();
 				while (it.hasNext()) {
 					int t = it.next();
-					Set<Integer> tgt = tauReachable.get(t);
+					Set<Integer> tgt = tauCollapsible.get(t);
+					if (tgt == null)
+						continue;
 					if (reach.addAll(tgt)) {
 						change = true;
 						it = reach.iterator();
 					}
+				}
+				it = reach.iterator();
+				while (it.hasNext()) {
+					int t = it.next();
+					if (!visible[t])
+						it.remove();
 				}
 			}
 		}
 		if (DEBUG)
 			System.err.println("Tau-closed: " + tauCollapsible);
 		for (int i = targets.length - 1; i >= 0; i--) {
-			Set<Integer> reach = tauReachable.get(i);
-			int markovCount = 0;
-			for (int r : reach) {
-				if (markovian[r])
-					markovCount++;
-			}
-			if (markovCount > (visible[i] ? 0 : 1)) {
-				Iterator<Integer> it = reach.iterator();
-				while (it.hasNext()) {
-					if (markovian[it.next()])
-						it.remove();
+			for (int j = targets[i].length - 1; j >= 0; j--) {
+				int t = targets[i][j];
+				Set<Integer> newTgts;
+				newTgts = tauCollapsible.get(t);
+				if (newTgts == null)
+					continue;
+				String label = labels[i][j];
+				if (label.charAt(0) == 'r') {
+					if (newTgts.size() == 1) {
+						t = newTgts.iterator().next();
+						targets[i][j] = t;
+						any = true;
+					}
+				} else if (label.charAt(0) == 'i') {
+					replaceTargets(i, j, newTgts);
+					any = true;
+				} else {
+					System.err.println("Unknown transition type for tau-collapse: " + label);
 				}
 			}
-			reach.remove(i);
-			Set<LTS.Transition> ts = new TreeSet<>();
-			ts.addAll(getTransitionsExcept(i, reach, internals));
-			for (int j : reach)
-				ts.addAll(getTransitionsExcept(j, reach, internals));
-			int targets[] = new int[ts.size()];
-			String labels[] = new String[ts.size()];
-			Expression[] guards = null;
-			Map<String, Expression>[] assignments = null;
-			int j = 0;
-			for (LTS.Transition t : ts) {
-				targets[j] = t.target[0];
-				labels[j] = t.label;
-				if (t.guard != ConstantExpression.TRUE) {
-					if (guards == null)
-						guards = new Expression[ts.size()];
-					guards[j] = t.guard;
+		}
+		if (!visible[initState] && tauCollapsible.get(initState) != null) {
+			Set<Integer> init = tauCollapsible.get(initState);
+			if (init.size() == 1) {
+				int to = init.iterator().next();
+				targets[initState] = targets[to].clone();
+				labels[initState] = labels[to].clone();
+				if (guards != null) {
+					if (guards.length > to) {
+						if (guards.length <= initState)
+							guards = Arrays.copyOf(guards, initState + 1);
+						guards[initState] = guards[to].clone();
+					} else if (guards.length > initState)
+						guards[initState] = null;
 				}
-				if (!t.assignments.isEmpty()) {
-					if (assignments == null)
-						assignments = Arrays.copyOf(this.assignments[0], ts.size());
-					assignments[j] = t.assignments;
+				if (assignments != null) {
+					if (assignments.length > to) {
+						if (assignments.length <= initState)
+							assignments = Arrays.copyOf(assignments, initState + 1);
+						assignments[initState] = assignments[to].clone();
+					} else if (assignments.length > initState)
+						assignments[initState] = null;
 				}
-				j++;
-			}
-			this.targets[i] = targets;
-			this.labels[i] = labels;
-			if (guards != null) {
-				if (this.guards.length <= i)
-					this.guards = Arrays.copyOf(this.guards, i + 1);
-				this.guards[i] = guards;
-			}
-			if (assignments != null) {
-				if (this.assignments.length <= i)
-					this.assignments = Arrays.copyOf(this.assignments, i + 1);
-				this.assignments[i] = assignments;
 			}
 		}
 		if (DEBUG) {
