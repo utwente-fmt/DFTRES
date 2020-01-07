@@ -1870,6 +1870,8 @@ stateLoop:
 					if (!visible[t])
 						it.remove();
 				}
+				if (reach.isEmpty())
+					tauCollapsible.set(i, null);
 			}
 		}
 		if (DEBUG)
