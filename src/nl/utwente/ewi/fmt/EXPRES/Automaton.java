@@ -92,9 +92,12 @@ public class Automaton implements LTS {
 	 * @param permitted	The set of permitted actions.
 	 * @param internal	The set of internal actions.
 	 * @param maxProg	The set of maximal-progress actions.
+	 * @param maxMem        The maximal amount of memory to use.
 	 */
 	public Automaton(LTS system, Set<String> permitted,
-	                 Set<String> internal, Set<String> maxProg)
+	                 Set<String> internal, Set<String> maxProg,
+	                 long maxMem)
+		throws ModelTooLargeException
 	{
 		HashMap<LTS.StateWrapper, Integer> states = new HashMap<>();
 		ArrayDeque<LTS.StateWrapper> queue = new ArrayDeque<>();
@@ -104,6 +107,7 @@ public class Automaton implements LTS {
 		labels = new String[1][];
 		assignments = createAssignmentArray(1);
 		boolean anyHasAssignments = false;
+		long memUsed = 0;
 		if (DEBUG && internal != null)
 			System.err.println("Internal actions: " + internal);
 		if (DEBUG && permitted != null)
@@ -186,6 +190,11 @@ public class Automaton implements LTS {
 				if (guards != null && guards[num] != null)
 					guards[num] = Arrays.copyOf(guards[num], i);
 			}
+			memUsed += 48; /* Two array headers, 24 bytes each */
+			memUsed += 16; /* Two references to the new arrays */
+			memUsed += i * (8 + 4); /* 8 per label, 4 per target */
+			if (memUsed > maxMem)
+				throw new ModelTooLargeException();
 		}
 		targets = Arrays.copyOf(targets, states.size());
 		labels = Arrays.copyOf(labels, states.size());
@@ -227,13 +236,14 @@ public class Automaton implements LTS {
 		createTransitionArray();
 	}
 
-	public Automaton(LTS system)
+	public Automaton(LTS system) throws ModelTooLargeException
 	{
-		this(system, null, null, null);
+		this(system, null, null, null, Long.MAX_VALUE);
 	}
 
 	public static Automaton fromJani(Map janiData,
 	                                 Map<String, Number> constants)
+		throws ModelTooLargeException
 	{
 		return new Automaton(SymbolicAutomaton.fromJani(janiData, constants));
 	}
@@ -622,14 +632,24 @@ public class Automaton implements LTS {
 	                              String notCared,
 	                              Set<String> preserve)
 	{
-		Automaton ret = new Automaton(this);
+		Automaton ret;
+		try {
+			ret = new Automaton(this);
+		} catch (ModelTooLargeException e) {
+			throw new RuntimeException(e);
+		}
 		ret.addDontCaresMutating(dontCare, notCared, preserve);
 		return ret;
 	}
 
 	public Automaton stopCaring(String signal, String dontCareSignal, String stopCaringSignal)
 	{
-		Automaton ret = new Automaton(this);
+		Automaton ret;
+		try {
+			ret = new Automaton(this);
+		} catch (ModelTooLargeException e) {
+			throw new RuntimeException(e);
+		}
 		int dontCareState = -1;
 		for (int i = 0; i < ret.labels.length; i++) {
 			if (ret.targets[i].length != 1)
@@ -801,6 +821,28 @@ public class Automaton implements LTS {
 		return labels.length;
 	}
 
+	/** @return An approximation of the memory occupied by this
+	 * assignment
+	 */
+	public long getMemUsed()
+	{
+		long total = 48; /* Headers of labels and assignments */
+		if (assignments != null)
+			total += 24;
+		for (int i = labels.length - 1; i >= 0; i--) {
+			/* 4 per target, 8 per label (ref) */
+			total += (4 + 8) * labels[i].length;
+			total += 48; /* Headers of those arrays */
+			if (assignments != null) {
+				total += 24; /* Header */
+				total += 8 * assignments[i].length;
+				/* The actual assignments are shared,
+				 * and thus not counted */
+			}
+		}
+		return total;
+	}
+
 	public int[] getInitialState()
 	{
 		return new int[]{0};
@@ -848,7 +890,11 @@ public class Automaton implements LTS {
 		}
 		if (!anyChange)
 			return this;
-		return new Automaton(this, keep, null, null);
+		try {
+			return new Automaton(this, keep, null, null, Long.MAX_VALUE);
+		} catch (ModelTooLargeException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	private void removeUnreachable() {

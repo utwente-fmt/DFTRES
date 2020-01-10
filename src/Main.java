@@ -305,6 +305,8 @@ class Main {
 				     int compLimit)
 			throws IOException
 	{
+		long maxMem = Runtime.getRuntime().maxMemory();
+		maxMem = 3 * maxMem / 4;
 		LTS ret;
 		if (filename.endsWith(".exp")) {
 			Composition c;
@@ -318,7 +320,7 @@ class Main {
 				ret = null;
 				while (ret != c) {
 					ret = c;
-					c = c.partialCompose(compLimit);
+					c = c.partialCompose(compLimit, maxMem);
 				}
 			}
 			ret = c;
@@ -338,7 +340,7 @@ class Main {
 				ret = null;
 				while (ret != c) {
 					ret = c;
-					c = c.partialCompose(compLimit);
+					c = c.partialCompose(compLimit, maxMem);
 				}
 			}
 			ret = c;

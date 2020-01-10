@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -375,8 +376,10 @@ public class Composition implements MarkableLTS
 		return ret;
 	}
 
-	private Composition compose(int[] auts)
+	private Composition compose(int[] auts, long maxMem) throws ModelTooLargeException
 	{
+		for (Automaton a : automata)
+			maxMem -= a.getMemUsed();
 		String labels[] = new String[vectorLabels.length];
 		if (VERBOSE) {
 			System.err.println("Composing "+ Arrays.toString(auts));
@@ -400,7 +403,7 @@ public class Composition implements MarkableLTS
 			sub.printAutomata(System.err);
 		}
 		maxProg.addAll(internals);
-		Automaton aut = new Automaton(sub, null, internals, maxProg);
+		Automaton aut = new Automaton(sub, null, internals, maxProg, maxMem);
 		sub = null;
 		if (DEBUG)
 			System.err.println("Labels: "+ Arrays.toString(labels));
@@ -413,47 +416,7 @@ public class Composition implements MarkableLTS
 		return ret;
 	}
 
-	private Composition composeAny(int stateLimit)
-	{
-		Composition ret = this;
-		Automaton auts[] = ret.automata;
-		if (stateLimit <= 0)
-			stateLimit = Integer.MAX_VALUE;
-		for (int i = 0; i < auts.length; i++) {
-			if (auts[i].getNumStates() > stateLimit)
-				continue;
-			TreeSet<Integer> toComp = new TreeSet<>();
-			toComp.add(i);
-			int nStates = auts[i].getNumStates();
-			int max = stateLimit / nStates;
-			for (int j = i + 1; j < auts.length; j++) {
-				if (auts[j].getNumStates() > max)
-					continue;
-				toComp.add(j);
-				nStates *= auts[j].getNumStates();
-				max = stateLimit / nStates;
-			}
-			if (toComp.size() <= 1)
-				continue;
-			int[] arr = new int[toComp.size()];
-			int j = 0;
-			for (Integer c : toComp)
-				arr[j++] = c;
-			try {
-				Composition newRet = ret.compose(arr);
-				auts = newRet.automata;
-				ret = newRet;
-				i = -1;
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-		}
-		if (ret != this)
-			ret.afterParsing();
-		return ret;
-	}
-
-	public Composition partialCompose(int stateLimit)
+	public Composition partialCompose(int stateLimit, long maxMem)
 	{
 		if (stateLimit <= 0)
 			stateLimit = Integer.MAX_VALUE;
@@ -479,10 +442,10 @@ public class Composition implements MarkableLTS
 			for (int j : vectorAutomata[i]) {
 				auts.add(j);
 				states *= automata[j].getNumStates();
-				if (stateLimit > 0 && states > stateLimit)
+				if (states > stateLimit)
 					break;
 			}
-			if (stateLimit > 0 && states > stateLimit)
+			if (states > stateLimit)
 				continue;
 			Integer prev = counts.get(auts);
 			if (prev == null)
@@ -491,35 +454,37 @@ public class Composition implements MarkableLTS
 				prev = prev + 1;
 			counts.put(auts, prev);
 		}
-		double bestScore = 0;
-		Set<Integer> best = null;
-		if (DEBUG)
-			System.err.println("Choosing composition from: " + counts);
-		for (Set<Integer> auts : counts.keySet()) {
-			double score = counts.get(auts);
-			if (auts.size() > 30)
-				continue;
-			score /= (1 << auts.size());
-			if (score > bestScore) {
-				best = auts;
-				bestScore = score;
-			}
+		Map<Set<Integer>, Double> scores = new HashMap<>();
+		for (Map.Entry<Set<Integer>, Integer> e : counts.entrySet()) {
+			double score = e.getValue();
+			score /= (1 << e.getKey().size());
+			scores.put(e.getKey(), score);
 		}
-		if (best != null) {
+		counts = null;
+
+		TreeSet<Set<Integer>> options = new TreeSet<>(
+			new Comparator<Set<Integer>>() {
+				public int compare(Set<Integer> s1, Set<Integer> s2) {
+					Double score1 = scores.get(s1);
+					Double score2 = scores.get(s2);
+					return score2.compareTo(score1);
+				}
+			});
+		options.addAll(scores.keySet());
+		for (Set<Integer> best : options) {
 			int auts[] = new int[best.size()];
 			int i = 0;
 			for (Integer s : best)
 				auts[i++] = s;
 			try {
-				Composition ret = compose(auts);
+				Composition ret = compose(auts, maxMem);
 				ret.afterParsing();
 				return ret;
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
 		}
-
-		return composeAny(stateLimit);
+		return this;
 	}
 
 	public void markStatesAfter(String label, int val)
@@ -2048,8 +2013,13 @@ public class Composition implements MarkableLTS
 				throw new IllegalArgumentException("Automaton should be an object, not: " + aut);
 			Map autm = (Map)aut;
 			Object n = autm.get("name");
-			if (n != null)
-				declaredAuts.put(n.toString(), Automaton.fromJani(autm, constants));
+			if (n != null) {
+				try {
+					declaredAuts.put(n.toString(), Automaton.fromJani(autm, constants));
+				} catch (ModelTooLargeException e) {
+					throw new UnsupportedOperationException ("Automaton too large", e);
+				}
+			}
 		}
 		Object syso = root.get("system");
 		if (syso == null)
