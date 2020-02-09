@@ -25,6 +25,7 @@ public class SymbolicAutomaton implements LTS {
 	private int targets[][];
 	private String labels[][];
 	private Expression guards[][];
+	private Expression probs[][];
 	private HashMap<String, Expression> assignments[][];
 
 	/* Private since 'Map' may in the future be suitable for
@@ -107,6 +108,7 @@ public class SymbolicAutomaton implements LTS {
 		labels = new String[locations.size()][0];
 		targets = new int[locations.size()][0];
 		guards = new Expression[locations.size()][0];
+		probs = new Expression[locations.size()][0];
 		assignments = createAssignmentArray(locations.size());
 		Object inito = janiData.get("initial-locations");
 		if (!(inito instanceof Object[]))
@@ -162,8 +164,6 @@ public class SymbolicAutomaton implements LTS {
 				Number rate = JaniUtils.getConstantDouble(rateMap.get("exp"), constants);
 				action = "c" + rate + ";" + ao.toString();
 			}
-			labels[srci] = Arrays.copyOf(labels[srci], labels[srci].length + 1);
-			labels[srci][labels[srci].length - 1] = action;
 			Expression guard = ConstantExpression.TRUE;
 			if (edge.containsKey("guard")) {
 				Object gO = edge.get("guard");
@@ -173,8 +173,6 @@ public class SymbolicAutomaton implements LTS {
 				guard = Expression.fromJani(g.get("exp"));
 				guard = guard.simplify(constants);
 			}
-			guards[srci] = Arrays.copyOf(guards[srci], guards[srci].length + 1);
-			guards[srci][guards[srci].length - 1] = guard;
 			Object destO = edge.get("destinations");
 			if (!(destO instanceof Object[]))
 				throw new IllegalArgumentException("Destinations of edges must be arrays (currently of size 1).");
@@ -191,10 +189,14 @@ public class SymbolicAutomaton implements LTS {
 				target = locations.get(destO.toString());
 			if (target == null)
 				throw new IllegalArgumentException("Unknown target location: " + destO);
-			/* Deliberatly ignoring probability, since we
-			 * only support non-probabilistic transitions */
-			targets[srci] = Arrays.copyOf(targets[srci], targets[srci].length + 1);
-			targets[srci][targets[srci].length - 1] = target;
+			Object probO = dest.get("probability");
+			Expression prob = null;
+			if (probO != null) {
+				if (!(probO instanceof Map))
+					throw new IllegalArgumentException("Probability should be JANI expression, not: " + probO);
+				Map<?, ?> probMap = (Map<?, ?>)probO;
+				prob = Expression.fromJani(probMap.get("exp"));
+			}
 			Object assignO = dest.get("assignments");
 			if (assignO == null)
 				assignO = new Object[0];
@@ -219,8 +221,16 @@ public class SymbolicAutomaton implements LTS {
 				Expression val = Expression.fromJani(valO);
 				assignMap.put(ref, val.simplify(constants));
 			}
+			labels[srci] = Arrays.copyOf(labels[srci], labels[srci].length + 1);
+			labels[srci][labels[srci].length - 1] = action;
+			guards[srci] = Arrays.copyOf(guards[srci], guards[srci].length + 1);
+			guards[srci][guards[srci].length - 1] = guard;
+			targets[srci] = Arrays.copyOf(targets[srci], targets[srci].length + 1);
+			targets[srci][targets[srci].length - 1] = target;
 			this.assignments[srci] = Arrays.copyOf(this.assignments[srci], labels[srci].length);
 			this.assignments[srci][labels[srci].length - 1] = assignMap;
+			probs[srci] = Arrays.copyOf(probs[srci], probs[srci].length + 1);
+			probs[srci][probs[srci].length - 1] = prob;
 		}
 	}
 
@@ -279,6 +289,16 @@ public class SymbolicAutomaton implements LTS {
 					continue;
 			}
 			String label = labels[src][i];
+			if (probs[src][i] != null) {
+				Number p = probs[src][i].evaluate(values);
+				if (p == null)
+					throw new UnsupportedOperationException("Probability depends on non-local variable: " + probs[src][i]);
+				if (p.longValue() == 0)
+					continue;
+				if (!label.equals("i"))
+					throw new UnsupportedOperationException("Probabilistic transition with named or non-interactive label: " + label);
+				label = "p" + p;
+			}
 			int[] target = from.clone();
 			target[0] = targets[src][i];
 			Map<String, Expression> assigns = assignments[src][i];
@@ -310,11 +330,14 @@ public class SymbolicAutomaton implements LTS {
 		ret.append(String.format("Initial state: %d\n", Arrays.toString(initialState)));
 		for (int i = 0; i < getNumStates(); i++) {
 			for (int j = 0; j < labels[i].length; j++) {
-				ret.append(String.format("if %s then %5d ---> %5d (%s)\n",
+				ret.append(String.format("if %s then %5d ---> %5d (%s)",
 						guards[i][j],
 						i,
 						targets[i][j],
 						labels[i][j]));
+				if (probs[i][j] != null)
+					ret.append(String.format(" with probability " + probs[i][j]));
+				ret.append('\n');
 			}
 		}
 		return ret.toString();
