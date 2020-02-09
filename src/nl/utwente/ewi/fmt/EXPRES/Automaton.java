@@ -105,7 +105,6 @@ public class Automaton implements LTS {
 		states.put(queue.getFirst(), 0);
 		targets = new int[1][];
 		labels = new String[1][];
-		assignments = createAssignmentArray(1);
 		boolean anyHasAssignments = false;
 		long memUsed = 0;
 		if (DEBUG && internal != null)
@@ -121,7 +120,8 @@ public class Automaton implements LTS {
 					n = 2*n;
 				targets = Arrays.copyOf(targets, n);
 				labels = Arrays.copyOf(labels, n);
-				assignments = Arrays.copyOf(assignments, n);
+				if (assignments != null)
+					assignments = Arrays.copyOf(assignments, n);
 			}
 			LTS.StateWrapper cur = queue.poll();
 			int[] state = cur.state;
@@ -136,7 +136,6 @@ public class Automaton implements LTS {
 				ts = cleanupInternal(ts, cur, internal, maxProg);
 			targets[num] = new int[ts.size()];
 			labels[num] = new String[ts.size()];
-			assignments[num] = Arrays.copyOf(assignments[0], ts.size());
 			int i = 0;
 			for (LTS.Transition t : ts) {
 				if (permitted != null
@@ -176,23 +175,33 @@ public class Automaton implements LTS {
 						guards[num] = new Expression[ts.size()];
 					guards[num][i] = t.guard;
 				}
-				assignments[num][i] = t.assignments;
-				if (t.assignments != null && !t.assignments.isEmpty())
-				{
-					anyHasAssignments = true;
+				if (t.assignments != null) {
+					if (assignments == null)
+						assignments = createAssignmentArray(targets.length);
+					if (assignments[num] == null || assignments[num].length <= i)
+						assignments[num] = Arrays.copyOf(assignments[0], ts.size());
+					assignments[num][i] = t.assignments;
+					if (!t.assignments.isEmpty())
+						anyHasAssignments = true;
 				}
 				i++;
 			}
 			if (i != labels[num].length) {
 				labels[num] = Arrays.copyOf(labels[num], i);
 				targets[num] = Arrays.copyOf(targets[num], i);
-				assignments[num] = Arrays.copyOf(assignments[num], i);
+				if (assignments != null && assignments[num] != null)
+					assignments[num] = Arrays.copyOf(assignments[num], i);
 				if (guards != null && guards[num] != null)
 					guards[num] = Arrays.copyOf(guards[num], i);
 			}
 			memUsed += 48; /* Two array headers, 24 bytes each */
 			memUsed += 16; /* Two references to the new arrays */
 			memUsed += i * (8 + 4); /* 8 per label, 4 per target */
+			if (assignments != null && assignments[num] != null) {
+				memUsed += 24; /* Array header */
+				memUsed += 8; /* Ref. to new array */
+				memUsed += i * 8;
+			}
 			if (memUsed > maxMem)
 				throw new ModelTooLargeException();
 		}
