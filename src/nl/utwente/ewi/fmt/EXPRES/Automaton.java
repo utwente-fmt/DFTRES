@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.lang.ref.SoftReference;
 import java.math.BigDecimal;
 import java.util.AbstractSet;
 import java.util.ArrayList;
@@ -1616,92 +1617,165 @@ public class Automaton implements LTS {
 		return true;
 	}
 
-	private int partitionLowMem(int[] pre, int[] post, BitSet done,
-	                            Set<String> internal)
+	private static class Transitions extends TreeSet<String>
+			implements Comparable<Transitions>
 	{
-		HashMap<List<Object>, Integer> signatures = new HashMap<>();
-		BitSet newDone = new BitSet();
-		int nStates = labels.length;
-		for (int i = 0; i < nStates; i++) {
-			if (done.get(pre[i])) {
-				List<Object> bList = List.of(pre[i]);
-				Integer block = signatures.get(bList);
-				if (block == null) {
-					block = signatures.size();
-					signatures.put(bList, block);
-				}
-				post[i] = block;
-				newDone.set(block);
-				continue;
+		public final int target;
+		public BigDecimal rate;
+
+		public Transitions(int target) {
+			this.target = target;
+		}
+
+		public int compareTo(Transitions other) {
+			if (other.target < target)
+				return 1;
+			if (other.target > target)
+				return -1;
+			return 0;
+		}
+	}
+
+	private class Signature {
+		private final int[] blockNums;
+		private final Set<String> internal;
+		private final int hashcode;
+		private final int state;
+		private SoftReference<Object> cachedData;
+		public int blockNum;
+
+		public Signature(int singleBlock) {
+			hashcode = singleBlock - 128;
+			blockNums = null;
+			internal = null;
+			state = -1;
+			cachedData = new SoftReference<>(null);
+		}
+
+		public Signature(int[] blocks, Set<String> tau, int state,
+		                 boolean[] isDone, BitSet done) {
+			this.blockNums = blocks;
+			this.internal = tau;
+			this.state = state;
+			cachedData = new SoftReference<>(null);
+			this.hashcode = data(done, isDone).hashCode();
+		}
+
+		private Object data(BitSet done, boolean[] isDone) {
+			Object ret = cachedData.get();
+			if (ret != null)
+				return ret;
+			if (blockNums == null) {
+				ret = Integer.valueOf(hashcode);
+				cachedData = new SoftReference<>(ret);
+				return ret;
 			}
 			boolean notDone = false;
-			Map<Integer, Set<String>> signature = new HashMap<>();
-			Map<Integer, BigDecimal> rates = new HashMap<>();
+			Map<Transitions, Transitions> forTgt = new TreeMap<>();
+			int i = state;
 			for (int l = labels[i].length - 1; l >= 0; l--) {
 				int block = targets[i][l];
-				block = pre[block];
+				block = blockNums[block];
+				Transitions ts = new Transitions(block);
+				Transitions prevTs = forTgt.get(ts);
+				if (prevTs != null)
+					ts = prevTs;
+				else
+					forTgt.put(ts, ts);
 				String label = labels[i][l];
-				notDone |= !done.get(block);
+				if (done != null)
+					notDone |= !done.get(block);
 				if (label.charAt(0) == 'r') {
-					if (pre[i] == block)
+					if (blockNums[i] == block)
 						continue;
 					label = label.substring(1);
 					BigDecimal r = new BigDecimal(label);
-					BigDecimal rate = rates.get(block);
-					if (rate == null)
-						rate = r;
+					if (ts.rate == null)
+						ts.rate = r;
 					else
-						rate = rate.add(r);
-					rates.put(block, rate);
+						ts.rate = ts.rate.add(r);
 					continue;
 				}
 				if (internal.contains(label)) {
-					if (pre[i] == block)
+					if (blockNums[i] == block)
 						continue;
 					label = "";
 				}
-				Set<String> transitions = signature.get(block);
-				if (transitions == null) {
-					transitions = new TreeSet<>();
-					signature.put(block, transitions);
-				}
-				transitions.add(label);
+				ts.add(label);
 			}
-			for (Integer t : rates.keySet()) {
-				BigDecimal rate = rates.get(t);
-				if (rate != BigDecimal.ZERO) {
+			if (done != null)
+				isDone[0] = !notDone;
+			for (Transitions ts : forTgt.keySet()) {
+				BigDecimal rate = ts.rate;
+				if (rate != null && rate != BigDecimal.ZERO) {
 					rate = rate.stripTrailingZeros();
-					rates.replace(t, rate);
+					ts.rate = rate;
 				}
 			}
 			List<Object> compressed = new ArrayList<>();
-			Set<Integer> targets = new TreeSet<>();
-			targets.addAll(signature.keySet());
-			targets.addAll(rates.keySet());
 			int lastBlock = 0;
-			for (Integer j : targets) {
-				compressed.add(j - lastBlock - 128);
-				lastBlock = j;
-				Set<String> ls = signature.get(j);
-				if (ls != null)
-					compressed.addAll(ls);
-				BigDecimal rate = rates.get(j);
-				if (rate != null) {
-					rates.remove(j);
+			for (Transitions ts : forTgt.keySet()) {
+				if (ts.isEmpty() && ts.rate == null)
+					continue;
+				compressed.add(ts.target - lastBlock - 128);
+				lastBlock = ts.target;
+				compressed.addAll(ts);
+				BigDecimal rate = ts.rate;
+				if (rate != null && rate != BigDecimal.ZERO)
 					compressed.add(rate);
+			}
+			cachedData = new SoftReference<>(compressed);
+			return compressed;
+		}
+
+		public boolean equals(Object other) {
+			if (!(other instanceof Signature))
+				return false;
+			Signature otherSig = (Signature)other;
+			if (otherSig.hashcode != hashcode)
+				return false;
+			Object otherData = otherSig.data(null, null);
+			return data(null, null).equals(otherData);
+		}
+
+		public int hashCode() {
+			return hashcode;
+		}
+	}
+
+	private int partitionLowMem(int[] pre, int[] post, BitSet done,
+	                            Set<String> internal)
+	{
+		HashMap<Signature, Signature> signatures = new HashMap<>();
+		BitSet newDone = new BitSet();
+		int nStates = labels.length;
+		boolean tmpDone[] = new boolean[1];
+		for (int i = 0; i < nStates; i++) {
+			if (done.get(pre[i])) {
+				Signature sig = new Signature(pre[i]);
+				Signature block = signatures.get(sig);
+				if (block == null) {
+					sig.blockNum = signatures.size();
+					signatures.put(sig, sig);
+					block = sig;
 				}
+				post[i] = block.blockNum;
+				newDone.set(block.blockNum);
+				continue;
 			}
-			Integer newBlock = signatures.get(compressed);
-			if (newBlock == null) {
-				newBlock = signatures.size();
-				compressed = List.copyOf(compressed);
-				signatures.put(compressed, newBlock);
-				newDone.set(newBlock);
+			Signature sig = new Signature(pre, internal, i, tmpDone,
+			                              done);
+			Signature block = signatures.get(sig);
+			if (block == null) {
+				sig.blockNum = signatures.size();
+				signatures.put(sig, sig);
+				block = sig;
+				newDone.set(sig.blockNum);
 			} else {
-				if (notDone)
-					newDone.clear(newBlock);
+				if (!tmpDone[0])
+					newDone.clear(block.blockNum);
 			}
-			post[i] = newBlock;
+			post[i] = block.blockNum;
 		}
 		done.clear();
 		done.or(newDone);

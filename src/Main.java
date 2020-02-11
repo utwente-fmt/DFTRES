@@ -306,7 +306,7 @@ class Main {
 			throws IOException
 	{
 		long maxMem = Runtime.getRuntime().maxMemory();
-		maxMem = 3 * maxMem / 4;
+		maxMem = maxMem / 2;
 		LTS ret;
 		if (filename.endsWith(".exp")) {
 			Composition c;

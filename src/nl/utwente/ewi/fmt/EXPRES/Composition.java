@@ -416,6 +416,22 @@ public class Composition implements MarkableLTS
 		return ret;
 	}
 
+	private static int lexCompare(Set<Integer> s1, Set<Integer> s2)
+	{
+		Iterator<Integer> i1 = new TreeSet<>(s1).iterator();
+		Iterator<Integer> i2 = new TreeSet<>(s2).iterator();
+		while (i1.hasNext()) {
+			if (!i2.hasNext())
+				return 1;
+			int v1 = i1.next(), v2 = i2.next();
+			if (v1 != v2)
+				return v2 > v1 ? -1 : 1;
+		}
+		if (i2.hasNext())
+			return -1;
+		return 0;
+	}
+
 	public Composition partialCompose(int stateLimit, long maxMem)
 	{
 		if (stateLimit <= 0)
@@ -467,6 +483,18 @@ public class Composition implements MarkableLTS
 				public int compare(Set<Integer> s1, Set<Integer> s2) {
 					Double score1 = scores.get(s1);
 					Double score2 = scores.get(s2);
+					if (score1.equals(score2)) {
+						long count = 1;
+						for (int id : s1)
+							count *= automata[id].getNumStates();
+						score1 = (double)count;
+						count = 1;
+						for (int id : s1)
+							count *= automata[id].getNumStates();
+						score2 = (double)count;
+					}
+					if (score1.equals(score2))
+						return lexCompare(s1, s2);
 					return score2.compareTo(score1);
 				}
 			});
