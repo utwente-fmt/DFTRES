@@ -41,7 +41,7 @@ public class Automaton implements LTS {
 	private String labels[][];
 	private Expression guards[][];
 	private Map<String, Expression> assignments[][];
-	private Map<String, Integer> transitions[];
+	private SoftReference<Map<String, Integer>> transitions[];
 	private final static boolean VERBOSE = false;
 	private final static boolean DEBUG = false;
 
@@ -300,21 +300,9 @@ public class Automaton implements LTS {
 	@SuppressWarnings("unchecked")
 	private void createTransitionArray()
 	{
-		transitions = (HashMap<String, Integer>[]) new HashMap[labels.length];
-		for (int i = labels.length - 1; i >= 0; i--) {
-			transitions[i] = new HashMap<String, Integer>();
-			for (int j = labels[i].length - 1; j >= 0; j--) {
-				if (labels[i][j].charAt(0) == 'r')
-					continue;
-				if (labels[i][j].charAt(0) == 't')
-					continue;
-				if (transitions[i].containsKey(labels[i][j])) {
-					transitions[i] = null;
-					break;
-				}
-				transitions[i].put(labels[i][j], j);
-			}
-		}
+		transitions = (SoftReference<Map<String, Integer>>[]) new SoftReference[labels.length];
+		for (int i = labels.length - 1; i >= 0; i--)
+			transitions[i] = new SoftReference<Map<String, Integer>>(null);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -746,9 +734,24 @@ public class Automaton implements LTS {
 	 */
 	public int getTransitionNum(int from, String transition)
 	{
-		if (transitions[from] == null)
-			throw new UnsupportedOperationException("Internal nondeterminism in context expecting determinised model.");
-		Integer r = transitions[from].get(transition);
+		Map<String, Integer> map = transitions[from].get();
+		if (map == null) {
+			HashMap<String, Integer> tmp = new HashMap<>();
+			String[] labs = labels[from];
+			for (int j = labs.length - 1; j >= 0; j--) {
+				if (labs[j].charAt(0) == 'r')
+					continue;
+				if (labs[j].charAt(0) == 't')
+					continue;
+				if (map.containsKey(labs[j]))
+					throw new UnsupportedOperationException("Internal nondeterminism in context expecting determinised model.");
+				tmp.put(labs[j], j);
+			}
+			map = new HashMap<>(tmp.size());
+			map.putAll(tmp);
+			transitions[from] = new SoftReference<>(map);
+		}
+		Integer r = map.get(transition);
 		if (r == null)
 			return -1;
 		return r;
