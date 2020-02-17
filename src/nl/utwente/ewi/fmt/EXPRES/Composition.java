@@ -61,7 +61,7 @@ public class Composition implements MarkableLTS
 	 * t<vectorAutomata.length) was last rejected by automaton
 	 * rejectedFor[2*t] being in state rejectedFor[2*t+1].
 	 */
-	private ThreadLocal<int[]> rejectedFor;
+	private ThreadLocal<int[]> rejectedFor = new ThreadLocal<int[]>();
 	/* indepTransitions[haveIndepTransitions[i]][s] is a list of the
 	 * transitions from state 's' of automata 'haveIndepTransitions[i]'
 	 * that are known to always be taken independently (i.e.,
@@ -163,7 +163,12 @@ public class Composition implements MarkableLTS
 			default:
 				throw new IllegalArgumentException("Unsupported composition type");
 		}
-		afterParsing();
+		while (removeImpossibleActions())
+			;
+		removeInternalNondeterminism();
+		priorityVectors = new boolean[vectorAutomata.length];
+		initGlobalVars();
+		buildVectorTransitions();
 	}
 
 	public Composition(String filename, String type) throws IOException
@@ -197,6 +202,7 @@ public class Composition implements MarkableLTS
 		}
 		vectorAutomata = new int[keepVectors.size()][];
 		vectorLabels = new String[keepVectors.size()][];
+		vectorTransitions = new int[keepVectors.size()][][];
 		synchronizedLabels = new String[keepVectors.size()];
 		priorityVectors = new boolean[keepVectors.size()];
 		Set<String> usedLabels = new TreeSet<>();
@@ -212,6 +218,7 @@ public class Composition implements MarkableLTS
 					size++;
 			}
 			int auts[] = new int[size];
+			int vTrans[][] = new int[automata.length][];
 			String labs[] = new String[size]; 
 			int k = 0;
 			Set<List<Object>> vec = new HashSet<>();
@@ -222,9 +229,11 @@ public class Composition implements MarkableLTS
 				int aut = oldAuts[l];
 				int idx = Arrays.binarySearch(automata, aut);
 				String label = orig.vectorLabels[v][l];
+				int oldVTrans[] = orig.vectorTransitions[v][aut];
 				if (idx >= 0) {
 					auts[k] = idx;
 					labs[k] = label;
+					vTrans[idx] = oldVTrans;
 					vec.add(List.of(idx, label));
 					k++;
 				} else {
@@ -248,6 +257,7 @@ public class Composition implements MarkableLTS
 			syncLabs[v] = label;
 			vectorAutomata[i] = auts;
 			vectorLabels[i] = labs;
+			vectorTransitions[i] = vTrans;
 			if (size == oldAuts.length)
 				priorityVectors[i] = orig.priorityVectors[v];
 			i++;
@@ -255,12 +265,27 @@ public class Composition implements MarkableLTS
 		if (i != vectorAutomata.length) {
 			vectorAutomata = Arrays.copyOf(vectorAutomata, i);
 			vectorLabels = Arrays.copyOf(vectorLabels, i);
+			vectorTransitions = Arrays.copyOf(vectorTransitions, i);
 			synchronizedLabels = Arrays.copyOf(synchronizedLabels, i);
 			priorityVectors = Arrays.copyOf(priorityVectors, i);
 		}
 		globalVars = Map.of();
 		transientGlobals = Map.of();
 		markLabels = new TreeMap<>();
+		initGlobalVars();
+		int[] newHaveIndeps = new int[orig.haveIndepTransitions.length];
+		List<int[][]> newIndepTransitions = new ArrayList<>();
+		int n = 0;
+		for (i = 0; i < orig.haveIndepTransitions.length; i++) {
+			int a = orig.haveIndepTransitions[i];
+			int idx = Arrays.binarySearch(automata, a);
+			if (idx < 0)
+				continue;
+			newHaveIndeps[n++] = idx;
+			newIndepTransitions.add(orig.indepTransitions[i]);
+		}
+		haveIndepTransitions = Arrays.copyOf(newHaveIndeps, n);
+		indepTransitions = newIndepTransitions.toArray(new int[0][][]);
 	}
 
 	private Composition(Composition orig, int[] composed, Automaton aut,
@@ -337,6 +362,11 @@ public class Composition implements MarkableLTS
 		for (Map.Entry<String, int[]> e : orig.globalVars.entrySet())
 			globalVars.put(e.getKey(), e.getValue().clone());
 		transientGlobals = orig.transientGlobals;
+		while (removeImpossibleActions())
+			;
+		removeInternalNondeterminism();
+		initGlobalVars();
+		buildVectorTransitions();
 	}
 
 	/* Returns the set of string in `labels' where `labels[i]' is
@@ -394,7 +424,6 @@ public class Composition implements MarkableLTS
 			System.err.println("]");
 		}
 		Composition sub = new Composition(this, auts, labels);
-		sub.afterParsing();
 		Set<String> internals = getInternalActions(auts, labels, false);
 		Set<String> maxProg = getInternalActions(auts, labels, true);
 		if (DEBUG) {
@@ -408,7 +437,6 @@ public class Composition implements MarkableLTS
 		if (DEBUG)
 			System.err.println("Labels: "+ Arrays.toString(labels));
 		Composition ret = new Composition(this, auts, aut, labels);
-		ret.removeImpossibleActions();
 		if (DEBUG) {
 			System.err.println("Recomposed:");
 			ret.printAutomata(System.err);
@@ -506,7 +534,6 @@ public class Composition implements MarkableLTS
 				auts[i++] = s;
 			try {
 				Composition ret = compose(auts, maxMem);
-				ret.afterParsing();
 				return ret;
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -849,12 +876,14 @@ public class Composition implements MarkableLTS
 				int j = vectorAutomata.length - 1;
 				vectorAutomata[i] = vectorAutomata[j];
 				vectorLabels[i] = vectorLabels[j];
-				priorityVectors[i] = priorityVectors[j];
 				synchronizedLabels[i] = synchronizedLabels[j];
 				vectorAutomata = Arrays.copyOf(vectorAutomata, j);
 				vectorLabels = Arrays.copyOf(vectorLabels, j);
 				synchronizedLabels = Arrays.copyOf(synchronizedLabels, j);
-				priorityVectors = Arrays.copyOf(priorityVectors, j);
+				if (priorityVectors != null) {
+					priorityVectors[i] = priorityVectors[j];
+					priorityVectors = Arrays.copyOf(priorityVectors, j);
+				}
 				i--;
 			} else {
 				for (int j = 0; j < auts.length; j++)
@@ -1081,16 +1110,8 @@ public class Composition implements MarkableLTS
 		buildVectorTransitions();
 	}
 
-	private void afterParsing()
+	private void initGlobalVars()
 	{
-		removeInternalNondeterminism();
-		if (priorityVectors == null)
-			priorityVectors = new boolean[vectorAutomata.length];
-		boolean changed = true;
-		while (changed) {
-			changed = removeImpossibleActions();
-		}
-		rejectedFor = new ThreadLocal<int[]>();
 		TreeMap<String, Integer> mins = new TreeMap<>();
 		TreeMap<String, Integer> maxs = new TreeMap<>();
 		TreeSet<String> unspecifieds = new TreeSet<>();
@@ -1153,7 +1174,6 @@ public class Composition implements MarkableLTS
 			if (bits == 0)
 				data[0] = data[1] = 0;
 		}
-		buildVectorTransitions();
 	}
 
 	private void buildVectorTransitions() {
