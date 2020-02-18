@@ -56,6 +56,15 @@ public abstract class Expression
 		if (o instanceof Map) {
 			Map e = (Map)o;
 			Object op = e.get("op");
+			if ("ite".equals(op)) {
+				Object ifExpr = e.get("if");
+				Object thenExpr = e.get("then");
+				Object elseExpr = e.get("else");
+				return new IfThenElseExpression(
+						Expression.fromJani(ifExpr),
+						Expression.fromJani(thenExpr),
+						Expression.fromJani(elseExpr));
+			}
 			Object l = e.get("left");
 			Object r = e.get("right");
 			Object exp = e.get("exp");
