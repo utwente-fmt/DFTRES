@@ -475,14 +475,15 @@ public class Composition implements MarkableLTS
 			}
 			System.err.println("]");
 		}
-		HashMap<Set<Integer>, Integer> counts = new HashMap<>();
+		HashMap<Set<Integer>, Double> counts = new HashMap<>();
 		for (int i = vectorLabels.length - 1; i >= 0; i--) {
 			Set<Integer> auts = new TreeSet<>();
 			long states = 1;
+			double addition = 0.5;
 			if (vectorAutomata[i].length < 2)
 				continue;
 			if (!hideLabels.contains(synchronizedLabels[i]))
-				continue;
+				addition = 1;
 			for (int j : vectorAutomata[i]) {
 				auts.add(j);
 				states *= automata[j].getNumStates();
@@ -490,16 +491,16 @@ public class Composition implements MarkableLTS
 					break;
 			}
 			if (states > stateLimit)
-				continue;
-			Integer prev = counts.get(auts);
+				addition=0;
+			Double prev = counts.get(auts);
 			if (prev == null)
-				prev = 1;
+				prev = addition;
 			else
-				prev = prev + 1;
+				prev = prev + addition;
 			counts.put(auts, prev);
 		}
 		Map<Set<Integer>, Double> scores = new HashMap<>();
-		for (Map.Entry<Set<Integer>, Integer> e : counts.entrySet()) {
+		for (Map.Entry<Set<Integer>, Double> e : counts.entrySet()) {
 			double score = e.getValue();
 			score /= (1 << e.getKey().size());
 			scores.put(e.getKey(), score);
