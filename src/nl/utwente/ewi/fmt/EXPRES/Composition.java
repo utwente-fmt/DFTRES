@@ -460,6 +460,38 @@ public class Composition implements MarkableLTS
 		return 0;
 	}
 
+	private Composition composeAny(int stateLimit, long maxMem)
+	{
+		if (Simulator.showProgress) {
+			boolean first = true;
+			System.err.println("No synchronized composition within limits, composing other");
+		}
+		int[] auts = new int[2];
+		for (int i = automata.length - 1; i >= 0; i--) {
+			long states = automata[i].getNumStates();
+			if (states > stateLimit)
+				continue;
+			auts[0] = i;
+			for (int j = automata.length - 1; j >= 0; j--) {
+				if (i == j)
+					continue;
+				long newStates = states;
+				newStates *= automata[j].getNumStates();
+				if (newStates <= stateLimit) {
+					auts[1] = j;
+					try {
+						if (Simulator.showProgress)
+							System.err.println("Composing " + Arrays.toString(auts));
+						return compose(auts, maxMem);
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
+				}
+			}
+		}
+		return this;
+	}
+
 	public Composition partialCompose(int stateLimit, long maxMem)
 	{
 		if (Simulator.showProgress) {
@@ -534,13 +566,15 @@ public class Composition implements MarkableLTS
 			for (Integer s : best)
 				auts[i++] = s;
 			try {
+				if (Simulator.showProgress)
+					System.err.println("Composing " + Arrays.toString(auts));
 				Composition ret = compose(auts, maxMem);
 				return ret;
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
 		}
-		return this;
+		return composeAny(stateLimit, maxMem);
 	}
 
 	public void markStatesAfter(String label, int val)
