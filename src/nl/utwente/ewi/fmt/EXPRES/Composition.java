@@ -462,8 +462,6 @@ public class Composition implements MarkableLTS
 
 	public Composition partialCompose(int stateLimit, long maxMem)
 	{
-		if (stateLimit <= 0)
-			stateLimit = Integer.MAX_VALUE;
 		if (Simulator.showProgress) {
 			boolean first = true;
 			System.err.print("Building composition, current sizes: [");
@@ -486,12 +484,14 @@ public class Composition implements MarkableLTS
 				addition = 1;
 			for (int j : vectorAutomata[i]) {
 				auts.add(j);
-				states *= automata[j].getNumStates();
-				if (states > stateLimit)
-					break;
+				if (stateLimit > 0) {
+					states *= automata[j].getNumStates();
+					if (states > stateLimit)
+						break;
+				}
 			}
-			if (states > stateLimit)
-				addition=0;
+			if (stateLimit > 0 && states > stateLimit)
+				break;
 			Double prev = counts.get(auts);
 			if (prev == null)
 				prev = addition;
