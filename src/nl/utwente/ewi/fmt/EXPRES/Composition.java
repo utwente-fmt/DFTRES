@@ -149,6 +149,7 @@ public class Composition implements MarkableLTS
 	                   Map<String, Number> constants)
 			throws IOException
 	{
+		hideLabels = new TreeSet<String>();
 		markLabels = new TreeMap<String, Integer>();
 		Set<Property> props = new TreeSet<>();
 		switch (type) {
@@ -437,7 +438,7 @@ public class Composition implements MarkableLTS
 			long states = 1;
 			if (vectorAutomata[i].length < 2)
 				continue;
-			if (!hideLabels.contains(synchronizedLabels[i]))
+			if (null == hideLabels || !hideLabels.contains(synchronizedLabels[i]))
 				continue;
 			for (int j : vectorAutomata[i]) {
 				auts.add(j);
