@@ -217,15 +217,7 @@ public class Automaton implements LTS {
 		boolean change = false, first = true;
 		do {
 			num_states = targets.length;
-			try {
-				change = bisimulationReduction(internal);
-			} catch (OutOfMemoryError e) {
-				try {
-					change = bisimulationReductionLowMem(internal);
-				} catch (OutOfMemoryError f) {
-					change = false;
-				}
-			}
+			change = bisimulationReduction(internal);
 			try {
 				if (change || first) {
 					if (internal != null && !internal.isEmpty())
@@ -1523,103 +1515,6 @@ public class Automaton implements LTS {
 		return ret;
 	}
 
-	private boolean bisimulationReduction(Set<String> internal) {
-		if (targets.length == 1)
-			return false;
-		if (assignments != null || guards != null)
-			return false;
-		if (internal == null)
-			return bisimulationReduction(Set.of());
-		if (VERBOSE) {
-			System.err.println("Bisimulation reducing from " + targets.length + " states (internal actions: " + internal + ")");
-			if (DEBUG) {
-				System.err.println(toString());
-				try {
-					throw new Exception();
-				} catch (Exception e) {
-					e.printStackTrace(System.out);
-				}
-			}
-		}
-		BitSet queue = new BitSet();
-		BitSet done = new BitSet();
-		int blockNums[] = new int[labels.length];
-		final ArrayList<Partition> allPartitions = initialPartition(internal, blockNums);
-		queue.set(0, allPartitions.size());
-		while (!queue.isEmpty()) {
-			int pos = queue.nextSetBit(0);
-			final int nums[] = blockNums;
-			Partition splitter = allPartitions.get(pos);
-			if (DEBUG)
-				System.err.println("Partitions: " + allPartitions + ", splitter= " + splitter + ", queue=" + queue + ", done=" + done);
-			queue.clear(pos);
-			IntSet preds = new IntSet(splitter.predecessors);
-			preds.forEachI(idx -> {
-				Partition part = allPartitions.get(idx);
-				List<Partition> newParts;
-				newParts = split(part, nums, internal, allPartitions);
-				if (newParts != null && newParts.size() != 1) {
-					done.clear(part.number);
-					for (Partition p : newParts)
-						queue.set(p.number);
-				}
-			});
-			if (splitter.size() > 1) {
-				done.set(splitter.number);
-			} else {
-				if (DEBUG)
-					System.err.println("Done with " + splitter);
-				splitter.predecessors.forEachI(i -> {
-					Partition p = allPartitions.get(i);
-					p.successors.removeKnown(splitter.number);
-				});
-				splitter.successors.forEachI(i -> {
-					Partition p = allPartitions.get(i);
-					p.predecessors.removeKnown(splitter.number);
-				});
-				allPartitions.set(splitter.number, null);
-			}
-		}
-
-		blockNums = null;
-		HashMap<Integer, Integer> renames = new HashMap<>();
-		done.stream().forEach(i-> {
-			Partition partition = allPartitions.get(i);
-			Integer first = null;
-			if (partition.size() > 1) {
-				if (partition.contains(initState))
-					first = initState;
-				for (Integer s : partition) {
-					if (first == null)
-						first = s;
-					else if (first != s)
-						renames.put(s, first);
-				}
-			}
-		});
-		if (renames.isEmpty()) {
-			if (DEBUG)
-				System.err.println("No change");
-			return false;
-		}
-		if (DEBUG) {
-			System.err.println("Final partitions: " + allPartitions);
-			System.err.println("Reducing modulo bisimulation classes: " + done);
-			System.err.println("Renames: " + renames);
-		}
-		allPartitions.clear();
-
-		for (int s = targets.length - 1; s >= 0; s--) {
-			for (int t = targets[s].length - 1; t >= 0; t--) {
-				Integer to = renames.get(targets[s][t]);
-				if (to != null)
-					targets[s][t] = to;
-			}
-		}
-		collapseSameMarkov(internal);
-		return true;
-	}
-
 	private static class Transitions extends TreeSet<String>
 			implements Comparable<Transitions>
 	{
@@ -1746,7 +1641,7 @@ public class Automaton implements LTS {
 		}
 	}
 
-	private int partitionLowMem(int[] pre, int[] post, BitSet done,
+	private int partition(int[] pre, int[] post, BitSet done,
 	                            Set<String> internal)
 	{
 		HashMap<Signature, Signature> signatures = new HashMap<>();
@@ -1785,13 +1680,13 @@ public class Automaton implements LTS {
 		return signatures.size();
 	}
 
-	private boolean bisimulationReductionLowMem(Set<String> internal) {
+	private boolean bisimulationReduction(Set<String> internal) {
 		if (targets.length == 1)
 			return false;
 		if (assignments != null || guards != null)
 			return false;
 		if (internal == null)
-			return bisimulationReductionLowMem(Set.of());
+			internal = Set.of();
 		if (VERBOSE) {
 			System.err.println("LMBisimulation reducing from " + targets.length + " states (internal actions: " + internal + ")");
 			if (DEBUG)
@@ -1806,7 +1701,7 @@ public class Automaton implements LTS {
 			int[] tmp = blockNumsPost;
 			blockNumsPost = blockNumsPre;
 			blockNumsPre = tmp;
-			numPostBlocks = partitionLowMem(blockNumsPre, blockNumsPost, done, internal);
+			numPostBlocks = partition(blockNumsPre, blockNumsPost, done, internal);
 			if (VERBOSE)
 				System.err.println("Currently have " + numPostBlocks + " blocks");
 		}
