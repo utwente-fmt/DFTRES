@@ -42,7 +42,7 @@ public class SimulationResult {
 	                        double var, long sims[], long time, int states)
 	{
 		this.mean = mean;
-		if(var < 0)
+		if (Double.isNaN(var) || !Double.isFinite(var) || var < 0)
 			var = 0; // to avoid floating point errors 
 		this.var = var;
 		this.property = prop;
@@ -57,6 +57,7 @@ public class SimulationResult {
 			lbound = 0;
 		this.lbound = lbound;
 		ubound = Math.fma(halfWidth, Math.sqrt(var/N), mean);
+		assert(ubound <= 1.0);
 	}
 
 	public SimulationResult(Property prop, double mean, double alpha,
@@ -64,8 +65,8 @@ public class SimulationResult {
 	                        long sims[], long time, int states)
 	{
 		this.mean = mean;
-		if (var < 0)
-			var = 0;
+		if (Double.isNaN(var) || !Double.isFinite(var) || var < 0)
+			var = 0;  // to avoid floating point errors
 		this.var = var;
 		this.alpha = alpha;
 		this.property = prop;
@@ -76,6 +77,7 @@ public class SimulationResult {
 		if (lbound < 0)
 			lbound = 0;
 		this.lbound = lbound;
+		assert(ubound <= 1.0);
 		this.ubound = ubound;
 	}
 

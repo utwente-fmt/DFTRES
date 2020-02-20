@@ -33,6 +33,7 @@ public class Simulator {
 	}
 
 	private static class ProgressPrinter extends Thread {
+		private long maxMemUsed;
 		private final long maxN;
 		private final LongAdder done;
 		private final long initialTime;
@@ -62,12 +63,16 @@ public class Simulator {
 			secsLeft -= minsLeft * 60;
 			int hoursLeft = minsLeft / 60;
 			minsLeft -= hoursLeft * 60;
-			long mem = getMemUsed();
+			long mem = getMemUsed() / (1l<<20);  // in MB
+			maxMemUsed = mem > maxMemUsed ? mem : maxMemUsed;
 			if (d != maxN) {
-				System.err.format (" (est. %d:%02d:%02d remaining, used %d MB)", hoursLeft, minsLeft, secsLeft, mem / 1048576);
+				System.err.format (" (est. %d:%02d:%02d remaining, used %d MB)", hoursLeft, minsLeft, secsLeft, mem);
 				return false;
 			} else {
-				System.err.println("Done                     ");
+				System.err.println("100%                     ");
+				long sElapsed = (System.currentTimeMillis() - initialTime) / 1000l;
+				System.err.format("Simulation time: %d:%02d:%02d\n", sElapsed/3600l, sElapsed/60l, sElapsed%60);
+				System.err.format("Peak memory usage: %d MB\n", maxMemUsed);
 				return true;
 			}
 		}
@@ -338,7 +343,7 @@ public class Simulator {
 			alpha = (alpha * (REL_ERR_RATE - 1)) / REL_ERR_RATE;
 			consumedAlpha += alpha - (alpha * consumedAlpha);
 
-			if (lbound == 0) { /* Unlikely, but apparantly we
+			if (lbound == 0) { /* Unlikely, but apparently we
 					      haven't hit anything at all */
 				maxN *= 10;
 				continue;
@@ -348,7 +353,7 @@ public class Simulator {
 			System.err.format("Consumed alpha: %g\n", consumedAlpha);
 		long exactTime = System.nanoTime() - startTime;
 		return new SimulationResult(gen.prop, mean,
-				totalAlpha, Double.NaN, lbound, ubound,
+				totalAlpha, result.var, lbound, ubound,
 				totalSims, exactTime, initSize);
 	}
 }

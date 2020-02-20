@@ -300,9 +300,9 @@ class Main {
 	}
 
 	private static LTS loadModel(String filename,
-	                             Map<String, Number> constants,
-				     boolean doDontCareElimination,
-				     int compLimit)
+								 Map<String, Number> constants,
+								 boolean doDontCareElimination,
+								 int compLimit)
 			throws IOException
 	{
 		long maxMem = Runtime.getRuntime().maxMemory();
