@@ -2,9 +2,7 @@ package algorithms;
 
 import models.StateSpace;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Random;
-import java.util.SplittableRandom;
 import java.util.concurrent.atomic.LongAdder;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 
@@ -22,14 +20,28 @@ public class Simulator {
 		coresToUse = Runtime.getRuntime().availableProcessors();
 	}
 
+	public Simulator(Random rng, Property prop, Scheme scheme, double forcingBound)
+	{
+		switch (prop.type) {
+			case REACHABILITY:
+				gen = new ReachabilityTracer(rng, scheme, prop, forcingBound);
+				break;
+			case STEADY_STATE:
+				gen = new SteadyStateTracer(rng, scheme, prop);
+				break;
+			case EXPECTED_VALUE:
+				gen = new ExpectedValueTracer(rng, scheme, prop, forcingBound);
+				break;
+			default:
+				gen = null;
+				assert(false);
+		}
+		initialModel = gen.scheme.model;
+	}
+
 	private static long getMemUsed()
 	{
 		return r.totalMemory() - r.freeMemory();
-	}
-
-	private static long getMemFree()
-	{
-		return r.freeMemory();
 	}
 
 	private static class ProgressPrinter extends Thread {
@@ -66,7 +78,7 @@ public class Simulator {
 			long mem = getMemUsed() / (1l<<20);  // in MB
 			maxMemUsed = mem > maxMemUsed ? mem : maxMemUsed;
 			if (d != maxN) {
-				System.err.format (" (est. %d:%02d:%02d remaining, used %d MB)", hoursLeft, minsLeft, secsLeft, mem);
+				System.err.format(" (est. %d:%02d:%02d remaining, used %d MB)", hoursLeft, minsLeft, secsLeft, mem);
 				return false;
 			} else {
 				System.err.println("100%                     ");
@@ -87,27 +99,6 @@ public class Simulator {
 				}
 			}
 		}
-	}
-
-	public Simulator(Random rng, Property prop, Scheme scheme, double forcingBound)
-	{
-		switch (prop.type) {
-			case REACHABILITY:
-				gen = new ReachabilityTracer(rng, scheme, prop,
-				                             forcingBound);
-				break;
-			case STEADY_STATE:
-				gen = new SteadyStateTracer(rng, scheme, prop);
-				break;
-			case EXPECTED_VALUE:
-				gen = new ExpectedValueTracer(rng, scheme, prop,
-				                              forcingBound);
-				break;
-			default:
-				gen = null;
-				assert(false);
-		}
-		initialModel = gen.scheme.model;
 	}
 
 	private TraceGenerator[] multiCoreSim(long maxN, int threads)
