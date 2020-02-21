@@ -127,7 +127,7 @@ public abstract class TraceGenerator
 		return succ[state];
 	}
 	*/
-	private StateSpace.State drawHPCSuccessor(StateSpace.HPCState state)
+	private StateSpace.State drawHPCSuccessor(StateSpace.HPCState state, double sinkBoost)
 	{
 		StateSpace model = scheme.model;
 		StateSpace.State sink = scheme.neighbours[chosen];
@@ -136,11 +136,16 @@ public abstract class TraceGenerator
 			pReachSink = new double[succ.length];
 		double[] probs = state.origNeighbours.probs;
 		double sumP = 0;
+		double boost = 1;
+		double sinkProb = 0;
 		for (int i = 0; i < succ.length; i++) {
 			double p;
 			StateSpace.State s = succ[i];
-			if (s == sink)
-				p = 1;
+			if (s == sink) {
+				p = sinkBoost;
+				boost = (sinkBoost - 1) * probs[i];
+				sinkProb = probs[i];
+			}
 			else if (!(s instanceof StateSpace.HPCState))
 				p = 0;
 			else if (s == prevState)
@@ -154,7 +159,19 @@ public abstract class TraceGenerator
 		int i;
 		for (i = 0; u > pReachSink[i]; i++)
 			;
-		return succ[i];
+		StateSpace.State ret = succ[i];
+		if (ret == sink) {
+			double orig = sinkProb / (sumP - boost);
+			double now = (sinkProb + boost) / sumP;
+			double ll = orig / now;
+			//System.err.println("Boosted likelihood: " + ll);
+			lastDeltaLikelihood *= ll;
+		} else if (boost != 1) {
+			double ll = sumP / (sumP - boost);
+			//System.err.println("Dropped likelihood: " + ll + ", sum " + sumP + ", boost " + boost);
+			lastDeltaLikelihood *= ll;
+		}
+		return ret;
 	}
 
 	/**
@@ -191,7 +208,7 @@ public abstract class TraceGenerator
 
 			if (!(k instanceof StateSpace.HPCState))
 				throw new AssertionError("Non-HPC state in HPC");
-			k = drawHPCSuccessor((StateSpace.HPCState)k);
+			k = drawHPCSuccessor((StateSpace.HPCState)k, 1);
 		}
 	}
 
@@ -254,7 +271,10 @@ public abstract class TraceGenerator
 				System.err.format("%d Tries.\n", count);
 			if (!(s instanceof StateSpace.HPCState))
 				throw new AssertionError("Found non-HPC state in HPC");
-			s = drawHPCSuccessor((StateSpace.HPCState)s);
+			double sinkBoost = 1 / scheme.likelihood(chosen, delta);
+			if (sinkBoost < 1)
+				sinkBoost = 1;
+			s = drawHPCSuccessor((StateSpace.HPCState)s, sinkBoost);
 		}
 		return delta;
 	}
@@ -282,7 +302,7 @@ public abstract class TraceGenerator
 			if (count % 1048576 == 0)
 				System.err.format("%d Tries.\n", count);
 
-			s = drawHPCSuccessor(k);
+			s = drawHPCSuccessor(k, 1);
 			if (!(s instanceof StateSpace.HPCState)) {
 				if (s == sink)
 					return ret;
