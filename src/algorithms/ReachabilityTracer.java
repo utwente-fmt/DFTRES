@@ -2,9 +2,11 @@ package algorithms;
 
 import models.StateSpace;
 import models.StateSpace.State;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
-import java.util.function.BiConsumer;
+import java.util.WeakHashMap;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 
 /** Tracer to estimate the probability of hitting a red state before
@@ -64,15 +66,38 @@ public class ReachabilityTracer extends TraceGenerator
 		estMean = sum / N;
 	}
 
-	private double computeProb(HashMap<State, Integer> path)
+	private static class Path {
+		private final double[] rates;
+		private final int hash;
+		public Path(double[] rates) {
+			this.rates = rates;
+			hash = Arrays.hashCode(rates);
+		}
+
+		public int hashCode() {
+			return hash;
+		}
+
+		public boolean equals(Object other) {
+			if (!(other instanceof Path))
+				return false;
+			Path otherPath = (Path)other;
+			if (otherPath.hash != hash)
+				return false;
+			return Arrays.equals(rates, otherPath.rates);
+		}
+	}
+	private final Map<Path, Double> cache = new WeakHashMap<>();
+
+	private double computeProb(HashMap<State, int[]> path)
 	{
 		double tmpUnifRate = Double.NEGATIVE_INFINITY;
 		int totalCount = 0;
-		for (java.util.Map.Entry<State, Integer> e : path.entrySet()) {
+		for (java.util.Map.Entry<State, int[]> e : path.entrySet()) {
 			double rate = e.getKey().getNeighbours().exitRate;
 			if (rate > tmpUnifRate)
 				tmpUnifRate = rate;
-			totalCount += e.getValue() + 1;
+			totalCount += e.getValue()[0] + 1;
 		}
 		final double unifRate = tmpUnifRate;
 		double rates[] = new double[totalCount + 1];
@@ -80,15 +105,25 @@ public class ReachabilityTracer extends TraceGenerator
 		probs[0] = 1;
 		double undecProb = 1;
 		double reachProb = 0;
-		double prob = Math.exp(-unifRate * prop.timeBound);
 		int k[] = new int[1];
-		path.forEach((State s, Integer c) -> {
-			int count = c + 1;
+		path.forEach((State s, int[] c) -> {
+			int count = c[0] + 1;
 			double rate = s.getNeighbours().exitRate;
 			rate /= unifRate;
 			while (count --> 0)
 				rates[k[0]++] = rate;
 		});
+		Arrays.sort(rates);
+		for (int i = 0; i < rates.length / 2; i++) {
+			double tmp = rates[i];
+			rates[i] = rates[rates.length - i - 1];
+			rates[rates.length - i - 1] = tmp;
+		}
+		Path forCache = new Path(rates);
+		Double cached = cache.get(forCache);
+		if (cached != null)
+			return cached;
+		double prob = Math.exp(-unifRate * prop.timeBound);
 		int j = 1;
 		do {
 			double nextProb = 0;
@@ -106,6 +141,7 @@ public class ReachabilityTracer extends TraceGenerator
 			}
 			reachProb = Math.fma(probs[i - 1], prob, reachProb);
 		} while (undecProb > UNIF_BOUND);
+		cache.put(forCache, reachProb);
 		return reachProb;
 	}
 
@@ -113,7 +149,7 @@ public class ReachabilityTracer extends TraceGenerator
 	{
 		double time = 0;
 		double likelihood = 1;
-		HashMap<State, Integer> path = null;
+		HashMap<State, int[]> path = null;
 		StateSpace model = scheme.model;
 		State state = model.getInitialState();
 		if (forceBound < 0 && Double.isFinite(prop.timeBound))
@@ -123,10 +159,18 @@ public class ReachabilityTracer extends TraceGenerator
 			state = drawNextState(state);
 			if (path != null) {
 				extendPath(path);
+				likelihood *= likelihood();
+				if (likelihood < -forceBound) {
+					double[] d = pathToTimed(path, prop.timeBound);
+					path = null;
+					time = d[0];
+					likelihood *= d[1];
+					path = null;
+				}
 			} else if (prop.timeBound < Double.POSITIVE_INFINITY) {
 				time += drawDelta(prop.timeBound - time);
+				likelihood *= likelihood();
 			}
-			likelihood *= likelihood();
 		} while(!prop.isRed(model, state) && !prop.isBlue(model, state)
 			&& !isDeadlocked()
 		        && time < prop.timeBound

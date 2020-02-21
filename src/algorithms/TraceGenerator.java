@@ -179,15 +179,16 @@ public abstract class TraceGenerator
 	 * visits minus one (i.e., it is possible to encounter the
 	 * Integer 0, meaning the state is visited once on the path).
 	 */
-	public void extendPath(Map<StateSpace.State, Integer> path)
+	public void extendPath(Map<StateSpace.State, int[]> path)
 	{
 		if(!(prevState instanceof StateSpace.HPCState)) {
-			Integer num = path.get(prevState);
-			if (num == null)
-				num = 0;
-			else
-				num++;
-			path.put(prevState, num);
+			int[] num = path.get(prevState);
+			if (num == null) {
+				num = new int[1];
+				path.put(prevState, num);
+			} else {
+				num[0]++;
+			}
 			return;
 		}
 		StateSpace.State k = prevState;
@@ -195,13 +196,13 @@ public abstract class TraceGenerator
 		StateSpace.State sink = scheme.neighbours[chosen];
 
 		while(k != sink) {
-			Integer num;
-			num = path.get(k);
-			if (num == null)
-				num = 0;
-			else
-				num++;
-			path.put(k, num);
+			int[] num = path.get(k);
+			if (num == null) {
+				num = new int[1];
+				path.put(k, num);
+			} else {
+				num[0]++;
+			}
 			count++;
 			if (count % 1048576 == 0)
 				System.err.format("%d Tries.\n", count);
@@ -238,6 +239,21 @@ public abstract class TraceGenerator
 			}
 		}
 		return ret / rate;
+	}
+
+	/** Returns [time, likelihood] */
+	protected double[] pathToTimed(Map<StateSpace.State, int[]> path, double timeBound)
+	{
+		double origTimeBound = timeBound;
+		lastDeltaLikelihood = 1;
+		for (Map.Entry<StateSpace.State, int[]> entry : path.entrySet()) {
+			double rate = entry.getKey().getNeighbours().exitRate;
+			int count = entry.getValue()[0];
+			while (rate-- > 0)
+				timeBound -= drawExponential(rate, timeBound);
+		}
+		return new double[] {origTimeBound - timeBound,
+		                     lastDeltaLikelihood};
 	}
 
 	/**
