@@ -17,7 +17,6 @@ public class Scheme
 	public StateSpace.State[] neighbours;
 	public double exitRate;
 
-	protected short[] orders;
 	protected double[] probs;
 
 	public Scheme(StateSpace model) {
@@ -42,7 +41,6 @@ public class Scheme
 		StateSpace.Neighbours n = state.getNeighbours();
 		neighbours = n.neighbours;
 		exitRate = n.exitRate;
-		orders = n.orders;
 		probs = n.probs;
 
 		stateWeightsIS = probs;
