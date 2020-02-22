@@ -136,7 +136,7 @@ public abstract class TraceGenerator
 			pReachSink = new double[succ.length];
 		double[] probs = state.origNeighbours.probs;
 		double sumP = 0;
-		double boost = 1;
+		double boost = 0;
 		double sinkProb = 0;
 		for (int i = 0; i < succ.length; i++) {
 			double p;
@@ -161,9 +161,9 @@ public abstract class TraceGenerator
 			;
 		StateSpace.State ret = succ[i];
 		if (ret == sink) {
-			double orig = sinkProb / (sumP - boost);
-			double now = (sinkProb + boost) / sumP;
-			double ll = orig / now;
+			double num = sumP * sinkProb;
+			double denom = (sumP - boost)*(sinkProb + boost);
+			double ll = num / denom;
 			//System.err.println("Boosted likelihood: " + ll);
 			lastDeltaLikelihood *= ll;
 		} else if (boost != 1) {
@@ -287,10 +287,18 @@ public abstract class TraceGenerator
 				System.err.format("%d Tries.\n", count);
 			if (!(s instanceof StateSpace.HPCState))
 				throw new AssertionError("Found non-HPC state in HPC");
-			double sinkBoost = 1 / scheme.likelihood(chosen, delta);
-			if (sinkBoost < 1)
-				sinkBoost = 1;
-			s = drawHPCSuccessor((StateSpace.HPCState)s, sinkBoost);
+			StateSpace.HPCState hs = (StateSpace.HPCState)s;
+			double sinkBoost = 1;
+			double tRate = nbs.exitRate * hs.origNeighbours.getProbTo(sink);
+			if (tRate != 0)
+				sinkBoost = 1 / (tRate * (timeBound - delta));
+			/* With excessive boosting we can get numerical
+			 * stability issues, as the likelihood ratie of
+			 * the non-boosted states can approach infinity.
+			 */
+			if (sinkBoost > 10000)
+				sinkBoost = 10000;
+			s = drawHPCSuccessor(hs, sinkBoost);
 		}
 		return delta;
 	}
