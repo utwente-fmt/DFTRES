@@ -273,7 +273,7 @@ public interface LTS
 		}
 
 		public boolean isEmpty() {
-			return elements != null;
+			return elements == null;
 		}
 
 		public Iterator<Transition> iterator() {
