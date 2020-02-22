@@ -16,6 +16,7 @@ public abstract class TraceGenerator
 {
 	public static double acceleration = 1;
 	public final double forceBound;
+	public static boolean enableHpcBoost = true;
 
 	public final Scheme scheme;
 	public final Property prop;
@@ -289,15 +290,17 @@ public abstract class TraceGenerator
 				throw new AssertionError("Found non-HPC state in HPC");
 			StateSpace.HPCState hs = (StateSpace.HPCState)s;
 			double sinkBoost = 1;
-			double tRate = nbs.exitRate * hs.origNeighbours.getProbTo(sink);
-			if (tRate != 0)
-				sinkBoost = 1 / (tRate * (timeBound - delta));
-			/* With excessive boosting we can get numerical
-			 * stability issues, as the likelihood ratie of
-			 * the non-boosted states can approach infinity.
-			 */
-			if (sinkBoost > 10000)
-				sinkBoost = 10000;
+			if (enableHpcBoost) {
+				double tRate = nbs.exitRate * hs.origNeighbours.getProbTo(sink);
+				if (tRate != 0)
+					sinkBoost = 1 / (tRate * (timeBound - delta));
+				/* With excessive boosting we can get numerical
+				 * stability issues, as the likelihood ratie of
+				 * the non-boosted states can approach infinity.
+				 */
+				if (sinkBoost > 10000)
+					sinkBoost = 10000;
+			}
 			s = drawHPCSuccessor(hs, sinkBoost);
 		}
 		return delta;

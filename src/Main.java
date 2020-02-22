@@ -19,7 +19,6 @@ import schemes.SchemeZVAv;
 import algorithms.Scheme;
 import algorithms.SimulationResult;
 import algorithms.Simulator;
-
 import algorithms.TraceGenerator;
 
 import ec.util.MersenneTwisterFast;
@@ -399,6 +398,7 @@ class Main {
 			{"--zvav", "Using ZVA-v to choose transition probabilities."},
 			{"-f F", "Stop time-forcing when the importance factor drops below F."},
 			{"--no-forcing", "Do not apply time-forcing."},
+			{"--no-hpc-boost", "Do not boost HPC sink transitions (only affects time-bounded reachability"},
 			{"Model (optimization) options:"},
 			{"--compose full", "Compute the full parallel composition explicitly."},
 			{"--compose none", "Do not explicitly compute any parallel composition."},
@@ -567,6 +567,8 @@ class Main {
 				unsafeComposition = true;
 			else if (args[i].equals("--no-forcing"))
 				forceBound = Double.POSITIVE_INFINITY;
+			else if (args[i].equals("--no-hpc-boost"))
+				TraceGenerator.enableHpcBoost = false;
 			else
 				System.err.format("Unknown option '%s', ignoring\n", args[i]);
 		}
