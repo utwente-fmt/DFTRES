@@ -20,7 +20,7 @@ public class VariableExpression extends Expression
 		return Set.of(variable);
 	}
 
-	public Expression simplify(Map<String, ? extends Number> valuation) {
+	public Expression simplify(Map<?, ? extends Number> valuation) {
 		if (valuation.containsKey(variable))
 			return new ConstantExpression(valuation.get(variable));
 		return this;

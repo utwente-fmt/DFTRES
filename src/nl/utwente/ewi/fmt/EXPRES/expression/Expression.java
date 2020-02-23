@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.Set;
 import models.StateSpace;
 
@@ -18,10 +19,6 @@ public abstract class Expression
 
 	public Set<String> getReferencedVariables() {
 		return Set.of();
-	}
-
-	public Expression simplify(Map<String, ? extends Number> valuation) {
-		return this;
 	}
 
 	public abstract Number evaluate(Map<String, ? extends Number> valuation);
@@ -94,6 +91,26 @@ public abstract class Expression
 				BinaryExpression.Operator.NOT_EQUALS,
 				this,
 				new ConstantExpression(0));
+	}
+
+	public Expression simplify(Map<?, ? extends Number> assumptions)
+	{
+		if (!(assumptions instanceof TreeMap)) {
+			Number ret = assumptions.get(this);
+			if (ret != null)
+				return new ConstantExpression(ret);
+		}
+		return this;
+	}
+
+	public Expression simplify(Expression assumption, Number value)
+	{
+		return simplify(assumption.subAssumptions(value));
+	}
+
+	public Map<Expression, Number> subAssumptions(Number value)
+	{
+		return Map.of(this, value);
 	}
 
 	public abstract int hashCode();

@@ -91,22 +91,31 @@ public class IfThenElseExpression extends Expression
 		return new IfThenElseExpression(condition, thenBool, elseBool);
 	}
 
-	public Expression simplify(Map<String, ? extends Number> valuation) {
-		Number maybeConstant = evaluate(valuation);
-		if (maybeConstant != null)
-			return new ConstantExpression(maybeConstant);
-		Number condConst = condition.evaluate(valuation);
+	@Override
+	public Expression simplify(Map<?, ? extends Number> assume) {
+		Expression ret = super.simplify(assume);
+		if (ret != this)
+			return ret.simplify(assume);
+		Expression simplerCond = condition.simplify(assume);
+		Number condConst = condition.evaluate(Map.of());
 		if (condConst != null) {
 			if (condConst.doubleValue() != 0)
-				return thenExpr.simplify(valuation);
+				return thenExpr.simplify(assume);
 			else
-				return elseExpr.simplify(valuation);
+				return elseExpr.simplify(assume);
 		}
-		Expression simplerCond = condition.simplify(valuation);
-		Expression simplerThen = thenExpr.simplify(valuation);
-		Expression simplerElse = elseExpr.simplify(valuation);
+		Expression simplerThen = thenExpr.simplify(assume);
+		Expression simplerElse = elseExpr.simplify(assume);
+		Number constThen = simplerThen.evaluate(Map.of());
+		Number constElse = simplerElse.evaluate(Map.of());
+		if (constThen != null && constThen.doubleValue() == 1
+		   && constElse != null && constElse.doubleValue() == 0)
+		{
+			ret = simplerCond.booleanExpression();
+		}
+
 		if (simplerCond != condition || simplerThen != thenExpr || simplerElse != elseExpr)
-			return new IfThenElseExpression(simplerCond, simplerThen, simplerElse);
+			return new IfThenElseExpression(simplerCond, simplerThen, simplerElse).simplify(assume);
 		return this;
 	}
 

@@ -244,6 +244,16 @@ public class SymbolicAutomaton implements LTS {
 					throw new IllegalArgumentException("Probability should be JANI expression, not: " + probO);
 				Map<?, ?> probMap = (Map<?, ?>)probO;
 				prob = Expression.fromJani(probMap.get("exp"));
+				Expression orig = prob;
+				prob = prob.simplify(constants);
+				prob = prob.simplify(guard.booleanExpression(), 1);
+				Number constant = prob.evaluate(constants);
+				if (constant != null) {
+					if (constant.doubleValue() == 0)
+						continue;
+					else if (constant.doubleValue() == 1)
+						prob = null;
+				}
 			}
 			Object assignO = dest.get("assignments");
 			if (assignO == null)

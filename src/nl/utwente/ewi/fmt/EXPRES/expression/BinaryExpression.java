@@ -3,6 +3,7 @@ package nl.utwente.ewi.fmt.EXPRES.expression;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeSet;
 import java.util.Set;
@@ -236,14 +237,19 @@ public class BinaryExpression extends Expression
 		return super.booleanExpression();
 	}
 
-	public Expression simplify(Map<String, ? extends Number> valuation) {
-		Number maybeConstant = evaluate(valuation);
-		if (maybeConstant != null)
-			return new ConstantExpression(maybeConstant);
-		Number constL = left.evaluate(valuation);
-		Number constR = right.evaluate(valuation);
-		Expression simplerL = left.simplify(valuation);
-		Expression simplerR = right.simplify(valuation);
+	@Override
+	public Expression simplify(Map<?, ? extends Number> assumptions) {
+		Expression ret = super.simplify(assumptions);
+		if (ret != this)
+			return ret.simplify(assumptions);
+		Expression simplerL = left.simplify(assumptions);
+		Expression simplerR = right.simplify(assumptions);
+		Number constL = simplerL.evaluate(Map.of());
+		Number constR = simplerR.evaluate(Map.of());
+		if (constL != null && constR != null) {
+			Number c = new BinaryExpression(op, simplerL, simplerR).evaluate(Map.of());
+			return new ConstantExpression(c);
+		}
 		if (constL != null || constR != null) {
 			switch (op) {
 			case AND:
@@ -259,6 +265,9 @@ public class BinaryExpression extends Expression
 					return new ConstantExpression(1);
 				break;
 			case NOT_EQUALS:
+			case ADD:
+			case SUBTRACT:
+			case XOR:
 				if (constL != null && constL.doubleValue() == 0)
 					return simplerR;
 				if (constR != null && constR.doubleValue() == 0)
@@ -267,7 +276,7 @@ public class BinaryExpression extends Expression
 			}
 		}
 		if (simplerL != left || simplerR != right)
-			return new BinaryExpression(op, simplerL, simplerR);
+			return new BinaryExpression(op, simplerL, simplerR).simplify(Map.of());
 		return this;
 	}
 
@@ -275,5 +284,37 @@ public class BinaryExpression extends Expression
 	public BinaryExpression renameVars(Map<String, String> renames) {
 		return new BinaryExpression(op, left.renameVars(renames),
 		                            right.renameVars(renames));
+	}
+
+	public Map<Expression, Number> subAssumptions(Number value)
+	{
+		if (op == Operator.AND && value.doubleValue() == 1) {
+			Map<Expression, Number> ret = new HashMap<>();
+			ret.put(this, value);
+			if (left instanceof BinaryExpression) {
+				BinaryExpression bin = (BinaryExpression)left;
+				if (bin.op.returnsBoolean) {
+					ret.put(left, 1);
+					ret.putAll(left.subAssumptions(1));
+				}
+			}
+			if (right instanceof BinaryExpression) {
+				BinaryExpression bin = (BinaryExpression)right;
+				if (bin.op.returnsBoolean) {
+					ret.put(right, 1);
+					ret.putAll(right.subAssumptions(1));
+				}
+			}
+			return ret;
+		} else if (op == Operator.OR && value.doubleValue() == 0) {
+			Map<Expression, Number> ret = new HashMap<>();
+			ret.put(this, value);
+			ret.put(left, 0);
+			ret.putAll(left.subAssumptions(0));
+			ret.put(right, 0);
+			ret.putAll(right.subAssumptions(0));
+			return ret;
+		}
+		return super.subAssumptions(value);
 	}
 }
