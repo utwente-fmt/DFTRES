@@ -76,13 +76,17 @@ public abstract class TraceGenerator
 		rng.setSeed(seed);
 	}
 
+	public StateSpace.State drawNextState(StateSpace.State state) {
+		return drawNextState(state, Double.POSITIVE_INFINITY);
+	}
+
 	/**
 	 * Get the weights of the transitions for the current state.
 	 */
-	public StateSpace.State drawNextState(StateSpace.State state) {
+	public StateSpace.State drawNextState(StateSpace.State state, double timeBound) {
 		lastDeltaLikelihood = 1;
 		prevState = state;
-		nbs = scheme.prepareState(prevState);
+		nbs = scheme.prepareState(prevState, timeBound);
 		if (scheme.neighbours.length == 1) {
 			chosen = 0;
 			return scheme.neighbours[0];

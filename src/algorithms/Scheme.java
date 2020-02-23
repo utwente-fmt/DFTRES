@@ -37,7 +37,7 @@ public class Scheme
 		return true;
 	}
 
-	public StateSpace.Neighbours prepareState(StateSpace.State state) {
+	public StateSpace.Neighbours prepareState(StateSpace.State state, double timeBound) {
 		StateSpace.Neighbours n = state.getNeighbours();
 		neighbours = n.neighbours;
 		exitRate = n.exitRate;

@@ -147,7 +147,7 @@ public class ReachabilityTracer extends TraceGenerator
 
 	public void sample()
 	{
-		double time = 0;
+		double timeLeft = prop.timeBound;
 		double likelihood = 1;
 		HashMap<State, int[]> path = null;
 		StateSpace model = scheme.model;
@@ -156,28 +156,28 @@ public class ReachabilityTracer extends TraceGenerator
 			path = new HashMap<>();
 
 		do {
-			state = drawNextState(state);
+			state = drawNextState(state, timeLeft);
 			if (path != null) {
 				extendPath(path);
 				likelihood *= likelihood();
 				if (likelihood < -forceBound) {
 					double[] d = pathToTimed(path, prop.timeBound);
 					path = null;
-					time = d[0];
+					timeLeft = prop.timeBound - d[0];
 					likelihood *= d[1];
 					path = null;
 				}
 			} else if (prop.timeBound < Double.POSITIVE_INFINITY) {
-				time += drawDelta(prop.timeBound - time);
+				timeLeft -= drawDelta(timeLeft);
 				likelihood *= likelihood();
 			}
 		} while(!prop.isRed(model, state) && !prop.isBlue(model, state)
 			&& !isDeadlocked()
-		        && time < prop.timeBound
+		        && timeLeft > 0
 		        && likelihood > 0);
 
 		N++;
-		if(time < prop.timeBound && prop.isRed(model, state)) {
+		if(timeLeft > 0 && prop.isRed(model, state)) {
 			M++;
 			double prob = 1;
 			if (path != null)

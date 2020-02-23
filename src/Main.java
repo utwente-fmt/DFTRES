@@ -16,6 +16,7 @@ import java.util.TreeSet;
 import schemes.SchemeUniform;
 import schemes.SchemeZVAd;
 import schemes.SchemeZVAv;
+import schemes.SchemeZVAt;
 import algorithms.Scheme;
 import algorithms.SimulationResult;
 import algorithms.Simulator;
@@ -48,6 +49,7 @@ class Main {
 	static double relErr = Double.NaN;
 	static Double forceBound = null;
 	static boolean mc = false, zvad = false, zvav = false, unif = false;
+	static boolean zvat = false;
 	static boolean jsonOutput = false;
 	static boolean unsafeComposition = false;
 	static LTS model;
@@ -138,7 +140,7 @@ class Main {
 	{
 		boolean multiple = false;
 		ExpModel statespace = new ExpModel(epsilon, model);
-		if (!(mc || zvav || zvad || unif)) {
+		if (!(mc || zvav || zvad || zvat || unif)) {
 			Scheme s;
 			if (prop.type == Property.Type.EXPECTED_VALUE
 			    && prop.timeBound == Double.POSITIVE_INFINITY)
@@ -189,6 +191,17 @@ class Main {
 				System.err.println("WARNING: Importance sampling and expected value queries often give misleading results.");
 			}
 			SchemeZVAv sc = SchemeZVAv.instantiate(statespace, prop);
+			Property nProp = prop;
+			if (multiple)
+				nProp = new Property(prop, prop.name + "-ZVAv");
+			SimulationResult res = runSim(nProp, sc);
+			ret.add(res);
+		}
+		if (zvat) {
+			if (prop.type == Property.Type.EXPECTED_VALUE) {
+				System.err.println("WARNING: Importance sampling and expected value queries often give misleading results.");
+			}
+			SchemeZVAt sc = SchemeZVAt.instantiate(statespace, prop);
 			Property nProp = prop;
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-ZVAv");
@@ -396,6 +409,7 @@ class Main {
 			{"--unif", "Transform outgoing transitions to uniform probabilities."},
 			{"--zvad", "Using ZVA-d to choose transition probabilities."},
 			{"--zvav", "Using ZVA-v to choose transition probabilities."},
+			{"--zvat", "Using ZVA-t to choose transition probabilities."},
 			{"-f F", "Stop time-forcing when the importance factor drops below F."},
 			{"--no-forcing", "Do not apply time-forcing."},
 			{"--no-hpc-boost", "Do not boost HPC sink transitions (only affects time-bounded reachability"},
@@ -523,6 +537,8 @@ class Main {
 				unif = true;
 			else if (args[i].equals("--zvav"))
 				zvav = true;
+			else if (args[i].equals("--zvat"))
+				zvat = true;
 			else if (args[i].equals("--def")) {
 				Number v = null;
 				String name = args[++i];

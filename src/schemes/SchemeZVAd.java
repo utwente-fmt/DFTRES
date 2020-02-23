@@ -52,8 +52,8 @@ public class SchemeZVAd extends Scheme {
 		haveLeftLambda = false;
 	}
 	
-	public StateSpace.Neighbours prepareState(State state) {
-		StateSpace.Neighbours ret = super.prepareState(state);
+	public StateSpace.Neighbours prepareState(State state, double timeBound) {
+		StateSpace.Neighbours ret = super.prepareState(state, timeBound);
 		StateInfo sinfo = info.get(state);
 		if (sinfo == null || sinfo.v == 1)
 			haveLeftLambda = true;
