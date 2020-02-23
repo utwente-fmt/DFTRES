@@ -9,6 +9,7 @@ import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
@@ -22,11 +23,26 @@ public class SymbolicAutomaton implements LTS {
 	/* targets[i][j] denotes the target state of the j'th transition
 	 * from state i. labels[i][j] denotes the label of that
 	 * transition. */
-	private int targets[][];
-	private String labels[][];
-	private Expression guards[][];
-	private Expression probs[][];
-	private HashMap<String, Expression> assignments[][];
+	private final int targets[][];
+	private final String labels[][];
+	private final Expression guards[][];
+	private final Expression probs[][];
+	private final HashMap<String, Expression> assignments[][];
+
+	private SymbolicAutomaton(SymbolicAutomaton other, String addedVar,
+	                          int addedVal)
+	{
+		this.targets = other.targets;
+		this.labels = other.labels;
+		this.guards = other.guards;
+		this.probs = other.probs;
+		this.assignments = other.assignments;
+		int n = other.variables.length;
+		variables = Arrays.copyOf(other.variables, n + 1);
+		initialState = Arrays.copyOf(other.initialState, n + 1);
+		variables[n] = addedVar;
+		initialState[n] = addedVal;
+	}
 
 	/* Private since 'Map' may in the future be suitable for
 	 * multiple types.
@@ -275,6 +291,47 @@ public class SymbolicAutomaton implements LTS {
 		return initialState.clone();
 	}
 
+	public Set<String> getExternVariables() {
+		TreeSet<String> ret = new TreeSet<>();
+		for (Expression[] gs : guards) {
+			if (gs != null) {
+				for (Expression g : gs)
+					ret.addAll(g.getReferencedVariables());
+			}
+		}
+		for (Expression[] ps : probs) {
+			if (ps != null) {
+				for (Expression p : ps) {
+					if (p == null)
+						continue;
+					ret.addAll(p.getReferencedVariables());
+				}
+			}
+		}
+		for (HashMap<String, Expression>[] as : assignments) {
+			if (as == null)
+				continue;
+			for (HashMap<String, Expression> map : as) {
+				for (Expression e : map.values())
+					ret.addAll(e.getReferencedVariables());
+			}
+		}
+		return ret;
+	}
+
+	/** Add the specified variable.
+	 */
+	public SymbolicAutomaton addVariable(String name, int initialValue) {
+		for (int i = variables.length - 1; i > 0; i--) {
+			if (variables[i].equals(name)) {
+				if (initialValue != initialState[i])
+					throw new IllegalArgumentException("Trying to add variable '" + name + "' with intial value " + initialValue + ", but it already exists with initial value "+ initialState[i]);
+				return this;
+			}
+		}
+		return new SymbolicAutomaton(this, name, initialValue);
+	}
+
 	public TreeSet<LTS.Transition> getTransitions(int[] from)
 	{
 		TreeSet<LTS.Transition> ret = new TreeSet<LTS.Transition>();
@@ -311,7 +368,7 @@ public class SymbolicAutomaton implements LTS {
 				Number v = newVal.evaluate(values);
 				if (v == null)
 					throw new UnsupportedOperationException("Local variable assignment that depends on non-local variable.");
-				target[i] = v.intValue();
+				target[j] = v.intValue();
 			}
 			ret.add(new LTS.Transition(label, target, guard, nonLocals));
 		}

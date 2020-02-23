@@ -1960,48 +1960,6 @@ public class Composition implements MarkableLTS
 					throw new AssertionError("Number or Boolean constant value is neither Long, nor true or false.");
 			}
 		}
-		Object variables = root.get("variables");
-		if (variables != null) {
-			if (!(variables instanceof Object[]))
-				throw new IllegalArgumentException("Unexpected argument type of global variables list: Expected array, found " + variables.getClass());
-			Object[] vars = (Object[]) variables;
-			for (Object vo : vars) {
-				if (vo == null)
-					throw new IllegalArgumentException("Unexpected null in variable list.");
-				if (!(vo instanceof Map)) {
-					throw new IllegalArgumentException("Unexpected global variable entry: Expected object, found " + vo);
-				}
-				Map vm = (Map)vo;
-				Object no = vm.get("name");
-				if (!(no instanceof String))
-					throw new IllegalArgumentException("Unexpected type of variable name: Expected string, found " + vo.toString());
-				String name = (String)no;
-				Object to = vm.get("type");
-				int[] bounds = JaniUtils.typeBounds(to, constants);
-				Object io = vm.get("initial-value");
-				long initial = 0;
-				initial = JaniUtils.getConstantLong(io, constants);
-				if (initial < Integer.MIN_VALUE || initial > Integer.MAX_VALUE)
-					throw new IllegalArgumentException("Initial value of variable '" + name + "' exceeds 32 bits.");
-				if (initial < bounds[0])
-					bounds[0] = (int)initial;
-				if (initial > bounds[1])
-					bounds[1] = (int)initial;
-				int[] vals = new int[]{0,bounds[1],(int)initial, bounds[0]};
-				if (vm.get("transient") == Boolean.TRUE)
-					transientGlobals.put(name, new ConstantExpression(initial));
-				globalVars.put(name, vals);
-			}
-		}
-		if (root.get("restrict-initial") != null) {
-			Object iO = root.get("restrict-initial");
-			if (!(iO instanceof Map))
-				throw new IllegalArgumentException("Unexpected JSON type of 'restrict-initial': Expected Object, found " + iO);
-			Map restrict = (Map)iO;
-			iO = restrict.get("exp");
-			if (iO != Boolean.TRUE)
-				throw new IllegalArgumentException("Explicit initial states currently not supported.");
-		}
 		Object autos = root.get("automata");
 		if (!(autos instanceof Object[])) {
 			throw new IllegalArgumentException("Unexpected JSON type of 'automata': Expected array, found " + autos);
@@ -2018,6 +1976,123 @@ public class Composition implements MarkableLTS
 				a = SymbolicAutomaton.fromJani(autm, constants);
 				declaredAuts.put(n.toString(), a);
 			}
+		}
+		HashSet<Property> properties = new HashSet<>();
+		Object propO = root.get("properties");
+		if (propO != null) {
+			if (!(propO instanceof Object[]))
+				throw new IllegalArgumentException("Properties should be array, not: " + propO);
+			Object[] props = (Object[])propO;
+			for (Object propO2 : props) {
+				if (!(propO2 instanceof Map))
+					throw new IllegalArgumentException("Property should be object, not: " + propO2);
+				Map prop = (Map)propO2;
+				try {
+					Property p = parseJaniProperty(prop, constants);
+					properties.add(p);
+				} catch (UnsupportedOperationException e) {
+					System.err.println(e.getMessage());
+				}
+			}
+		}
+		Object variables = root.get("variables");
+		if (variables != null) {
+			if (!(variables instanceof Object[]))
+				throw new IllegalArgumentException("Unexpected argument type of global variables list: Expected array, found " + variables.getClass());
+			Map<String, List<Object>> varUsers;
+			varUsers = new TreeMap<>();
+			for (String name : declaredAuts.keySet()) {
+				SymbolicAutomaton a = declaredAuts.get(name);
+				List<Object> users;
+				for (String vName : a.getExternVariables()) {
+					users = varUsers.get(vName);
+					if (users == null) {
+						users = new ArrayList<>();
+						varUsers.put(vName, users);
+					}
+					users.add(name);
+				}
+			}
+			for (Property p : properties) {
+				List<Object> users;
+				for (String name : p.getReferencedVariables()) {
+					users = varUsers.get(name);
+					if (users == null) {
+						users = new ArrayList<>();
+						varUsers.put(name, users);
+					}
+					users.add(p);
+				}
+			}
+			Object[] vars = (Object[]) variables;
+			for (Object vo : vars) {
+				if (vo == null)
+					throw new IllegalArgumentException("Unexpected null in variable list.");
+				if (!(vo instanceof Map)) {
+					throw new IllegalArgumentException("Unexpected global variable entry: Expected object, found " + vo);
+				}
+				Map vm = (Map)vo;
+				Object no = vm.get("name");
+				if (!(no instanceof String))
+					throw new IllegalArgumentException("Unexpected type of variable name: Expected string, found " + vo.toString());
+				String name = (String)no;
+				Object to = vm.get("type");
+				int[] bounds = JaniUtils.typeBounds(to, constants);
+				Object io = vm.get("initial-value");
+				long initialLong = 0;
+				initialLong = JaniUtils.getConstantLong(io, constants);
+				if (initialLong < Integer.MIN_VALUE || initialLong > Integer.MAX_VALUE)
+					throw new IllegalArgumentException("Initial value of variable '" + name + "' exceeds 32 bits.");
+				int init = (int)initialLong;
+				if (init < bounds[0])
+					bounds[0] = init;
+				if (init > bounds[1])
+					bounds[1] = init;
+				int[] vals = new int[]{0,bounds[1], init, bounds[0]};
+				List<Object> users = varUsers.get(name);
+				if (users == null) {
+					if (VERBOSE)
+						System.err.println("Ignoring unused variable: " + name);
+					continue;
+				}
+				if (vm.get("transient") == Boolean.TRUE) {
+					transientGlobals.put(name, new ConstantExpression(init));
+					globalVars.put(name, vals);
+				} else if (users.size() == 1) {
+					if (VERBOSE)
+						System.err.println("Interning variable: " + name);
+					Object user = users.get(0);
+					if (user instanceof String) {
+						String aName = (String)user;
+						SymbolicAutomaton a;
+						a = declaredAuts.get(aName);
+						declaredAuts.remove(aName);
+						a = a.addVariable(name, init);
+						declaredAuts.put(aName, a);
+					} else if (user instanceof Property) {
+						Property p = (Property)user;
+						Map<String, Integer> values;
+						values = Map.of(name, init);
+						properties.remove(p);
+						p = p.simplify(values);
+						properties.add(p);
+						users.set(0, p);
+					} else {
+						throw new AssertionError("Unknown type of variable user: " + user);
+					}
+				} else {
+					globalVars.put(name, vals);
+				}
+			}
+		}
+		if (root.get("restrict-initial") != null) {
+			Object iO = root.get("restrict-initial");
+			if (!(iO instanceof Map))
+				throw new IllegalArgumentException("Unexpected JSON type of 'restrict-initial': Expected Object, found " + iO);
+			Map restrict = (Map)iO;
+			iO = restrict.get("exp");
+			if (iO != Boolean.TRUE)
+				throw new IllegalArgumentException("Explicit initial states currently not supported.");
 		}
 		Map<String, Automaton> actualAutomata = new TreeMap<>();
 		for (String name : declaredAuts.keySet()) {
@@ -2097,24 +2172,6 @@ public class Composition implements MarkableLTS
 					synchronizedLabels[i] = "i" + resultAction.toString();
 			}
 		}
-		HashSet<Property> ret = new HashSet<>();
-		Object propO = root.get("properties");
-		if (propO == null)
-			return ret;
-		if (!(propO instanceof Object[]))
-			throw new IllegalArgumentException("Properties should be array, not: " + propO);
-		Object[] props = (Object[])propO;
-		for (Object propO2 : props) {
-			if (!(propO2 instanceof Map))
-				throw new IllegalArgumentException("Property should be object, not: " + propO2);
-			Map prop = (Map)propO2;
-			try {
-				Property p = parseJaniProperty(prop, constants);
-				ret.add(p);
-			} catch (UnsupportedOperationException e) {
-				System.err.println(e.getMessage());
-			}
-		}
-		return ret;
+		return properties;
 	}
 }

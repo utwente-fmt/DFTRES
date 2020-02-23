@@ -2,6 +2,8 @@ package nl.utwente.ewi.fmt.EXPRES;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.io.IOException;
 import java.io.PrintStream;
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
@@ -88,6 +90,29 @@ public class Property implements Comparable<Property>
 		if (ret != 0)
 			return ret;
 		return compareExprs(this.transientReward, other.transientReward);
+	}
+
+	public Set<String> getReferencedVariables() {
+		TreeSet<String> ret = new TreeSet<>();
+		if (reachTarget != null)
+			ret.addAll(reachTarget.getReferencedVariables());
+		if (timeCumulativeReward != null)
+			ret.addAll(timeCumulativeReward.getReferencedVariables());
+		if (transientReward != null)
+			ret.addAll(transientReward.getReferencedVariables());
+		return ret;
+	}
+
+	public Property simplify(Map<String, ? extends Number> valuation) {
+		Expression target = null, cumReward = null, transReward = null;
+		if (reachTarget != null)
+			target = reachTarget.simplify(valuation);
+		if (timeCumulativeReward != null)
+			cumReward = timeCumulativeReward.simplify(valuation);
+		if (transientReward != null)
+			transReward = transientReward.simplify(valuation);
+		return new Property(this.type, timeBound, target, this.name,
+	                            cumReward, transReward);
 	}
 
 	public int hashCode()
