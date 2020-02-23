@@ -189,14 +189,26 @@ public class MarkovReducedLTS implements LTS
 			return l1;
 		if (l1.charAt(0) == 't' && l2.charAt(0) == 't')
 			return l1;
-		if (l1.charAt(0) != 'r')
-			throw new UnsupportedOperationException("Tried to merge non-rate transitions.");
-		if (l2.charAt(0) != 'r')
-			throw new UnsupportedOperationException("Tried to merge non-rate transitions.");
-		BigDecimal r1 = new BigDecimal(l1.substring(1));
-		BigDecimal r2 = new BigDecimal(l2.substring(1));
-		BigDecimal rret = r1.add(r2);
-		return "r" + rret.stripTrailingZeros().toString();
+		if (l1.charAt(0) == 'r' && l2.charAt(0) == 'r') {
+			BigDecimal r1 = new BigDecimal(l1.substring(1));
+			BigDecimal r2 = new BigDecimal(l2.substring(1));
+			BigDecimal rret = r1.add(r2);
+			return "r" + rret.stripTrailingZeros().toString();
+		} else if (l1.charAt(0) == 'p' && l2.charAt(0) == 'p') {
+			BigDecimal r1 = new BigDecimal(l1.substring(1));
+			BigDecimal r2 = new BigDecimal(l2.substring(1));
+			BigDecimal rret = r1.add(r2);
+			if (rret.doubleValue() > 1) {
+				try {
+					throw new UnsupportedOperationException("Probability greater than one");
+				} catch (RuntimeException e) {
+					e.printStackTrace();
+					throw e;
+				}
+			}
+			return "p" + rret.stripTrailingZeros().toString();
+		}
+		throw new UnsupportedOperationException("Tried to merge non-mergeable transitions: '" + l1 + "' and '" + l2 + "'");
 	}
 
 
