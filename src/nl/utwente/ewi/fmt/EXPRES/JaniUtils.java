@@ -18,7 +18,7 @@ class JaniUtils {
 				throw new IllegalArgumentException("Unknown identifier: " + name);
 			return c;
 		} else if (exp instanceof Map) {
-			Map m = (Map)exp;
+			Map<?, ?> m = (Map<?, ?>)exp;
 			if (m.containsKey("constant")) {
 				if ("π".equals(m.get("constant")))
 					return Math.PI;
@@ -72,7 +72,7 @@ class JaniUtils {
 			return new int[]{DEFAULT_INT_MIN, DEFAULT_INT_MAX};
 		if (t instanceof Map) {
 			int ret[] = new int[]{DEFAULT_INT_MIN, DEFAULT_INT_MAX};
-			Map tm = (Map)t;
+			Map<?, ?> tm = (Map<?, ?>)t;
 			Object base = tm.get("base");
 			if (!"int".equals(base))
 				throw new IllegalArgumentException(base.toString() + " type variables are currently not supported.");

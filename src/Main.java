@@ -80,7 +80,7 @@ class Main {
 			String line;
 			while ((line = r.readLine()) != null) {
 				if (line.matches("MemTotal:.*"))
-					return (long)Math.round(Double.valueOf(line.split(" +")[1]) / (1024 * 1024));
+					return Math.round(Double.valueOf(line.split(" +")[1]) / (1024 * 1024));
 			}
 		} catch (Exception e) {
 			return null;

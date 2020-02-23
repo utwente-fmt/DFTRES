@@ -5,6 +5,7 @@ import java.security.SecureRandom;
 
 public class XoroShiro128RandomSource extends Random implements RandomSource
 {
+	private static final long serialVersionUID = 1;
 	long s0, s1;
 
 	public XoroShiro128RandomSource()

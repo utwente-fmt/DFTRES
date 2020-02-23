@@ -47,7 +47,7 @@ public class SymbolicAutomaton implements LTS {
 	/* Private since 'Map' may in the future be suitable for
 	 * multiple types.
 	 */
-	private SymbolicAutomaton(Map janiData, Map<String, Number> constants)
+	private SymbolicAutomaton(Map<?, ?> janiData, Map<String, Number> constants)
 	{
 		HashMap<Integer, HashMap<String, Expression>> transients;
 		transients = new HashMap<>();
@@ -63,7 +63,7 @@ public class SymbolicAutomaton implements LTS {
 				if (!(vo instanceof Map)) {
 					throw new IllegalArgumentException("Unexpected local variable entry: Expected object, found " + vo);
 				}
-				Map vm = (Map)vo;
+				Map<?, ?> vm = (Map<?, ?>)vo;
 				Object no = vm.get("name");
 				if (!(no instanceof String))
 					throw new IllegalArgumentException("Unexpected type of variable name: Expected string, found " + vo.toString());
@@ -92,7 +92,7 @@ public class SymbolicAutomaton implements LTS {
 		for (Object loc : locs) {
 			if (!(loc instanceof Map))
 				throw new IllegalArgumentException("Location should be JSON object, not: " + loc);
-			Map ldata = (Map)loc;
+			Map<?, ?> ldata = (Map<?, ?>)loc;
 			if (!ldata.containsKey("name"))
 				throw new IllegalArgumentException("Unnamed location");
 			String name = ldata.get("name").toString();
@@ -109,7 +109,7 @@ public class SymbolicAutomaton implements LTS {
 				for (Object tvO : tvs) {
 					if (!(tvO instanceof Map))
 						throw new IllegalArgumentException("Transient-value should be an Object, not: " + tvO);
-					Map tv = (Map)tvO;
+					Map<?, ?> tv = (Map<?, ?>)tvO;
 					Object rO = tv.get("ref");
 					if (!(rO instanceof String))
 						throw new IllegalArgumentException("Non-identifier transient value ref: " + rO);
@@ -153,7 +153,7 @@ public class SymbolicAutomaton implements LTS {
 		for (Object eo : edges) {
 			if (!(eo instanceof Map))
 				throw new IllegalArgumentException("Each edge should be a JSON object, not: " + eo);
-			Map edge = (Map)eo;
+			Map<?, ?> edge = (Map<?, ?>)eo;
 			Object src = edge.get("location");
 			if (src == null)
 				throw new IllegalArgumentException("Edge without source specified.");
@@ -170,13 +170,13 @@ public class SymbolicAutomaton implements LTS {
 			} else if (ao == null && ro != null) {
 				if (!(ro instanceof Map))
 					throw new IllegalArgumentException("Edge rates must be JSON objects, not: " + ro);
-				Map rateMap = (Map)ro;
+				Map<?, ?> rateMap = (Map<?, ?>)ro;
 				Number rate = JaniUtils.getConstantDouble(rateMap.get("exp"), constants);
 				action = "r" + rate;
 			} else { /* both action and rate specified */
 				if (!(ro instanceof Map))
 					throw new IllegalArgumentException("Edge rates must be JSON objects, not: " + ro);
-				Map rateMap = (Map)ro;
+				Map<?, ?> rateMap = (Map<?, ?>)ro;
 				Number rate = JaniUtils.getConstantDouble(rateMap.get("exp"), constants);
 				action = "c" + rate + ";" + ao.toString();
 			}
@@ -185,7 +185,7 @@ public class SymbolicAutomaton implements LTS {
 				Object gO = edge.get("guard");
 				if (!(gO instanceof Map))
 					throw new IllegalArgumentException("Guard should be {\"exp\": ...}, not: " + gO);
-				Map g = (Map)gO;
+				Map<?, ?> g = (Map<?, ?>)gO;
 				guard = Expression.fromJani(g.get("exp"));
 				guard = guard.simplify(constants);
 			}
@@ -198,7 +198,7 @@ public class SymbolicAutomaton implements LTS {
 			destO = dests[0];
 			if (!(destO instanceof Map))
 				throw new IllegalArgumentException("Each destination should be a JSON object, not: " + destO);
-			Map dest = (Map)destO;
+			Map<?, ?> dest = (Map<?, ?>)destO;
 			destO = dest.get("location");
 			Integer target = null;
 			if (destO != null)
@@ -228,7 +228,7 @@ public class SymbolicAutomaton implements LTS {
 			for (Object assO : assignments) {
 				if (!(assO instanceof Map))
 					throw new IllegalArgumentException("Assignment should be JSON object, not: " + assO);
-				Map assignment = (Map)assO;
+				Map<?, ?> assignment = (Map<?, ?>)assO;
 				Object refO = assignment.get("ref");
 				if (!(refO instanceof String))
 					throw new IllegalArgumentException("Assignment only supported to identifiers.");
@@ -250,13 +250,13 @@ public class SymbolicAutomaton implements LTS {
 		}
 	}
 
-	public static SymbolicAutomaton fromJani(Map janiData,
+	public static SymbolicAutomaton fromJani(Map<?, ?> janiData,
 	                                         Map<String, Number> constants)
 	{
 		return new SymbolicAutomaton(janiData, constants);
 	}	
 
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({"unchecked", "rawtypes"})
 	private HashMap<String, Expression>[][] createAssignmentArray(int len)
 	{
 		return (HashMap<String, Expression>[][]) new HashMap[len][0];

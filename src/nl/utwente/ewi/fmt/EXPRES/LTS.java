@@ -252,7 +252,7 @@ public interface LTS
 		public boolean equals(Object o) {
 			if (!(o instanceof Set))
 				return false;
-			Set other = (Set)o;
+			Set<?> other = (Set<?>)o;
 			if (elements == null)
 				return other.isEmpty();
 			if (other.size() != elements.length)

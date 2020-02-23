@@ -54,7 +54,7 @@ public abstract class Expression
 		if (o instanceof Boolean)
 			return new ConstantExpression(((Boolean)o) ? 1 : 0);
 		if (o instanceof Map) {
-			Map e = (Map)o;
+			Map<?, ?> e = (Map<?, ?>)o;
 			Object op = e.get("op");
 			if ("ite".equals(op)) {
 				Object ifExpr = e.get("if");

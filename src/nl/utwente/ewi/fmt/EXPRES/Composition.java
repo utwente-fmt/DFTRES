@@ -896,7 +896,7 @@ public class Composition implements MarkableLTS
 			for (int i = aut.getNumStates() - 1; i >= 0; i--) {
 				int j = 0;
 				while (aut.getTransitionTarget(i, j) != -1) {
-					Map assigns = aut.getAssignments(i, j);
+					Map<String, Expression> assigns = aut.getAssignments(i, j);
 					if (assigns != null
 					    && !assigns.isEmpty())
 					{
@@ -1791,7 +1791,7 @@ public class Composition implements MarkableLTS
 		out.println("}");
 	}
 
-	private static Property parseJaniProperty(Map prop, Map<String, Number> constants)
+	private static Property parseJaniProperty(Map<?, ?> prop, Map<String, Number> constants)
 	{
 		Object nameO = prop.get("name");
 		if (!(nameO instanceof String))
@@ -1800,7 +1800,7 @@ public class Composition implements MarkableLTS
 		Object expO = prop.get("expression");
 		if (!(expO instanceof Map))
 			throw new IllegalArgumentException("Property expression should be object, not: " + expO);
-		Map expr = (Map)expO;
+		Map<?, ?> expr = (Map<?, ?>)expO;
 		if (!"filter".equals(expr.get("op")))
 			throw new UnsupportedOperationException("I don't know what to do property operation '" + expr.get("op") + "'");
 		Object fun = expr.get("fun");
@@ -1811,7 +1811,7 @@ public class Composition implements MarkableLTS
 		Object valO = expr.get("values");
 		if (!(valO instanceof Map))
 			throw new IllegalArgumentException("Property values should be object, not: " + valO);
-		Map values = (Map)valO;
+		Map<?, ?> values = (Map<?, ?>)valO;
 		Object op = values.get("op");
 		Property.Type propType = null;
 		if ("Smax".equals(op) || "Smin".equals(op))
@@ -1834,7 +1834,7 @@ public class Composition implements MarkableLTS
 		if (expO instanceof String) {
 			reachTarget = Expression.fromJani(expO);
 		} else if (expO instanceof Map) {
-			expr = (Map)expO;
+			expr = (Map<?, ?>)expO;
 			if ("U".equals(expr.get("op"))) {
 				if (!Boolean.TRUE.equals(expr.get("left")))
 					throw new UnsupportedOperationException("Until formulae currently only supported with 'true' left operand.");
@@ -1854,7 +1854,7 @@ public class Composition implements MarkableLTS
 			if (boundO == null) {
 				timeBound = Double.POSITIVE_INFINITY;
 			} else if (boundO instanceof Map) {
-				Map bound = (Map)boundO;
+				Map<?, ?> bound = (Map<?, ?>)boundO;
 				for (Object o : bound.keySet()) {
 					if ("upper".equals(o)) {
 						o = bound.get("upper");
