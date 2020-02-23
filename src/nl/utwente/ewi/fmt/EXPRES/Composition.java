@@ -2007,20 +2007,30 @@ public class Composition implements MarkableLTS
 			throw new IllegalArgumentException("Unexpected JSON type of 'automata': Expected array, found " + autos);
 		}
 		Object[] auts = (Object[])autos;
-		TreeMap<String, Automaton> declaredAuts = new TreeMap<>();
+		Map<String, SymbolicAutomaton> declaredAuts = new TreeMap<>();
 		for (Object aut : auts) {
 			if (!(aut instanceof Map))
 				throw new IllegalArgumentException("Automaton should be an object, not: " + aut);
 			Map autm = (Map)aut;
 			Object n = autm.get("name");
 			if (n != null) {
-				try {
-					declaredAuts.put(n.toString(), Automaton.fromJani(autm, constants));
-				} catch (ModelTooLargeException e) {
-					throw new UnsupportedOperationException ("Automaton too large", e);
-				}
+				SymbolicAutomaton a;
+				a = SymbolicAutomaton.fromJani(autm, constants);
+				declaredAuts.put(n.toString(), a);
 			}
 		}
+		Map<String, Automaton> actualAutomata = new TreeMap<>();
+		for (String name : declaredAuts.keySet()) {
+			SymbolicAutomaton sym = declaredAuts.get(name);
+			try {
+				Automaton expl = new Automaton(sym);
+				actualAutomata.put(name, expl);
+			} catch (ModelTooLargeException e) {
+				throw new UnsupportedOperationException ("Automaton too large", e);
+			}
+			declaredAuts.replace(name, null);
+		}
+		declaredAuts = null;
 		Object syso = root.get("system");
 		if (syso == null)
 			throw new IllegalArgumentException("No system definition.");
@@ -2041,7 +2051,7 @@ public class Composition implements MarkableLTS
 			if (!(aut instanceof String))
 				throw new IllegalArgumentException("Composition elements should be identifiers (of automata), not: " + aut);
 			String autName = (String)aut;
-			automata[i] = declaredAuts.get(autName);
+			automata[i] = actualAutomata.get(autName);
 			if (automata[i] == null)
 				throw new IllegalArgumentException("Element declaration contains undefined automaton: " + autName);
 		}
