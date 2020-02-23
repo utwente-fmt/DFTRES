@@ -109,4 +109,11 @@ public class IfThenElseExpression extends Expression
 			return new IfThenElseExpression(simplerCond, simplerThen, simplerElse);
 		return this;
 	}
+
+	@Override
+	public IfThenElseExpression renameVars(Map<String, String> renames) {
+		return new IfThenElseExpression(condition.renameVars(renames),
+		                                thenExpr.renameVars(renames),
+					        elseExpr.renameVars(renames));
+	}
 }

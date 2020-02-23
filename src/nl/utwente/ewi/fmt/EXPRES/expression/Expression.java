@@ -100,4 +100,5 @@ public abstract class Expression
 	public abstract boolean equals(Object other);
 	public abstract String toString();
 	public abstract void writeJani(PrintStream out, int indent);
+	public abstract Expression renameVars(Map<String, String> renames);
 }

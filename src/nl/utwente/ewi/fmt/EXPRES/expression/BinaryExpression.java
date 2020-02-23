@@ -270,4 +270,10 @@ public class BinaryExpression extends Expression
 			return new BinaryExpression(op, simplerL, simplerR);
 		return this;
 	}
+
+	@Override
+	public BinaryExpression renameVars(Map<String, String> renames) {
+		return new BinaryExpression(op, left.renameVars(renames),
+		                            right.renameVars(renames));
+	}
 }

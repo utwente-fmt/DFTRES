@@ -52,6 +52,13 @@ public class VariableExpression extends Expression
 		return s.getVarValue(variable, state);
 	}
 
+	public VariableExpression renameVars(Map<String, String> renames) {
+		String newName = renames.get(variable);
+		if (newName == null)
+			return this;
+		return new VariableExpression(newName);
+	}
+
 	public String toString() {
 		return '"' + variable + '"';
 	}

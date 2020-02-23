@@ -6,7 +6,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.AbstractMap;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,6 +33,7 @@ public class SymbolicAutomaton implements LTS {
 	private final Expression guards[][];
 	private final Expression probs[][];
 	private final HashMap<String, Expression> assignments[][];
+	private final boolean numberedVariables;
 
 	private SymbolicAutomaton(SymbolicAutomaton other, String addedVar,
 	                          int addedVal)
@@ -45,6 +48,7 @@ public class SymbolicAutomaton implements LTS {
 		initialState = Arrays.copyOf(other.initialState, n + 1);
 		variables[n] = addedVar;
 		initialState[n] = addedVal;
+		numberedVariables = tryToNumberVariables();
 	}
 
 	private SymbolicAutomaton(SymbolicAutomaton other, String toRemove)
@@ -68,6 +72,7 @@ public class SymbolicAutomaton implements LTS {
 				}
 			}
 		}
+		numberedVariables = tryToNumberVariables();
 	}
 
 	/* Private since 'Map' may in the future be suitable for
@@ -275,6 +280,7 @@ public class SymbolicAutomaton implements LTS {
 			probs[srci] = Arrays.copyOf(probs[srci], probs[srci].length + 1);
 			probs[srci][probs[srci].length - 1] = prob;
 		}
+		numberedVariables = tryToNumberVariables();
 	}
 
 	public static SymbolicAutomaton fromJani(Map<?, ?> janiData,
@@ -318,7 +324,55 @@ public class SymbolicAutomaton implements LTS {
 		return initialState.clone();
 	}
 
+	private boolean tryToNumberVariables() {
+		if (!getExternVariables().isEmpty())
+			return false;
+		if (variables.length > Character.MAX_VALUE)
+			return false;
+		HashMap<String, String> renames = new HashMap<>();
+		for (char i = 1; i < variables.length; i++) {
+			char[] str = new char[]{i};
+			renames.put(variables[i], new String(str));
+		}
+		for (Expression[] gs : guards) {
+			if (gs != null) {
+				for (int i = gs.length - 1; i >= 0; i--) {
+					gs[i] = gs[i].renameVars(renames);
+					if (gs[i] == null)
+						continue;
+				}
+			}
+		}
+		for (Expression[] ps : probs) {
+			if (ps != null) {
+				for (int i = ps.length - 1; i >= 0; i--) {
+					if (ps[i] == null)
+						continue;
+					ps[i] = ps[i].renameVars(renames);
+				}
+			}
+		}
+		for (HashMap<String, Expression>[] as : assignments) {
+			if (as == null)
+				continue;
+			for (int i = as.length - 1; i >= 0; i--) {
+				HashMap<String, Expression> map = as[i];
+				HashMap<String, Expression> newMap = new HashMap<>();
+				for (var entry : map.entrySet()) {
+					String k = renames.get(entry.getKey());
+					Expression e = entry.getValue();
+					e = e.renameVars(renames);
+					newMap.put(k, e);
+				}
+				as[i] = newMap;
+			}
+		}
+		return true;
+	}
+
 	public Set<String> getExternVariables() {
+		if (numberedVariables)
+			return Set.of();
 		TreeSet<String> ret = new TreeSet<>();
 		for (Expression[] gs : guards) {
 			if (gs != null) {
@@ -346,6 +400,8 @@ public class SymbolicAutomaton implements LTS {
 				}
 			}
 		}
+		for (int i = variables.length - 1; i > 0; i--)
+			ret.remove(variables[i]);
 		return ret;
 	}
 
@@ -411,10 +467,43 @@ public class SymbolicAutomaton implements LTS {
 		}
 	}
 
+	private class NumberMap extends AbstractMap<String, Integer> {
+		private final int[] state;
+
+		public NumberMap(int[] state) {
+			this.state = state;
+		}
+
+		@Override
+		public Integer get(Object var) {
+			if (!(var instanceof String))
+				return null;
+			char b = ((String)var).charAt(0);
+			return state[b];
+		}
+
+		@Override
+		public boolean containsKey(Object var) {
+			if (!(var instanceof String))
+				return false;
+			char b = ((String)var).charAt(0);
+			return b > 0 && b < state.length;
+		}
+
+		@Override
+		public Set<Map.Entry<String, Integer>> entrySet() {
+			throw new UnsupportedOperationException();
+		}
+	}
+
 	public TreeSet<LTS.Transition> getTransitions(int[] from)
 	{
 		TreeSet<LTS.Transition> ret = new TreeSet<LTS.Transition>();
-		Map<String, Integer> values = getVarValues(from);
+		Map<String, Integer> values;
+		if (!numberedVariables)
+			values = getVarValues(from);
+		else
+			values = new NumberMap(from);
 		int src = from[0];
 		boolean isProbabilistic = false, isInteractive = false;
 		for (int i = 0; i < labels[src].length; i++) {
@@ -450,16 +539,30 @@ public class SymbolicAutomaton implements LTS {
 			int[] target = from.clone();
 			target[0] = targets[src][i];
 			Map<String, Expression> assigns = assignments[src][i];
-			Map<String, Expression> nonLocals = new HashMap<>(assigns);
-			for (int j = 1; j < variables.length; j++) {
-				Expression newVal = assigns.get(variables[j]);
-				if (newVal == null)
-					continue;
-				nonLocals.remove(variables[j]);
-				Number v = newVal.evaluate(values);
-				if (v == null)
-					throw new UnsupportedOperationException("Local variable assignment that depends on non-local variable.");
-				target[j] = v.intValue();
+			Map<String, Expression> nonLocals;
+			if (!numberedVariables) {
+				nonLocals = new HashMap<>(assigns);
+				for (int j = 1; j < variables.length; j++) {
+					Expression newVal = assigns.get(variables[j]);
+					if (newVal == null)
+						continue;
+					nonLocals.remove(variables[j]);
+					Number v = newVal.evaluate(values);
+					if (v == null)
+						throw new UnsupportedOperationException("Local variable assignment that depends on non-local variable.");
+					target[j] = v.intValue();
+				}
+			} else {
+				nonLocals = Collections.emptyMap();
+				for (Map.Entry<String, Expression> assign : assigns.entrySet()) {
+					char pos = assign.getKey().charAt(0);
+					Expression e = assign.getValue();
+					Number v = e.evaluate(values);
+					if (v == null)
+						throw new UnsupportedOperationException("Local variable assignment that depends on non-local variable.");
+					target[pos] = v.intValue();
+
+				}
 			}
 			ret.add(new LTS.Transition(label, target, guard, nonLocals));
 		}
