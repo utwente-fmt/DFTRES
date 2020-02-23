@@ -52,7 +52,7 @@ public class JaniModel
 	private final Map<String, Expression> transientGlobals; /* Maps the variable name to its initial value. */
 
 	private final HashSet<Property> properties;
-	private static final boolean VERBOSE = true;
+	private static final boolean VERBOSE = false;
 
 	/** Read a JANI model from a file.
 	 * @param filename The file to read.
@@ -187,7 +187,6 @@ public class JaniModel
 					continue;
 				}
 				if (vm.get("transient") == Boolean.TRUE) {
-					System.err.println("Transient: " + name);
 					transientGlobals.put(name, new ConstantExpression(var.initial));
 					globalVars.put(name, var);
 				} else if (users.size() == 1) {
@@ -438,8 +437,6 @@ public class JaniModel
 	}
 
 	public LTS getLTS() {
-		System.err.println("Remaining globals: " + globalVars);
-		System.err.println("Remaining transients: " + transientGlobals);
 		Set<String> propertyVars = new TreeSet<>();
 		for (Property p : properties)
 			propertyVars.addAll(p.getReferencedVariables());
@@ -459,12 +456,10 @@ public class JaniModel
 				if (info.type.base == JaniBaseType.REAL)
 					throw new UnsupportedOperationException("Real-values variables not supported");
 				int init = JaniUtils.safeToInteger(info.initial);
-				System.err.println("Interning " + name);
 				ret = ret.addVariable(name, init);
 			}
 			return ret;
 		}
-		System.err.println("Not using raw S: " + transientGlobals);
 		return getComposition();
 	}
 

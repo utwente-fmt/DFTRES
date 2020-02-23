@@ -7,6 +7,7 @@ import java.io.InputStreamReader;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -401,20 +402,36 @@ public class SymbolicAutomaton implements LTS {
 		return new SymbolicAutomaton(this, name);
 	}
 
+	private void clearMarkovian(TreeSet<LTS.Transition> transitions) {
+		Iterator<LTS.Transition> iter = transitions.iterator();
+		while (iter.hasNext()) {
+			String label = iter.next().label;
+			if (label.charAt(0) == 'r')
+				iter.remove();
+		}
+	}
+
 	public TreeSet<LTS.Transition> getTransitions(int[] from)
 	{
 		TreeSet<LTS.Transition> ret = new TreeSet<LTS.Transition>();
 		Map<String, Integer> values = getVarValues(from);
 		int src = from[0];
+		boolean isProbabilistic = false, isInteractive = false;
 		for (int i = 0; i < labels[src].length; i++) {
-			Expression guard = guards[src][i];
-			guard = guard.simplify(values);
-			if (guard.getReferencedVariables().isEmpty()) {
-				Number v = guard.evaluate(values);
-				if (v.longValue() == 0)
+			String label = labels[src][i];
+			if (isProbabilistic) {
+				if (label.charAt(0) == 'r')
 					continue;
 			}
-			String label = labels[src][i];
+			Expression guard = guards[src][i];
+			Number gVal = guard.evaluate(values);
+			if (gVal != null) {
+				if (gVal.doubleValue() == 0)
+					continue;
+				guard = ConstantExpression.TRUE;
+			} else {
+				guard = guard.simplify(values);
+			}
 			if (probs[src][i] != null) {
 				Number p = probs[src][i].evaluate(values);
 				if (p == null)
@@ -424,6 +441,11 @@ public class SymbolicAutomaton implements LTS {
 				if (!label.equals("i"))
 					throw new UnsupportedOperationException("Probabilistic transition with named or non-interactive label: " + label);
 				label = "p" + p;
+				if (!isInteractive && !isProbabilistic)
+					ret.clear();
+				else if (!isProbabilistic)
+					clearMarkovian(ret);
+				isProbabilistic = true;
 			}
 			int[] target = from.clone();
 			target[0] = targets[src][i];

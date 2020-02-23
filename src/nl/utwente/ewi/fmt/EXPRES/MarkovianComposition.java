@@ -90,7 +90,7 @@ public class MarkovianComposition implements LTS
 			visited.add(t.target);
 			Set<Transition> outgoing = original.getTransitions(t.target);
 			for (Transition s : outgoing) {
-				if (s.label.charAt(0) == 'r')
+				if (s.label.charAt(0) != 'i')
 					continue;
 				if (!timedCompatible(s.label, t.label))
 					continue;

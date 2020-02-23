@@ -67,14 +67,17 @@ public class ExpModel extends StateSpace
 		State[] neighbours = new State[transitions.size()];
 		short[] orders = new short[transitions.size()];
 		double[] probs = new double[transitions.size()];
+		boolean probabilistic = false;
 
 		int i = 0;
 		for (LTS.Transition t : transitions) {
-			if (t.label.charAt(0) != 'r')
-				throw new IllegalArgumentException("Non-Markovian transition encountered: " + t.label);
 			String rlabel = t.label.substring(1);
-			double rate = Double.parseDouble(rlabel);
-			int order = (int)Math.ceil(Math.log(rate) / logEpsilon);
+			double rateOrProb = Double.parseDouble(rlabel);
+			if (t.label.charAt(0) == 'p')
+				probabilistic = true;
+			else if (t.label.charAt(0) != 'r')
+				throw new IllegalArgumentException("Non-Markovian transition encountered: " + t.label);
+			int order = (int)Math.ceil(Math.log(rateOrProb) / logEpsilon);
 			if (order < 0)
 				order = 0;
 			if (order > Short.MAX_VALUE)
@@ -82,7 +85,7 @@ public class ExpModel extends StateSpace
 			State z = findOrCreate(t.target.clone());
 			neighbours[i] = z;
 			orders[i] = (short)order;
-			probs[i] = rate;
+			probs[i] = rateOrProb;
 			i++;
 		}
 
@@ -94,6 +97,8 @@ public class ExpModel extends StateSpace
 		for(i = 0; i < n; i++)
 			probs[i] /= totProb;
 
+		if (probabilistic)
+			totProb = Double.POSITIVE_INFINITY;
 		return explored(s, neighbours, orders, probs, totProb);
 	}
 

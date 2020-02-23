@@ -67,6 +67,8 @@ public class MarkovReducedLTS implements LTS
 		for (LTS.Transition t : outgoing) {
 			if (t.label.charAt(0) == 'r')
 				continue;
+			if (t.label.charAt(0) == 'p')
+				continue;
 			if (t.label.charAt(0) == 't') {
 				if (time.signum() < 0)
 					continue;
@@ -125,6 +127,8 @@ public class MarkovReducedLTS implements LTS
 			for (i = labels.length - 1; i >= 0; i--) {
 				if (labels[i].charAt(0) == 'r')
 					continue;
+				if (labels[i].charAt(0) == 'p')
+					continue;
 				if (labels[i].charAt(0) == 't')
 					continue;
 				tb = LTS.wrapUncomparable(targets[i]);
@@ -156,6 +160,8 @@ public class MarkovReducedLTS implements LTS
 			HashSet<LTS.Transition> markovian = new HashSet<>();
 			for (LTS.Transition t : out) {
 				if (t.label.charAt(0) == 'r')
+					markovian.add(t);
+				if (t.label.charAt(0) == 'p')
 					markovian.add(t);
 				if (t.label.charAt(0) == 't')
 					markovian.add(t);
@@ -202,12 +208,17 @@ public class MarkovReducedLTS implements LTS
 
 		for (LTS.Transition t : outgoing) {
 			BigDecimal time;
-			if (t.label.charAt(0) == 'r')
+			switch (t.label.charAt(0)) {
+			case 'r':
+			case 'p':
 				time = new BigDecimal(-1);
-			else if (t.label.charAt(0) == 't')
+				break;
+			case 't':
 				time = new BigDecimal(t.label.substring(1));
-			else
+				break;
+			default:
 				continue;
+			}
 			int[] endState = markovTerminal(t.target, time);
 			if (endState != null) {
 				LTS.Transition nt = new LTS.Transition(t.label, endState, null, null);
