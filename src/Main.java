@@ -30,6 +30,7 @@ import nl.utwente.ewi.fmt.EXPRES.MarkovReducedLTS;
 import nl.utwente.ewi.fmt.EXPRES.MarkovianComposition;
 import nl.utwente.ewi.fmt.EXPRES.NondeterminismException;
 import nl.utwente.ewi.fmt.EXPRES.Composition;
+import nl.utwente.ewi.fmt.EXPRES.JaniModel;
 import nl.utwente.ewi.fmt.EXPRES.LTS;
 import nl.utwente.ewi.fmt.EXPRES.MakeJani;
 import nl.utwente.ewi.fmt.EXPRES.MakeTraLab;
@@ -322,7 +323,7 @@ class Main {
 		LTS ret;
 		if (filename.endsWith(".exp")) {
 			Composition c;
-			c = new Composition(filename, "exp", properties, null);
+			c = new Composition(filename, "exp");
 			c.markStatesAfter("FAIL", 1);
 			c.markStatesAfter("REPAIR", 0);
 			c.markStatesAfter("ONLINE", 0);
@@ -347,15 +348,18 @@ class Main {
 			m.markStatesAfter("ONLINE", 0);
 			ret = m;
 		} else if (filename.endsWith(".jani")) {
-			Composition c = new Composition(filename, "jani", properties, constants);
-			if (compLimit != 0) {
+			JaniModel model = new JaniModel(filename, constants);
+			properties.addAll(model.getProperties());
+			LTS l = model.getLTS();
+			if ((l instanceof Composition) && compLimit != 0) {
+				Composition c = (Composition)l;
 				ret = null;
 				while (ret != c) {
 					ret = c;
 					c = c.partialCompose(compLimit, maxMem);
 				}
 			}
-			ret = c;
+			ret = l;
 		} else if (filename.endsWith(".dft")) {
 			String[] cmd = new String[]{"dftcalc", "-x", filename};
 			Process dftc = Runtime.getRuntime().exec(cmd);

@@ -12,6 +12,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+import nl.utwente.ewi.fmt.EXPRES.JaniModel.JaniType;
+import nl.utwente.ewi.fmt.EXPRES.JaniModel.JaniBaseType;
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 import nl.utwente.ewi.fmt.EXPRES.expression.ConstantExpression;
 
@@ -44,6 +46,29 @@ public class SymbolicAutomaton implements LTS {
 		initialState[n] = addedVal;
 	}
 
+	private SymbolicAutomaton(SymbolicAutomaton other, String toRemove)
+	{
+		this.targets = other.targets;
+		this.labels = other.labels;
+		this.guards = other.guards;
+		this.probs = other.probs;
+		this.variables = other.variables;
+		this.initialState = other.initialState;
+		this.assignments = other.assignments.clone();
+		for (HashMap<String, Expression>[] as : assignments) {
+			if (as == null)
+				continue;
+			for (int i = 0; i < as.length; i++) {
+				HashMap<String, Expression> map = as[i];
+				if (map.containsKey(toRemove)) {
+					map = new HashMap<>(map);
+					map.remove(toRemove);
+					as[i] = map;
+				}
+			}
+		}
+	}
+
 	/* Private since 'Map' may in the future be suitable for
 	 * multiple types.
 	 */
@@ -69,11 +94,12 @@ public class SymbolicAutomaton implements LTS {
 					throw new IllegalArgumentException("Unexpected type of variable name: Expected string, found " + vo.toString());
 				String name = (String)no;
 				Object to = vm.get("type");
-				/* We don't actually care about the
-				 * states lower bound, we just want to
-				 * validate the type.
-				 */
-				JaniUtils.typeBounds(to, constants);
+				JaniBaseType type;
+				type = JaniUtils.parseType(to, constants).base;
+				if (type != JaniBaseType.BOOLEAN
+				    && type != JaniBaseType.INTEGER) {
+					throw new UnsupportedOperationException("Unsupported type: " + type);
+				}
 				Object io = vm.get("initial-value");
 				long initial = 0;
 				initial = JaniUtils.getConstantLong(io, constants);
@@ -312,8 +338,11 @@ public class SymbolicAutomaton implements LTS {
 			if (as == null)
 				continue;
 			for (HashMap<String, Expression> map : as) {
-				for (Expression e : map.values())
+				for (var entry : map.entrySet()) {
+					ret.add(entry.getKey());
+					Expression e = entry.getValue();
 					ret.addAll(e.getReferencedVariables());
+				}
 			}
 		}
 		return ret;
@@ -330,6 +359,46 @@ public class SymbolicAutomaton implements LTS {
 			}
 		}
 		return new SymbolicAutomaton(this, name, initialValue);
+	}
+
+	public SymbolicAutomaton removeVariable(String name) {
+		for (int i = variables.length - 1; i > 0; i--) {
+			if (variables[i].equals(name))
+				throw new UnsupportedOperationException("Attempt to remove local variable");
+		}
+		TreeSet<String> ret = new TreeSet<>();
+		for (Expression[] gs : guards) {
+			if (gs == null)
+				continue;
+			for (Expression g : gs) {
+				if (g.getReferencedVariables().contains(name))
+					return null;
+			}
+		}
+		for (Expression[] ps : probs) {
+			if (ps == null)
+				continue;
+			for (Expression p : ps) {
+				if (p == null)
+					continue;
+				if (p.getReferencedVariables().contains(name))
+					return null;
+			}
+		}
+		for (HashMap<String, Expression>[] as : assignments) {
+			if (as == null)
+				continue;
+			for (HashMap<String, Expression> map : as) {
+				for (var entry : map.entrySet()) {
+					if (entry.getKey().equals(name))
+						continue;
+					Expression e = entry.getValue();
+					if (e.getReferencedVariables().contains(name))
+						return null;
+				}
+			}
+		}
+		return new SymbolicAutomaton(this, name);
 	}
 
 	public TreeSet<LTS.Transition> getTransitions(int[] from)
