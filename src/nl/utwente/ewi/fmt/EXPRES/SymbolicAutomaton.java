@@ -182,6 +182,7 @@ public class SymbolicAutomaton implements LTS {
 		if (!(edgeo instanceof Object[]))
 			throw new IllegalArgumentException("Edges in automata should be an array, not " + edgeo);
 		Object[] edges = (Object[]) edgeo;
+		boolean hasProbabilisticEdge = false;
 		for (Object eo : edges) {
 			if (!(eo instanceof Map))
 				throw new IllegalArgumentException("Each edge should be a JSON object, not: " + eo);
@@ -221,74 +222,82 @@ public class SymbolicAutomaton implements LTS {
 				guard = Expression.fromJani(g.get("exp"));
 				guard = guard.simplify(constants);
 			}
-			Object destO = edge.get("destinations");
-			if (!(destO instanceof Object[]))
+			Object destsO = edge.get("destinations");
+			if (!(destsO instanceof Object[]))
 				throw new IllegalArgumentException("Destinations of edges must be arrays (currently of size 1).");
-			Object[] dests = (Object[])destO;
-			if (dests.length != 1)
-				throw new IllegalArgumentException("In-edge nondeterminism currently not supported, each edge must have one destination.");
-			destO = dests[0];
-			if (!(destO instanceof Map))
-				throw new IllegalArgumentException("Each destination should be a JSON object, not: " + destO);
-			Map<?, ?> dest = (Map<?, ?>)destO;
-			destO = dest.get("location");
-			Integer target = null;
-			if (destO != null)
-				target = locations.get(destO.toString());
-			if (target == null)
-				throw new IllegalArgumentException("Unknown target location: " + destO);
-			Object probO = dest.get("probability");
-			Expression prob = null;
-			if (probO != null) {
-				if (!(probO instanceof Map))
-					throw new IllegalArgumentException("Probability should be JANI expression, not: " + probO);
-				Map<?, ?> probMap = (Map<?, ?>)probO;
-				prob = Expression.fromJani(probMap.get("exp"));
-				Expression orig = prob;
-				prob = prob.simplify(constants);
-				prob = prob.simplify(guard.booleanExpression(), 1);
-				Number constant = prob.evaluate(constants);
-				if (constant != null) {
-					if (constant.doubleValue() == 0)
-						continue;
-					else if (constant.doubleValue() == 1)
-						prob = null;
+			Object[] dests = (Object[])destsO;
+			boolean isProbabilistic = false;
+			for (Object destO : dests) {
+				if (!(destO instanceof Map))
+					throw new IllegalArgumentException("Each destination should be a JSON object, not: " + destO);
+				Map<?, ?> dest = (Map<?, ?>)destO;
+				destO = dest.get("location");
+				Integer target = null;
+				if (destO != null)
+					target = locations.get(destO.toString());
+				if (target == null)
+					throw new IllegalArgumentException("Unknown target location: " + destO);
+				Object probO = dest.get("probability");
+				if (probO == null && dests.length > 1)
+					throw new UnsupportedOperationException("Edges with multiple destinations must have probabilities");
+				Expression prob = null;
+				if (probO != null) {
+					if (!(probO instanceof Map))
+						throw new IllegalArgumentException("Probability should be JANI expression, not: " + probO);
+					Map<?, ?> probMap = (Map<?, ?>)probO;
+					prob = Expression.fromJani(probMap.get("exp"));
+					Expression orig = prob;
+					prob = prob.simplify(constants);
+					prob = prob.simplify(guard.booleanExpression(), 1);
+					Number constant = prob.evaluate(constants);
+					if (constant != null) {
+						if (constant.doubleValue() == 0)
+							continue;
+						else if (constant.doubleValue() == 1)
+							prob = null;
+					}
 				}
+				if (prob != null && !action.equals("i"))
+					throw new UnsupportedOperationException("Probabilistic transitions must not have labels");
+				if (prob != null && hasProbabilisticEdge)
+					throw new UnsupportedOperationException("Nondeterminism in selection of probabilistic transitions");
+				isProbabilistic = prob != null;
+				Object assignO = dest.get("assignments");
+				if (assignO == null)
+					assignO = new Object[0];
+				if (!(assignO instanceof Object[]))
+					throw new IllegalArgumentException("Assignments shoud be array, not: " + assignO);
+				Object[] assignments = (Object[])assignO;
+				HashMap<String, Expression> ts = transients.get(target);
+				HashMap<String, Expression> assignMap;
+				if (ts == null)
+					assignMap = new HashMap<>();
+				else
+					assignMap = new HashMap<>(ts);
+				for (Object assO : assignments) {
+					if (!(assO instanceof Map))
+						throw new IllegalArgumentException("Assignment should be JSON object, not: " + assO);
+					Map<?, ?> assignment = (Map<?, ?>)assO;
+					Object refO = assignment.get("ref");
+					if (!(refO instanceof String))
+						throw new IllegalArgumentException("Assignment only supported to identifiers.");
+					String ref = (String)refO;
+					Object valO = assignment.get("value");
+					Expression val = Expression.fromJani(valO);
+					assignMap.put(ref, val.simplify(constants));
+				}
+				labels[srci] = Arrays.copyOf(labels[srci], labels[srci].length + 1);
+				labels[srci][labels[srci].length - 1] = action;
+				guards[srci] = Arrays.copyOf(guards[srci], guards[srci].length + 1);
+				guards[srci][guards[srci].length - 1] = guard;
+				targets[srci] = Arrays.copyOf(targets[srci], targets[srci].length + 1);
+				targets[srci][targets[srci].length - 1] = target;
+				this.assignments[srci] = Arrays.copyOf(this.assignments[srci], labels[srci].length);
+				this.assignments[srci][labels[srci].length - 1] = assignMap;
+				probs[srci] = Arrays.copyOf(probs[srci], probs[srci].length + 1);
+				probs[srci][probs[srci].length - 1] = prob;
 			}
-			Object assignO = dest.get("assignments");
-			if (assignO == null)
-				assignO = new Object[0];
-			if (!(assignO instanceof Object[]))
-				throw new IllegalArgumentException("Assignments shoud be array, not: " + assignO);
-			Object[] assignments = (Object[])assignO;
-			HashMap<String, Expression> ts = transients.get(target);
-			HashMap<String, Expression> assignMap;
-			if (ts == null)
-				assignMap = new HashMap<>();
-			else
-				assignMap = new HashMap<>(ts);
-			for (Object assO : assignments) {
-				if (!(assO instanceof Map))
-					throw new IllegalArgumentException("Assignment should be JSON object, not: " + assO);
-				Map<?, ?> assignment = (Map<?, ?>)assO;
-				Object refO = assignment.get("ref");
-				if (!(refO instanceof String))
-					throw new IllegalArgumentException("Assignment only supported to identifiers.");
-				String ref = (String)refO;
-				Object valO = assignment.get("value");
-				Expression val = Expression.fromJani(valO);
-				assignMap.put(ref, val.simplify(constants));
-			}
-			labels[srci] = Arrays.copyOf(labels[srci], labels[srci].length + 1);
-			labels[srci][labels[srci].length - 1] = action;
-			guards[srci] = Arrays.copyOf(guards[srci], guards[srci].length + 1);
-			guards[srci][guards[srci].length - 1] = guard;
-			targets[srci] = Arrays.copyOf(targets[srci], targets[srci].length + 1);
-			targets[srci][targets[srci].length - 1] = target;
-			this.assignments[srci] = Arrays.copyOf(this.assignments[srci], labels[srci].length);
-			this.assignments[srci][labels[srci].length - 1] = assignMap;
-			probs[srci] = Arrays.copyOf(probs[srci], probs[srci].length + 1);
-			probs[srci][probs[srci].length - 1] = prob;
+			hasProbabilisticEdge = isProbabilistic;
 		}
 		numberedVariables = tryToNumberVariables();
 	}
