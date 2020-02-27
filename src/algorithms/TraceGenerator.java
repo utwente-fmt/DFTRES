@@ -101,11 +101,13 @@ public abstract class TraceGenerator
 			sumProb += scheme.stateWeightsIS[i];
 			if(u < sumProb) {
 				chosen = i;
+				//System.err.println("Going to: " + scheme.neighbours[i]);
 				return scheme.neighbours[i];
 			}
 		}
 		System.err.println("WARNING: State selection problem from state " + Arrays.toString(prevState.state) + ", probably due to floating-point roundoff error.");
 		System.err.println("Probabilities: " + Arrays.toString(scheme.stateWeightsIS));
+		System.err.println("Random: " + u + " out of " + scheme.totalStateWeightIS + " (sum " + sumProb + ")");
 		System.err.println("Original: " + Arrays.toString(scheme.probs));
 		chosen = 0;
 		return scheme.neighbours[chosen];

@@ -44,7 +44,16 @@ public class Scheme
 		probs = n.probs;
 
 		stateWeightsIS = probs;
-		totalStateWeightIS = 1;
+		if (getClass() == Scheme.class) {
+			/* There is no other scheme modifying the
+			 * probabilities
+			 */
+			totalStateWeightIS = 0;
+			for (double p : probs)
+				totalStateWeightIS += p;
+		} else {
+			totalStateWeightIS = 1;
+		}
 		return n;
 	}
 	
