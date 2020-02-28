@@ -4,8 +4,8 @@ SOURCES = $(subst $(SOURCE_DIR),,$(shell find $(SOURCE_DIR) -type f -name '*.jav
 SOURCES += nl/utwente/ewi/fmt/EXPRES/Version.java
 OBJECTS = $(addprefix $(CLASS_DIR), $(addsuffix .class, $(basename $(SOURCES))))
 COMMIT = $(shell git rev-parse HEAD)
-VERSION_MAJOR=0
-VERSION_MINOR=9
+VERSION_MAJOR=1
+VERSION_MINOR=0
 VERSION_PATCH=0
 VERSIONSTRING="${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}"
 ifeq ($(shell git status --porcelain),)

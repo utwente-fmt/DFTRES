@@ -31,6 +31,16 @@ public abstract class StateSpace {
 			probs = p;
 			exitRate = R;
 		}
+
+		public double getProbTo(State state)
+		{
+			State[] ns = neighbours;
+			double[] probs = this.probs;
+			for (int i = ns.length - 1; i >= 0; i--)
+				if (ns[i] == state)
+					return probs[i];
+			return 0;
+		}
 	}
 	public class State {
 		public final int[] state;

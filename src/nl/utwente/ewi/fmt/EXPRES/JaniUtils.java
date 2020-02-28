@@ -1,16 +1,43 @@
 package nl.utwente.ewi.fmt.EXPRES;
 import java.util.Map;
+import nl.utwente.ewi.fmt.EXPRES.JaniModel.JaniType;
+import nl.utwente.ewi.fmt.EXPRES.JaniModel.JaniBaseType;
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 
 class JaniUtils {
 	public static final int DEFAULT_INT_BITS = 7;
 	public static final int DEFAULT_INT_MIN = 0;
 	public static final int DEFAULT_INT_MAX = (1 << DEFAULT_INT_BITS) - 1;
+
+	public static int safeToInteger(Number num) {
+		if (num instanceof Integer)
+			return (Integer)num;
+		if (num instanceof Long)
+			return Math.toIntExact((Long)num);
+		if ((num instanceof Float) || (num instanceof Double)) {
+			double d = num.doubleValue();
+			if (Math.floor(d) != d)
+				throw new ArithmeticException(d + " cannot be exactly converted to an integer");
+			if (d > Integer.MAX_VALUE || d < Integer.MIN_VALUE)
+				throw new ArithmeticException(d + " is too big to be exactly converted to an integer");
+			return (int)d;
+		}
+		throw new UnsupportedOperationException("Cannot convert type " + num.getClass() + " to integer");
+	}
+
+	public static Number getConstantNum(Object exp,
+	                                    Map<String, Number> constants)
+	{
+		return getConstantDouble(exp, constants);
+	}
+
 	public static Number getConstantDouble(Object exp,
 	                                       Map<String, Number> constants)
 	{
 		if (exp instanceof Number)
 			return (Number)exp;
+		else if (exp instanceof Boolean)
+			return ((Boolean)exp) ? 1 : 0;
 		else if (exp instanceof String) {
 			String name = (String)exp;
 			Number c = constants.get(name);
@@ -18,7 +45,7 @@ class JaniUtils {
 				throw new IllegalArgumentException("Unknown identifier: " + name);
 			return c;
 		} else if (exp instanceof Map) {
-			Map m = (Map)exp;
+			Map<?, ?> m = (Map<?, ?>)exp;
 			if (m.containsKey("constant")) {
 				if ("π".equals(m.get("constant")))
 					return Math.PI;
@@ -64,35 +91,35 @@ class JaniUtils {
 		}
 	}
 
-	public static int[] typeBounds(Object t, Map<String, Number> consts)
+	public static JaniType parseType(Object t, Map<String, Number> consts)
 	{
 		if ("bool".equals(t))
-			return new int[]{0, 1};
+			return new JaniType(JaniBaseType.BOOLEAN, 0, 1);
 		if ("int".equals(t))
-			return new int[]{DEFAULT_INT_MIN, DEFAULT_INT_MAX};
+			return new JaniType(JaniBaseType.INTEGER,
+			                    DEFAULT_INT_MIN, DEFAULT_INT_MAX);
 		if (t instanceof Map) {
-			int ret[] = new int[]{DEFAULT_INT_MIN, DEFAULT_INT_MAX};
-			Map tm = (Map)t;
-			Object base = tm.get("base");
-			if (!"int".equals(base))
-				throw new IllegalArgumentException(base.toString() + " type variables are currently not supported.");
+			Number min = DEFAULT_INT_MIN;
+			Number max = DEFAULT_INT_MAX;
+			Map<?, ?> tm = (Map<?, ?>)t;
+			Object baseO = tm.get("base");
+			JaniBaseType base;
+			if ("int".equals(baseO)) {
+				base = JaniBaseType.INTEGER;
+			} else if ("real".equals(baseO)) {
+				base = JaniBaseType.REAL;
+			} else {
+				throw new IllegalArgumentException(baseO.toString() + " type variables are currently not supported.");
+			}
 			if (!"bounded".equals(tm.get("kind")))
 				throw new IllegalArgumentException("Bounded type without 'bounded' kind not supported.");
 			Object lb = tm.get("lower-bound");
-			if (lb != null) {
-				long l = getConstantLong(lb, consts);
-				if (l < Integer.MIN_VALUE || l > Integer.MAX_VALUE)
-					throw new IllegalArgumentException("Type bound should fit in 32 bits.");
-				ret[0] = (int)l;
-			}
+			if (lb != null)
+				min = getConstantDouble(lb, consts);
 			Object ub = tm.get("upper-bound");
-			if (ub != null) {
-				long u = getConstantLong(ub, consts);
-				if (u < Integer.MIN_VALUE || u > Integer.MAX_VALUE)
-					throw new IllegalArgumentException("Type bound should fit in 32 bits.");
-				ret[1] = (int)u;
-			}
-			return ret;
+			if (ub != null)
+				max = getConstantDouble(ub, consts);
+			return new JaniType(JaniBaseType.INTEGER, min, max);
 		}
 		throw new IllegalArgumentException("Type " + t.toString() + " is not supported.");
 	}

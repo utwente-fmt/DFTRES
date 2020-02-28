@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.Set;
 import models.StateSpace;
 
@@ -18,10 +19,6 @@ public abstract class Expression
 
 	public Set<String> getReferencedVariables() {
 		return Set.of();
-	}
-
-	public Expression simplify(Map<String, ? extends Number> valuation) {
-		return this;
 	}
 
 	public abstract Number evaluate(Map<String, ? extends Number> valuation);
@@ -54,8 +51,17 @@ public abstract class Expression
 		if (o instanceof Boolean)
 			return new ConstantExpression(((Boolean)o) ? 1 : 0);
 		if (o instanceof Map) {
-			Map e = (Map)o;
+			Map<?, ?> e = (Map<?, ?>)o;
 			Object op = e.get("op");
+			if ("ite".equals(op)) {
+				Object ifExpr = e.get("if");
+				Object thenExpr = e.get("then");
+				Object elseExpr = e.get("else");
+				return new IfThenElseExpression(
+						Expression.fromJani(ifExpr),
+						Expression.fromJani(thenExpr),
+						Expression.fromJani(elseExpr));
+			}
 			Object l = e.get("left");
 			Object r = e.get("right");
 			Object exp = e.get("exp");
@@ -87,8 +93,29 @@ public abstract class Expression
 				new ConstantExpression(0));
 	}
 
+	public Expression simplify(Map<?, ? extends Number> assumptions)
+	{
+		if (!(assumptions instanceof TreeMap)) {
+			Number ret = assumptions.get(this);
+			if (ret != null)
+				return new ConstantExpression(ret);
+		}
+		return this;
+	}
+
+	public Expression simplify(Expression assumption, Number value)
+	{
+		return simplify(assumption.subAssumptions(value));
+	}
+
+	public Map<Expression, Number> subAssumptions(Number value)
+	{
+		return Map.of(this, value);
+	}
+
 	public abstract int hashCode();
 	public abstract boolean equals(Object other);
 	public abstract String toString();
 	public abstract void writeJani(PrintStream out, int indent);
+	public abstract Expression renameVars(Map<String, String> renames);
 }

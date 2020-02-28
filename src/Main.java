@@ -16,10 +16,10 @@ import java.util.TreeSet;
 import schemes.SchemeUniform;
 import schemes.SchemeZVAd;
 import schemes.SchemeZVAv;
+import schemes.SchemeZVAt;
 import algorithms.Scheme;
 import algorithms.SimulationResult;
 import algorithms.Simulator;
-
 import algorithms.TraceGenerator;
 
 import ec.util.MersenneTwisterFast;
@@ -30,6 +30,7 @@ import nl.utwente.ewi.fmt.EXPRES.MarkovReducedLTS;
 import nl.utwente.ewi.fmt.EXPRES.MarkovianComposition;
 import nl.utwente.ewi.fmt.EXPRES.NondeterminismException;
 import nl.utwente.ewi.fmt.EXPRES.Composition;
+import nl.utwente.ewi.fmt.EXPRES.JaniModel;
 import nl.utwente.ewi.fmt.EXPRES.LTS;
 import nl.utwente.ewi.fmt.EXPRES.MakeJani;
 import nl.utwente.ewi.fmt.EXPRES.MakeTraLab;
@@ -49,6 +50,7 @@ class Main {
 	static double relErr = Double.NaN;
 	static Double forceBound = null;
 	static boolean mc = false, zvad = false, zvav = false, unif = false;
+	static boolean zvat = false;
 	static boolean jsonOutput = false;
 	static boolean unsafeComposition = false;
 	static LTS model;
@@ -79,7 +81,7 @@ class Main {
 			String line;
 			while ((line = r.readLine()) != null) {
 				if (line.matches("MemTotal:.*"))
-					return (long)Math.round(Double.valueOf(line.split(" +")[1]) / (1024 * 1024));
+					return Math.round(Double.valueOf(line.split(" +")[1]) / (1024 * 1024));
 			}
 		} catch (Exception e) {
 			return null;
@@ -139,7 +141,7 @@ class Main {
 	{
 		boolean multiple = false;
 		ExpModel statespace = new ExpModel(epsilon, model);
-		if (!(mc || zvav || zvad || unif)) {
+		if (!(mc || zvav || zvad || zvat || unif)) {
 			Scheme s;
 			if (prop.type == Property.Type.EXPECTED_VALUE
 			    && prop.timeBound == Double.POSITIVE_INFINITY)
@@ -190,6 +192,17 @@ class Main {
 				System.err.println("WARNING: Importance sampling and expected value queries often give misleading results.");
 			}
 			SchemeZVAv sc = SchemeZVAv.instantiate(statespace, prop);
+			Property nProp = prop;
+			if (multiple)
+				nProp = new Property(prop, prop.name + "-ZVAv");
+			SimulationResult res = runSim(nProp, sc);
+			ret.add(res);
+		}
+		if (zvat) {
+			if (prop.type == Property.Type.EXPECTED_VALUE) {
+				System.err.println("WARNING: Importance sampling and expected value queries often give misleading results.");
+			}
+			SchemeZVAt sc = SchemeZVAt.instantiate(statespace, prop);
 			Property nProp = prop;
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-ZVAv");
@@ -310,7 +323,7 @@ class Main {
 		LTS ret;
 		if (filename.endsWith(".exp")) {
 			Composition c;
-			c = new Composition(filename, "exp", properties, null);
+			c = new Composition(filename, "exp");
 			c.markStatesAfter("FAIL", 1);
 			c.markStatesAfter("REPAIR", 0);
 			c.markStatesAfter("ONLINE", 0);
@@ -335,15 +348,18 @@ class Main {
 			m.markStatesAfter("ONLINE", 0);
 			ret = m;
 		} else if (filename.endsWith(".jani")) {
-			Composition c = new Composition(filename, "jani", properties, constants);
-			if (compLimit != 0) {
+			JaniModel model = new JaniModel(filename, constants);
+			properties.addAll(model.getProperties());
+			LTS l = model.getLTS();
+			if ((l instanceof Composition) && compLimit != 0) {
+				Composition c = (Composition)l;
 				ret = null;
 				while (ret != c) {
 					ret = c;
 					c = c.partialCompose(compLimit, maxMem);
 				}
 			}
-			ret = c;
+			ret = l;
 		} else if (filename.endsWith(".dft")) {
 			String[] cmd = new String[]{"dftcalc", "-x", filename};
 			Process dftc = Runtime.getRuntime().exec(cmd);
@@ -397,8 +413,10 @@ class Main {
 			{"--unif", "Transform outgoing transitions to uniform probabilities."},
 			{"--zvad", "Using ZVA-d to choose transition probabilities."},
 			{"--zvav", "Using ZVA-v to choose transition probabilities."},
+			{"--zvat", "Using ZVA-t to choose transition probabilities."},
 			{"-f F", "Stop time-forcing when the importance factor drops below F."},
 			{"--no-forcing", "Do not apply time-forcing."},
+			{"--no-hpc-boost", "Do not boost HPC sink transitions (only affects time-bounded reachability"},
 			{"Model (optimization) options:"},
 			{"--compose full", "Compute the full parallel composition explicitly."},
 			{"--compose none", "Do not explicitly compute any parallel composition."},
@@ -523,6 +541,8 @@ class Main {
 				unif = true;
 			else if (args[i].equals("--zvav"))
 				zvav = true;
+			else if (args[i].equals("--zvat"))
+				zvat = true;
 			else if (args[i].equals("--def")) {
 				Number v = null;
 				String name = args[++i];
@@ -567,6 +587,8 @@ class Main {
 				unsafeComposition = true;
 			else if (args[i].equals("--no-forcing"))
 				forceBound = Double.POSITIVE_INFINITY;
+			else if (args[i].equals("--no-hpc-boost"))
+				TraceGenerator.enableHpcBoost = false;
 			else
 				System.err.format("Unknown option '%s', ignoring\n", args[i]);
 		}

@@ -46,6 +46,10 @@ public class ConstantExpression extends Expression
 		return value;
 	}
 
+	public ConstantExpression renameVars(Map<String, String> renames) {
+		return this;
+	}
+
 	public String toString() {
 		return value.toString();
 	}

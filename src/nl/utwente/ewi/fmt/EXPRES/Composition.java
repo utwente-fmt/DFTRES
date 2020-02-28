@@ -20,6 +20,9 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import nl.ennoruijters.util.JSONParser;
+import nl.utwente.ewi.fmt.EXPRES.JaniModel.JaniBaseType;
+import nl.utwente.ewi.fmt.EXPRES.JaniModel.JaniType;
+import nl.utwente.ewi.fmt.EXPRES.JaniModel.JaniVariable;
 import nl.utwente.ewi.fmt.EXPRES.expression.ConstantExpression;
 import nl.utwente.ewi.fmt.EXPRES.expression.BinaryExpression;
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
@@ -144,10 +147,7 @@ public class Composition implements MarkableLTS
 	 * @param type The type of the given file, currently supported:
 	 * exp
 	 */
-	public Composition(String filename, String type,
-	                   Set<Property> propertiesOut,
-	                   Map<String, Number> constants)
-			throws IOException
+	public Composition(String filename, String type) throws IOException
 	{
 		hideLabels = new TreeSet<String>();
 		markLabels = new TreeMap<String, Integer>();
@@ -156,20 +156,57 @@ public class Composition implements MarkableLTS
 			case "exp":
 				readExpFile(filename);
 				break;
-			case "jani":
-				props = readJaniFile(filename, constants);
-				if (propertiesOut != null)
-					propertiesOut.addAll(props);
-				break;
 			default:
 				throw new IllegalArgumentException("Unsupported composition type");
 		}
 		afterParsing();
 	}
 
-	public Composition(String filename, String type) throws IOException
+	public Composition(LTS[] automata,
+	                    int[][] vectorAutomata,
+	                    String[][] vectorLabels,
+	                    String[] synchronizedLabels,
+	                    Map<String, JaniVariable> globals,
+	                    Map<String, Expression> transients)
 	{
-		this(filename, type, null, Collections.emptyMap());
+		globalVars = new TreeMap<>();
+		transientGlobals = transients;
+		for (Map.Entry<String, JaniVariable> variable : globals.entrySet())
+		{
+			String name = variable.getKey();
+			JaniVariable var = variable.getValue();
+			if (var.type.base != JaniBaseType.INTEGER
+			    && var.type.base != JaniBaseType.BOOLEAN)
+			{
+				throw new UnsupportedOperationException("Unsupported variable type: " + var.type.base);
+			}
+			int init = JaniUtils.safeToInteger(var.initial);
+			int min = JaniUtils.safeToInteger(var.type.minimum);
+			int max = JaniUtils.safeToInteger(var.type.maximum);
+			if (init < min)
+				min = init;
+			if (init > max)
+				max = init;
+			int[] vals = new int[]{0, max, init, min};
+			globalVars.put(name, vals);
+		}
+		this.automata = new Automaton[automata.length];
+		for (int i = 0; i < automata.length; i++) {
+			LTS aut = automata[i];
+			if (aut instanceof Automaton) {
+				this.automata[i] = (Automaton)aut;
+			} else {
+				try {
+					this.automata[i] = new Automaton(aut);
+				} catch (ModelTooLargeException e) {
+					throw new UnsupportedOperationException ("Automaton too large", e);
+				}
+			}
+		}
+		this.vectorAutomata = vectorAutomata;
+		this.vectorLabels = vectorLabels;
+		this.synchronizedLabels = synchronizedLabels;
+		afterParsing();
 	}
 
 	/* Create a subcomposition of only the given indices.
@@ -897,7 +934,7 @@ public class Composition implements MarkableLTS
 			for (int i = aut.getNumStates() - 1; i >= 0; i--) {
 				int j = 0;
 				while (aut.getTransitionTarget(i, j) != -1) {
-					Map assigns = aut.getAssignments(i, j);
+					Map<String, Expression> assigns = aut.getAssignments(i, j);
 					if (assigns != null
 					    && !assigns.isEmpty())
 					{
@@ -1792,7 +1829,7 @@ public class Composition implements MarkableLTS
 		out.println("}");
 	}
 
-	private static Property parseJaniProperty(Map prop, Map<String, Number> constants)
+	private static Property parseJaniProperty(Map<?, ?> prop, Map<String, Number> constants)
 	{
 		Object nameO = prop.get("name");
 		if (!(nameO instanceof String))
@@ -1801,7 +1838,7 @@ public class Composition implements MarkableLTS
 		Object expO = prop.get("expression");
 		if (!(expO instanceof Map))
 			throw new IllegalArgumentException("Property expression should be object, not: " + expO);
-		Map expr = (Map)expO;
+		Map<?, ?> expr = (Map<?, ?>)expO;
 		if (!"filter".equals(expr.get("op")))
 			throw new UnsupportedOperationException("I don't know what to do property operation '" + expr.get("op") + "'");
 		Object fun = expr.get("fun");
@@ -1812,7 +1849,7 @@ public class Composition implements MarkableLTS
 		Object valO = expr.get("values");
 		if (!(valO instanceof Map))
 			throw new IllegalArgumentException("Property values should be object, not: " + valO);
-		Map values = (Map)valO;
+		Map<?, ?> values = (Map<?, ?>)valO;
 		Object op = values.get("op");
 		Property.Type propType = null;
 		if ("Smax".equals(op) || "Smin".equals(op))
@@ -1835,7 +1872,7 @@ public class Composition implements MarkableLTS
 		if (expO instanceof String) {
 			reachTarget = Expression.fromJani(expO);
 		} else if (expO instanceof Map) {
-			expr = (Map)expO;
+			expr = (Map<?, ?>)expO;
 			if ("U".equals(expr.get("op"))) {
 				if (!Boolean.TRUE.equals(expr.get("left")))
 					throw new UnsupportedOperationException("Until formulae currently only supported with 'true' left operand.");
@@ -1855,7 +1892,7 @@ public class Composition implements MarkableLTS
 			if (boundO == null) {
 				timeBound = Double.POSITIVE_INFINITY;
 			} else if (boundO instanceof Map) {
-				Map bound = (Map)boundO;
+				Map<?, ?> bound = (Map<?, ?>)boundO;
 				for (Object o : bound.keySet()) {
 					if ("upper".equals(o)) {
 						o = bound.get("upper");
@@ -1910,202 +1947,5 @@ public class Composition implements MarkableLTS
 			return new Property(propType, timeBound, reachTarget, name, cumulativeRew, transientRew);
 		}
 		return new Property(propType, timeBound, reachTarget, name);
-	}
-
-	private Set<Property> readJaniFile(String filename,
-	                                   Map<String, Number> overrideConsts)
-			throws IOException
-	{
-		globalVars = new TreeMap<>();
-		transientGlobals = new TreeMap<>();
-		Object jani = JSONParser.readJsonFromFile(filename);
-		if (!(jani instanceof Map))
-			throw new IllegalArgumentException("JANI file root is not an object.");
-		Map root = (Map) jani;
-		Object janiVers = root.get("jani-version");
-		if (!Long.valueOf(1).equals(janiVers))
-			System.err.println("Jani version != 1 may not be supported (file is version " + janiVers + ").");
-		Object type = root.get("type");
-		if (!"ma".equals(type) && !"ctmc".equals(type))
-			throw new IllegalArgumentException("Only Markov Automata are currently supported.");
-		TreeMap<String, Number> constants = new TreeMap<>(overrideConsts);
-		Object constsO = root.get("constants");
-		if (constsO != null) {
-			if (!(constsO instanceof Object[]))
-				throw new IllegalArgumentException("Constants should be an array.");
-			Object[] consts = (Object[])constsO;
-			for (Object cO : consts) {
-				if (!(cO instanceof Map))
-					throw new IllegalArgumentException("Constant found that is not an object.");
-				Map c = (Map)cO;
-				Object nO = c.get("name");
-				if (nO == null)
-					throw new IllegalArgumentException("Constant declaration with name.");
-				if (!(nO instanceof String))
-					throw new IllegalArgumentException("Constant declaration non-string name.");
-				String name = (String) nO;
-				if (overrideConsts.containsKey(name))
-					continue;
-				Object vO = c.get("value");
-				if (vO == null)
-					throw new IllegalArgumentException("Model parameter '" + name + "' not specified.");
-				if (!(vO instanceof Number || vO instanceof Boolean))
-					vO = JaniUtils.getConstantDouble(vO, constants);
-				if (vO instanceof Number)
-					constants.put(name, (Number)vO);
-				else if (vO.equals(Boolean.TRUE))
-					constants.put(name, 1);
-				else if (vO.equals(Boolean.FALSE))
-					constants.put(name, 0);
-				else
-					throw new AssertionError("Number or Boolean constant value is neither Long, nor true or false.");
-			}
-		}
-		Object variables = root.get("variables");
-		if (variables != null) {
-			if (!(variables instanceof Object[]))
-				throw new IllegalArgumentException("Unexpected argument type of global variables list: Expected array, found " + variables.getClass());
-			Object[] vars = (Object[]) variables;
-			for (Object vo : vars) {
-				if (vo == null)
-					throw new IllegalArgumentException("Unexpected null in variable list.");
-				if (!(vo instanceof Map)) {
-					throw new IllegalArgumentException("Unexpected global variable entry: Expected object, found " + vo);
-				}
-				Map vm = (Map)vo;
-				Object no = vm.get("name");
-				if (!(no instanceof String))
-					throw new IllegalArgumentException("Unexpected type of variable name: Expected string, found " + vo.toString());
-				String name = (String)no;
-				Object to = vm.get("type");
-				int[] bounds = JaniUtils.typeBounds(to, constants);
-				Object io = vm.get("initial-value");
-				long initial = 0;
-				initial = JaniUtils.getConstantLong(io, constants);
-				if (initial < Integer.MIN_VALUE || initial > Integer.MAX_VALUE)
-					throw new IllegalArgumentException("Initial value of variable '" + name + "' exceeds 32 bits.");
-				if (initial < bounds[0])
-					bounds[0] = (int)initial;
-				if (initial > bounds[1])
-					bounds[1] = (int)initial;
-				int[] vals = new int[]{0,bounds[1],(int)initial, bounds[0]};
-				if (vm.get("transient") == Boolean.TRUE)
-					transientGlobals.put(name, new ConstantExpression(initial));
-				globalVars.put(name, vals);
-			}
-		}
-		if (root.get("restrict-initial") != null) {
-			Object iO = root.get("restrict-initial");
-			if (!(iO instanceof Map))
-				throw new IllegalArgumentException("Unexpected JSON type of 'restrict-initial': Expected Object, found " + iO);
-			Map restrict = (Map)iO;
-			iO = restrict.get("exp");
-			if (iO != Boolean.TRUE)
-				throw new IllegalArgumentException("Explicit initial states currently not supported.");
-		}
-		Object autos = root.get("automata");
-		if (!(autos instanceof Object[])) {
-			throw new IllegalArgumentException("Unexpected JSON type of 'automata': Expected array, found " + autos);
-		}
-		Object[] auts = (Object[])autos;
-		TreeMap<String, Automaton> declaredAuts = new TreeMap<>();
-		for (Object aut : auts) {
-			if (!(aut instanceof Map))
-				throw new IllegalArgumentException("Automaton should be an object, not: " + aut);
-			Map autm = (Map)aut;
-			Object n = autm.get("name");
-			if (n != null) {
-				try {
-					declaredAuts.put(n.toString(), Automaton.fromJani(autm, constants));
-				} catch (ModelTooLargeException e) {
-					throw new UnsupportedOperationException ("Automaton too large", e);
-				}
-			}
-		}
-		Object syso = root.get("system");
-		if (syso == null)
-			throw new IllegalArgumentException("No system definition.");
-		if (!(syso instanceof Map))
-			throw new IllegalArgumentException("System declaration should be a composition, not: " + syso);
-		Map sysComp = (Map)syso;
-		Object elso = sysComp.get("elements");
-		if (!(elso instanceof Object[]))
-			throw new IllegalArgumentException("Elements of system composition should be an array.");
-		Object[] elements = (Object[])elso;
-		automata = new Automaton[elements.length];
-		for (int i = 0; i < elements.length; i++) {
-			Object element = elements[i];
-			if (!(element instanceof Map))
-				throw new IllegalArgumentException("Element of composition is not a JSON Object: " + element);
-			Map emap = (Map)element;
-			Object aut = emap.get("automaton");
-			if (!(aut instanceof String))
-				throw new IllegalArgumentException("Composition elements should be identifiers (of automata), not: " + aut);
-			String autName = (String)aut;
-			automata[i] = declaredAuts.get(autName);
-			if (automata[i] == null)
-				throw new IllegalArgumentException("Element declaration contains undefined automaton: " + autName);
-		}
-		Object synco = sysComp.get("syncs");
-		if (synco == null) {
-			vectorAutomata = null;
-			vectorLabels = null;
-			synchronizedLabels = null;
-		} else {
-			if (!(synco instanceof Object[]))
-				throw new IllegalArgumentException("Synchronization specification should be array, not: " + synco);
-			Object[] syncs = (Object[]) synco;
-			vectorAutomata = new int[syncs.length][];
-			vectorLabels = new String[syncs.length][];
-			synchronizedLabels = new String[syncs.length];
-			for (int i = 0; i < syncs.length; i++) {
-				Object syncItem = syncs[i];
-				if (!(syncItem instanceof Map))
-					throw new IllegalArgumentException("Synchronization item should be object, not: " + syncItem);
-				Map syncMap = (Map)syncItem;
-				Object syncLineO = syncMap.get("synchronise");
-				if (syncLineO == null || !(syncLineO instanceof Object[]))
-					throw new IllegalArgumentException("Synchronize line should be array of actions.");
-				Object[] syncLine = (Object[]) syncLineO;
-				int numAutomata = 0, j = 0;
-				for (Object o : syncLine) {
-					if (o != null)
-						numAutomata++;
-				}
-				vectorAutomata[i] = new int[numAutomata];
-				vectorLabels[i] = new String[numAutomata];
-				numAutomata = 0;
-				for (Object o : syncLine) {
-					if (o != null) {
-						vectorAutomata[i][numAutomata] = j;
-						vectorLabels[i][numAutomata] = 'i' + o.toString();
-						numAutomata++;
-					}
-					j++;
-				}
-				Object resultAction = syncMap.get("result");
-				if (resultAction != null)
-					synchronizedLabels[i] = "i" + resultAction.toString();
-			}
-		}
-		HashSet<Property> ret = new HashSet<>();
-		Object propO = root.get("properties");
-		if (propO == null)
-			return ret;
-		if (!(propO instanceof Object[]))
-			throw new IllegalArgumentException("Properties should be array, not: " + propO);
-		Object[] props = (Object[])propO;
-		for (Object propO2 : props) {
-			if (!(propO2 instanceof Map))
-				throw new IllegalArgumentException("Property should be object, not: " + propO2);
-			Map prop = (Map)propO2;
-			try {
-				Property p = parseJaniProperty(prop, constants);
-				ret.add(p);
-			} catch (UnsupportedOperationException e) {
-				System.err.println(e.getMessage());
-			}
-		}
-		return ret;
 	}
 }

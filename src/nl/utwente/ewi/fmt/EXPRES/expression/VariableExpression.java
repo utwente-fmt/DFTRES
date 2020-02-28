@@ -20,7 +20,7 @@ public class VariableExpression extends Expression
 		return Set.of(variable);
 	}
 
-	public Expression simplify(Map<String, ? extends Number> valuation) {
+	public Expression simplify(Map<?, ? extends Number> valuation) {
 		if (valuation.containsKey(variable))
 			return new ConstantExpression(valuation.get(variable));
 		return this;
@@ -50,6 +50,13 @@ public class VariableExpression extends Expression
 
 	public Number evaluate(StateSpace s, StateSpace.State state) {
 		return s.getVarValue(variable, state);
+	}
+
+	public VariableExpression renameVars(Map<String, String> renames) {
+		String newName = renames.get(variable);
+		if (newName == null)
+			return this;
+		return new VariableExpression(newName);
 	}
 
 	public String toString() {

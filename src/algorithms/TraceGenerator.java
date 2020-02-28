@@ -16,6 +16,7 @@ public abstract class TraceGenerator
 {
 	public static double acceleration = 1;
 	public final double forceBound;
+	public static boolean enableHpcBoost = true;
 
 	public final Scheme scheme;
 	public final Property prop;
@@ -75,13 +76,17 @@ public abstract class TraceGenerator
 		rng.setSeed(seed);
 	}
 
+	public StateSpace.State drawNextState(StateSpace.State state) {
+		return drawNextState(state, Double.POSITIVE_INFINITY);
+	}
+
 	/**
 	 * Get the weights of the transitions for the current state.
 	 */
-	public StateSpace.State drawNextState(StateSpace.State state) {
+	public StateSpace.State drawNextState(StateSpace.State state, double timeBound) {
 		lastDeltaLikelihood = 1;
 		prevState = state;
-		nbs = scheme.prepareState(prevState);
+		nbs = scheme.prepareState(prevState, timeBound);
 		if (scheme.neighbours.length == 1) {
 			chosen = 0;
 			return scheme.neighbours[0];
@@ -96,11 +101,13 @@ public abstract class TraceGenerator
 			sumProb += scheme.stateWeightsIS[i];
 			if(u < sumProb) {
 				chosen = i;
+				//System.err.println("Going to: " + scheme.neighbours[i]);
 				return scheme.neighbours[i];
 			}
 		}
 		System.err.println("WARNING: State selection problem from state " + Arrays.toString(prevState.state) + ", probably due to floating-point roundoff error.");
 		System.err.println("Probabilities: " + Arrays.toString(scheme.stateWeightsIS));
+		System.err.println("Random: " + u + " out of " + scheme.totalStateWeightIS + " (sum " + sumProb + ")");
 		System.err.println("Original: " + Arrays.toString(scheme.probs));
 		chosen = 0;
 		return scheme.neighbours[chosen];
@@ -127,7 +134,7 @@ public abstract class TraceGenerator
 		return succ[state];
 	}
 	*/
-	private StateSpace.State drawHPCSuccessor(StateSpace.HPCState state)
+	private StateSpace.State drawHPCSuccessor(StateSpace.HPCState state, double sinkBoost)
 	{
 		StateSpace model = scheme.model;
 		StateSpace.State sink = scheme.neighbours[chosen];
@@ -136,11 +143,16 @@ public abstract class TraceGenerator
 			pReachSink = new double[succ.length];
 		double[] probs = state.origNeighbours.probs;
 		double sumP = 0;
+		double boost = 0;
+		double sinkProb = 0;
 		for (int i = 0; i < succ.length; i++) {
 			double p;
 			StateSpace.State s = succ[i];
-			if (s == sink)
-				p = 1;
+			if (s == sink) {
+				p = sinkBoost;
+				boost = (sinkBoost - 1) * probs[i];
+				sinkProb = probs[i];
+			}
 			else if (!(s instanceof StateSpace.HPCState))
 				p = 0;
 			else if (s == prevState)
@@ -154,7 +166,19 @@ public abstract class TraceGenerator
 		int i;
 		for (i = 0; u > pReachSink[i]; i++)
 			;
-		return succ[i];
+		StateSpace.State ret = succ[i];
+		if (ret == sink) {
+			double num = sumP * sinkProb;
+			double denom = (sumP - boost)*(sinkProb + boost);
+			double ll = num / denom;
+			//System.err.println("Boosted likelihood: " + ll);
+			lastDeltaLikelihood *= ll;
+		} else if (boost != 1) {
+			double ll = sumP / (sumP - boost);
+			//System.err.println("Dropped likelihood: " + ll + ", sum " + sumP + ", boost " + boost);
+			lastDeltaLikelihood *= ll;
+		}
+		return ret;
 	}
 
 	/**
@@ -162,15 +186,16 @@ public abstract class TraceGenerator
 	 * visits minus one (i.e., it is possible to encounter the
 	 * Integer 0, meaning the state is visited once on the path).
 	 */
-	public void extendPath(Map<StateSpace.State, Integer> path)
+	public void extendPath(Map<StateSpace.State, int[]> path)
 	{
 		if(!(prevState instanceof StateSpace.HPCState)) {
-			Integer num = path.get(prevState);
-			if (num == null)
-				num = 0;
-			else
-				num++;
-			path.put(prevState, num);
+			int[] num = path.get(prevState);
+			if (num == null) {
+				num = new int[1];
+				path.put(prevState, num);
+			} else {
+				num[0]++;
+			}
 			return;
 		}
 		StateSpace.State k = prevState;
@@ -178,20 +203,20 @@ public abstract class TraceGenerator
 		StateSpace.State sink = scheme.neighbours[chosen];
 
 		while(k != sink) {
-			Integer num;
-			num = path.get(k);
-			if (num == null)
-				num = 0;
-			else
-				num++;
-			path.put(k, num);
+			int[] num = path.get(k);
+			if (num == null) {
+				num = new int[1];
+				path.put(k, num);
+			} else {
+				num[0]++;
+			}
 			count++;
 			if (count % 1048576 == 0)
 				System.err.format("%d Tries.\n", count);
 
 			if (!(k instanceof StateSpace.HPCState))
 				throw new AssertionError("Non-HPC state in HPC");
-			k = drawHPCSuccessor((StateSpace.HPCState)k);
+			k = drawHPCSuccessor((StateSpace.HPCState)k, 1);
 		}
 	}
 
@@ -221,6 +246,21 @@ public abstract class TraceGenerator
 			}
 		}
 		return ret / rate;
+	}
+
+	/** Returns [time, likelihood] */
+	protected double[] pathToTimed(Map<StateSpace.State, int[]> path, double timeBound)
+	{
+		double origTimeBound = timeBound;
+		lastDeltaLikelihood = 1;
+		for (Map.Entry<StateSpace.State, int[]> entry : path.entrySet()) {
+			double rate = entry.getKey().getNeighbours().exitRate;
+			int count = entry.getValue()[0];
+			while (rate-- > 0)
+				timeBound -= drawExponential(rate, timeBound);
+		}
+		return new double[] {origTimeBound - timeBound,
+		                     lastDeltaLikelihood};
 	}
 
 	/**
@@ -254,7 +294,20 @@ public abstract class TraceGenerator
 				System.err.format("%d Tries.\n", count);
 			if (!(s instanceof StateSpace.HPCState))
 				throw new AssertionError("Found non-HPC state in HPC");
-			s = drawHPCSuccessor((StateSpace.HPCState)s);
+			StateSpace.HPCState hs = (StateSpace.HPCState)s;
+			double sinkBoost = 1;
+			if (enableHpcBoost) {
+				double tRate = nbs.exitRate * hs.origNeighbours.getProbTo(sink);
+				if (tRate != 0)
+					sinkBoost = 1 / (tRate * (timeBound - delta));
+				/* With excessive boosting we can get numerical
+				 * stability issues, as the likelihood ratie of
+				 * the non-boosted states can approach infinity.
+				 */
+				if (sinkBoost > 10000)
+					sinkBoost = 10000;
+			}
+			s = drawHPCSuccessor(hs, sinkBoost);
 		}
 		return delta;
 	}
@@ -282,7 +335,7 @@ public abstract class TraceGenerator
 			if (count % 1048576 == 0)
 				System.err.format("%d Tries.\n", count);
 
-			s = drawHPCSuccessor(k);
+			s = drawHPCSuccessor(k, 1);
 			if (!(s instanceof StateSpace.HPCState)) {
 				if (s == sink)
 					return ret;

@@ -34,7 +34,11 @@ Supported options are:
 		occurs within B units time).
 --mc		Use the standard Monte Carlo simulator without
 		importance sampling.
---zvav		Use the Path-ZVA importance sampling technique.
+--zvad		Use the Path-ZVA-d importance sampling technique.
+--zvav		Use the Path-ZVA-v importance sampling technique.
+--zvat		Use the Path-ZVA-t importance sampling technique
+                (variation on ZVA-v, only potentially better for
+                time-bounded reachability queries).
 --def <C> <V>	Define the constant named C as the value V, overriding
 		any definitions in the input file.
 --export-jani <output.jani>	Export the model the specified jani

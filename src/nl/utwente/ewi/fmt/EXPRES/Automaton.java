@@ -241,7 +241,7 @@ public class Automaton implements LTS {
 		this(system, null, null, null, Long.MAX_VALUE);
 	}
 
-	public static Automaton fromJani(Map janiData,
+	public static Automaton fromJani(Map<?, ?> janiData,
 	                                 Map<String, Number> constants)
 		throws ModelTooLargeException
 	{
@@ -287,7 +287,7 @@ public class Automaton implements LTS {
 		return true;
 	}
 
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({"unchecked", "rawtypes"})
 	private void createTransitionArray()
 	{
 		transitions = (HashMap<String, Integer>[]) new HashMap[labels.length];
@@ -307,7 +307,7 @@ public class Automaton implements LTS {
 		}
 	}
 
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({"unchecked", "rawtypes"})
 	private Map<String, Expression>[][] createAssignmentArray(int len)
 	{
 		return (Map<String, Expression>[][]) new Map[len][0];

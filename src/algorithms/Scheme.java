@@ -17,7 +17,6 @@ public class Scheme
 	public StateSpace.State[] neighbours;
 	public double exitRate;
 
-	protected short[] orders;
 	protected double[] probs;
 
 	public Scheme(StateSpace model) {
@@ -38,15 +37,23 @@ public class Scheme
 		return true;
 	}
 
-	public StateSpace.Neighbours prepareState(StateSpace.State state) {
+	public StateSpace.Neighbours prepareState(StateSpace.State state, double timeBound) {
 		StateSpace.Neighbours n = state.getNeighbours();
 		neighbours = n.neighbours;
 		exitRate = n.exitRate;
-		orders = n.orders;
 		probs = n.probs;
 
 		stateWeightsIS = probs;
-		totalStateWeightIS = 1;
+		if (getClass() == Scheme.class) {
+			/* There is no other scheme modifying the
+			 * probabilities
+			 */
+			totalStateWeightIS = 0;
+			for (double p : probs)
+				totalStateWeightIS += p;
+		} else {
+			totalStateWeightIS = 1;
+		}
 		return n;
 	}
 	

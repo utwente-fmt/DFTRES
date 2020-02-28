@@ -76,8 +76,8 @@ public class SchemeZVAv extends Scheme {
 		return false;
 	}
 
-	public StateSpace.Neighbours prepareState(State state) {
-		StateSpace.Neighbours ret = super.prepareState(state);
+	public StateSpace.Neighbours prepareState(State state, double timeBound) {
+		StateSpace.Neighbours ret = super.prepareState(state, timeBound);
 		StateInfo si = cachedInfo.get(state);
 		if (si != null) {
 			if (ret != si.nbs) {
