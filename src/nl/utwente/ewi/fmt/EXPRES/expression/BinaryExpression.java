@@ -253,16 +253,28 @@ public class BinaryExpression extends Expression
 		if (constL != null || constR != null) {
 			switch (op) {
 			case AND:
-				if (constL != null && constL.doubleValue() == 0)
-					return new ConstantExpression(0);
-				if (constR != null && constR.doubleValue() == 0)
-					return new ConstantExpression(0);
+				if (constL != null) {
+					if (constL.doubleValue() == 0)
+						return new ConstantExpression(0);
+					return simplerR;
+				}
+				if (constR != null) {
+					if (constR.doubleValue() == 0)
+						return new ConstantExpression(0);
+					return simplerL;
+				}
 				break;
 			case OR:
-				if (constL != null && constL.doubleValue() != 0)
-					return new ConstantExpression(1);
-				if (constR != null && constR.doubleValue() != 0)
-					return new ConstantExpression(1);
+				if (constL != null) {
+					if (constL.doubleValue() != 0)
+						return new ConstantExpression(1);
+					return simplerR;
+				}
+				if (constR != null) {
+					if (constR.doubleValue() != 0)
+						return new ConstantExpression(1);
+					return simplerL;
+				}
 				break;
 			case NOT_EQUALS:
 			case ADD:
