@@ -226,8 +226,18 @@ public class SymbolicAutomaton implements LTS {
 					throw new IllegalArgumentException("Guard should be {\"exp\": ...}, not: " + gO);
 				Map<?, ?> g = (Map<?, ?>)gO;
 				guard = Expression.fromJani(g.get("exp"));
-				guard = guard.simplify(constants);
+				Number cGuard = guard.evaluate(constants);
+				if (cGuard != null) {
+					if (cGuard.doubleValue() == 0)
+						guard = ConstantExpression.FALSE;
+					else
+						guard = ConstantExpression.TRUE;
+				} else {
+					guard = guard.simplify(constants);
+				}
 			}
+			if (guard == ConstantExpression.FALSE)
+				continue;
 			Object destsO = edge.get("destinations");
 			if (!(destsO instanceof Object[]))
 				throw new IllegalArgumentException("Destinations of edges must be arrays (currently of size 1).");
