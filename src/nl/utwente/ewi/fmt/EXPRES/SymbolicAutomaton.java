@@ -182,8 +182,8 @@ public class SymbolicAutomaton implements LTS {
 		if (!(edgeo instanceof Object[]))
 			throw new IllegalArgumentException("Edges in automata should be an array, not " + edgeo);
 		Object[] edges = (Object[]) edgeo;
-		boolean hasProbabilisticEdge = false;
 		for (Object eo : edges) {
+			boolean hasProbabilisticEdge = false;
 			if (!(eo instanceof Map))
 				throw new IllegalArgumentException("Each edge should be a JSON object, not: " + eo);
 			Map<?, ?> edge = (Map<?, ?>)eo;
@@ -193,6 +193,12 @@ public class SymbolicAutomaton implements LTS {
 			Integer srci = locations.get(src.toString());
 			if (srci == null)
 				throw new IllegalArgumentException("Unknown location as source of edge: " + src);
+			for (String l : labels[srci]) {
+				if (l.charAt(0) == 'p') {
+					hasProbabilisticEdge = true;
+					break;
+				}
+			}
 			String action = null;
 			Object ao = edge.get("action");
 			Object ro = edge.get("rate");
@@ -226,7 +232,6 @@ public class SymbolicAutomaton implements LTS {
 			if (!(destsO instanceof Object[]))
 				throw new IllegalArgumentException("Destinations of edges must be arrays (currently of size 1).");
 			Object[] dests = (Object[])destsO;
-			boolean isProbabilistic = false;
 			for (Object destO : dests) {
 				if (!(destO instanceof Map))
 					throw new IllegalArgumentException("Each destination should be a JSON object, not: " + destO);
@@ -260,8 +265,7 @@ public class SymbolicAutomaton implements LTS {
 				if (prob != null && !action.equals("i"))
 					throw new UnsupportedOperationException("Probabilistic transitions must not have labels");
 				if (prob != null && hasProbabilisticEdge)
-					throw new UnsupportedOperationException("Nondeterminism in selection of probabilistic transitions");
-				isProbabilistic = prob != null;
+					throw new UnsupportedOperationException("Nondeterminism in selection of probabilistic transitions from " + src);
 				Object assignO = dest.get("assignments");
 				if (assignO == null)
 					assignO = new Object[0];
@@ -297,7 +301,6 @@ public class SymbolicAutomaton implements LTS {
 				probs[srci] = Arrays.copyOf(probs[srci], probs[srci].length + 1);
 				probs[srci][probs[srci].length - 1] = prob;
 			}
-			hasProbabilisticEdge = isProbabilistic;
 		}
 		numberedVariables = tryToNumberVariables();
 	}
