@@ -481,18 +481,26 @@ class Main {
 		ArrayList<SimulationResult> results = new ArrayList<>();
 		TreeSet<String> onlyProperties = new TreeSet<>();
 		String useRng = "XS128";
-		if (args.length == 1 && args[0].equals("--version")) {
-			System.out.println("Version: " + Version.version);
-			System.exit(0);
-		}
+
+		// Erroneous or help/version invocation
 		if (args.length == 0)
 			usage(System.err);
+		else if (args.length == 1) {
+			if (Arrays.asList("-h", "--help").contains(args[0]))
+				usage(System.out);
+			else if (args[0].equals("--version")) {
+				System.out.println("Version: " + Version.version);
+				System.exit(0);
+			} else {
+				System.err.println("Invalid single arguemnt \"" + args[0] + "\"");
+				usage(System.err);
+			}
+		}
+
 		String filename = args[args.length - 1];
 		String janiOutputFile = null, traLabOutputFile = null;
 
 		for (int i = 0; i < args.length - 1; i++) {
-			if (args[i].equals("--help"))
-				usage(System.out);
 			if (args[i].equals("-a")) {
 				Property av = new Property(Property.Type.STEADY_STATE, new VariableExpression("marked"), "Unavailability");
 				properties.add(av);
