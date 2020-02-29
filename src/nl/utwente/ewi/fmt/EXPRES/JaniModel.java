@@ -254,9 +254,9 @@ public class JaniModel
 		}
 		Object synco = sysComp.get("syncs");
 		if (synco == null) {
-			vectorAutomata = null;
-			vectorLabels = null;
-			synchronizedLabels = null;
+			vectorAutomata = new int[0][];
+			vectorLabels = new String[0][];
+			synchronizedLabels = new String[0];
 		} else {
 			if (!(synco instanceof Object[]))
 				throw new IllegalArgumentException("Synchronization specification should be array, not: " + synco);
@@ -440,7 +440,7 @@ public class JaniModel
 		Set<String> propertyVars = new TreeSet<>();
 		for (Property p : properties)
 			propertyVars.addAll(p.getReferencedVariables());
-		if (automata.length == 1 && vectorAutomata == null) {
+		if (automata.length == 1 && vectorAutomata.length == 0) {
 			SymbolicAutomaton ret = automata[0];
 			for (String name : transientGlobals.keySet()) {
 				if (propertyVars.contains(name))
