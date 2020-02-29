@@ -71,7 +71,7 @@ public class JaniModel
 		if (!Long.valueOf(1).equals(janiVers))
 			System.err.println("Jani version != 1 may not be supported (file is version " + janiVers + ").");
 		Object type = root.get("type");
-		if (!"ma".equals(type) && !"ctmc".equals(type))
+		if (!"ma".equals(type) && !"ctmc".equals(type) && !"dtmc".equals(type))
 			throw new IllegalArgumentException("Only Markov Automata are currently supported.");
 		TreeMap<String, Number> constants = new TreeMap<>(overrideConstants);
 		Object constsO = root.get("constants");
