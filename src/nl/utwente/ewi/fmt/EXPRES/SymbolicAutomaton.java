@@ -610,7 +610,7 @@ public class SymbolicAutomaton implements LTS {
 	{
 		StringBuilder ret = new StringBuilder();
 		ret.append(String.format("Number of states: %d\n", getNumStates()));
-		ret.append(String.format("Initial state: %d\n", Arrays.toString(initialState)));
+		ret.append(String.format("Initial state: %s\n", Arrays.toString(initialState)));
 		for (int i = 0; i < getNumStates(); i++) {
 			for (int j = 0; j < labels[i].length; j++) {
 				ret.append(String.format("if %s then %5d ---> %5d (%s)",
@@ -620,6 +620,8 @@ public class SymbolicAutomaton implements LTS {
 						labels[i][j]));
 				if (probs[i][j] != null)
 					ret.append(String.format(" with probability " + probs[i][j]));
+				if (assignments[i][j] != null)
+					ret.append(String.format ("\n\tassigning " + assignments[i][j]));
 				ret.append('\n');
 			}
 		}
