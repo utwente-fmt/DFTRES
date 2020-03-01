@@ -71,7 +71,7 @@ public class JaniModel
 		if (!Long.valueOf(1).equals(janiVers))
 			System.err.println("Jani version != 1 may not be supported (file is version " + janiVers + ").");
 		Object type = root.get("type");
-		if (!"ma".equals(type) && !"ctmc".equals(type))
+		if (!"ma".equals(type) && !"ctmc".equals(type) && !"dtmc".equals(type))
 			throw new IllegalArgumentException("Only Markov Automata are currently supported.");
 		TreeMap<String, Number> constants = new TreeMap<>(overrideConstants);
 		Object constsO = root.get("constants");
@@ -254,9 +254,9 @@ public class JaniModel
 		}
 		Object synco = sysComp.get("syncs");
 		if (synco == null) {
-			vectorAutomata = null;
-			vectorLabels = null;
-			synchronizedLabels = null;
+			vectorAutomata = new int[0][];
+			vectorLabels = new String[0][];
+			synchronizedLabels = new String[0];
 		} else {
 			if (!(synco instanceof Object[]))
 				throw new IllegalArgumentException("Synchronization specification should be array, not: " + synco);
@@ -440,7 +440,7 @@ public class JaniModel
 		Set<String> propertyVars = new TreeSet<>();
 		for (Property p : properties)
 			propertyVars.addAll(p.getReferencedVariables());
-		if (automata.length == 1 && vectorAutomata == null) {
+		if (automata.length == 1 && vectorAutomata.length == 0) {
 			SymbolicAutomaton ret = automata[0];
 			for (String name : transientGlobals.keySet()) {
 				if (propertyVars.contains(name))
