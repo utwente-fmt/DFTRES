@@ -167,8 +167,9 @@ public class ReachabilityTracer extends TraceGenerator
 					likelihood *= d[1];
 					path = null;
 				}
-			} else if (prop.timeBound < Double.POSITIVE_INFINITY) {
-				timeLeft -= drawDelta(timeLeft);
+			} else {
+				if (prop.timeBound < Double.POSITIVE_INFINITY)
+					timeLeft -= drawDelta(timeLeft);
 				likelihood *= likelihood();
 			}
 		} while(!prop.isRed(model, state) && !prop.isBlue(model, state)
