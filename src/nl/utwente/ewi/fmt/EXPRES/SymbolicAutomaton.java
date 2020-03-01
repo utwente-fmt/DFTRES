@@ -557,7 +557,7 @@ public class SymbolicAutomaton implements LTS {
 				Number p = probs[src][i].evaluate(values);
 				if (p == null)
 					throw new UnsupportedOperationException("Probability depends on non-local variable: " + probs[src][i]);
-				if (p.longValue() == 0)
+				if (p.doubleValue() == 0)
 					continue;
 				if (!label.equals("i"))
 					throw new UnsupportedOperationException("Probabilistic transition with named or non-interactive label: " + label);
