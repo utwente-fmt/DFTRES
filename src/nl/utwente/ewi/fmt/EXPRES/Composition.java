@@ -295,9 +295,19 @@ public class Composition implements MarkableLTS
 			synchronizedLabels = Arrays.copyOf(synchronizedLabels, i);
 			priorityVectors = Arrays.copyOf(priorityVectors, i);
 		}
-		globalVars = Map.of();
-		transientGlobals = Map.of();
-		markLabels = new TreeMap<>();
+		//globalVars = Map.of();
+		//transientGlobals = Map.of();
+		//markLabels = new TreeMap<>();
+		//  ^^^ @Enno: shouldn't we copy all global data from orig?
+		//  I do that here below, else I get exceptions
+        markLabels = orig.markLabels;
+		transientGlobals = orig.transientGlobals;
+		if (!orig.globalVars.isEmpty())
+			globalVars = new HashMap<>();
+		else
+			globalVars = Map.of();
+		for (Map.Entry<String, int[]> e : orig.globalVars.entrySet())
+			globalVars.put(e.getKey(), e.getValue().clone());
 	}
 
 	private Composition(Composition orig, int[] composed, Automaton aut,
@@ -394,7 +404,7 @@ public class Composition implements MarkableLTS
 			String current = labels[i], sl = synchronizedLabels[i];
 			if (current == null)
 				continue;
-			if (markLabels.containsKey(sl) != visible)
+			if (markLabels != null && markLabels.containsKey(sl) != visible)
 				continue;
 			for (int a : vectorAutomata[i]) {
 				if (Arrays.binarySearch(auts, a) < 0) {
@@ -474,7 +484,7 @@ public class Composition implements MarkableLTS
 			long states = 1;
 			if (vectorAutomata[i].length < 2)
 				continue;
-			if (!hideLabels.contains(synchronizedLabels[i]))
+			if (null != hideLabels && !hideLabels.contains(synchronizedLabels[i]))
 				continue;
 			for (int j : vectorAutomata[i]) {
 				auts.add(j);
@@ -1125,11 +1135,15 @@ public class Composition implements MarkableLTS
 						}
 						int val = eval.intValue();
 						Integer cMin = mins.get(v);
-						if (cMin == null || val < cMin)
+						if (globalVars.containsKey(v) &&
+								(cMin == null || val < cMin)) {
 							mins.put(v, val);
+						}
 						Integer cMax = maxs.get(v);
-						if (cMax == null || val > cMax)
+						if (globalVars.containsKey(v) &&
+								(cMax == null || val > cMax)) {
 							maxs.put(v, val);
+						}
 					}
 					n++;
 				}
@@ -1140,6 +1154,8 @@ public class Composition implements MarkableLTS
 			Integer min = mins.get(v);
 			Integer max = maxs.get(v);
 			int[] data = globalVars.get(v);
+			if (data == null)
+				throw new IllegalArgumentException("Variable "+v+" not found in global scope");
 			if (unspecifieds.contains(v)) {
 				min = data[3];
 				max = data[1];
@@ -1478,9 +1494,11 @@ public class Composition implements MarkableLTS
 			 */
 			Integer m;
 			target = from.clone();
-			m = markLabels.get(synchronizedLabels[i]);
-			if (m != null)
-				target[automata.length] = m;
+			if (null != markLabels && synchronizedLabels.length < i) {
+				m = markLabels.get(synchronizedLabels[i]);
+				if (m != null)
+					target[automata.length] = m;
+			}
 			for (j = 0; j < needed.length; j++) {
 				if (needed[j] != null)
 					target[j] = t[j];
