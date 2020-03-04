@@ -12,6 +12,7 @@ public class Simulator {
 	public final static int REL_ERR_RATE = 8;
 	public static int coresToUse;
 	public static boolean showProgress = false;
+	private final int relErrRate;
 	private final StateSpace initialModel;
 	private final TraceGenerator gen;
 	private static final Runtime r = Runtime.getRuntime();
@@ -20,8 +21,9 @@ public class Simulator {
 		coresToUse = Runtime.getRuntime().availableProcessors();
 	}
 
-	public Simulator(Random rng, Property prop, Scheme scheme, double forcingBound)
+	public Simulator(Random rng, Property prop, Scheme scheme, double forcingBound, int relativeErrorRate)
 	{
+		relErrRate = relativeErrorRate;
 		switch (prop.type) {
 			case REACHABILITY:
 				gen = new ReachabilityTracer(rng, scheme, prop, forcingBound);
@@ -37,6 +39,11 @@ public class Simulator {
 				assert(false);
 		}
 		initialModel = gen.scheme.model;
+	}
+
+	public Simulator(Random rng, Property prop, Scheme scheme, double forcingBound)
+	{
+		this(rng, prop, scheme, forcingBound, REL_ERR_RATE);
 	}
 
 	private static long getMemUsed()
@@ -257,7 +264,7 @@ public class Simulator {
 
 	public SimulationResult simRelErr(double err, double alpha, long limitN)
 	{
-		if (REL_ERR_RATE <= 0)
+		if (relErrRate <= 0)
 			return simUnsafeRelErr(err, alpha);
 		long maxN = 1000 * coresToUse;
 		long totalSims[] = new long[2];
@@ -268,7 +275,7 @@ public class Simulator {
 		SimulationResult result;
 		long startTime = System.nanoTime();
 
-		alpha = totalAlpha / REL_ERR_RATE;
+		alpha = totalAlpha / relErrRate;
 		consumedAlpha = alpha;
 		/* First try to hit the target at all, to get a rough
 		 * estimate (without spoiling the confidence level).
@@ -295,7 +302,7 @@ public class Simulator {
 		if (showProgress)
 			System.err.format("Consumed alpha so far: %g\n", consumedAlpha);
 		alpha = (totalAlpha - consumedAlpha) / (1 - consumedAlpha);
-		alpha = (alpha * (REL_ERR_RATE - 1)) / REL_ERR_RATE;
+		alpha = (alpha * (relErrRate - 1)) / relErrRate;
 		consumedAlpha += alpha - (alpha * consumedAlpha);
 		do {
 			/* Estimate number of samples still needed to
@@ -331,7 +338,7 @@ public class Simulator {
 			totalSims[0] += result.N;
 			totalSims[1] += result.M;
 			alpha = (totalAlpha - consumedAlpha) / (1 - consumedAlpha);
-			alpha = (alpha * (REL_ERR_RATE - 1)) / REL_ERR_RATE;
+			alpha = (alpha * (relErrRate - 1)) / relErrRate;
 			consumedAlpha += alpha - (alpha * consumedAlpha);
 
 			if (lbound == 0) { /* Unlikely, but apparently we

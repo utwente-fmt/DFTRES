@@ -53,6 +53,7 @@ class Main {
 	static boolean zvat = false;
 	static boolean jsonOutput = false;
 	static boolean unsafeComposition = false;
+	static boolean unsafeSimulation = false;
 	static LTS model;
 	static TreeSet<Property> properties = new TreeSet<>();
 
@@ -122,7 +123,9 @@ class Main {
 			else
 				force = 0;
 		}
-		Simulator simulator = new Simulator(rng, prop, s, force);
+		Simulator simulator = unsafeSimulation
+				? new Simulator(rng, prop, s, force, 0)
+				: new Simulator(rng, prop, s, force);
 		SimulationResult res;
 		if (!Double.isNaN(relErr)) {
 			if (maxSims > 0)
@@ -401,6 +404,7 @@ class Main {
 			{"Simulation options:"},
 			{"-e E", "Simulate until an absolute of E has been reached."},
 			{"--relErr E", "Simulate until a relative of E has been reached."},
+			{"--fixed-batches", "Use fixed-size simulation batches (may bias the result!)"},
 			{"-n N", "Simulate exactly N runs."},
 			{"--rng <rng>", "Set the RNG type, available choices are:"},
 			{"",            "  \"XS128\":   Xoroshiro-128"},
@@ -591,6 +595,8 @@ class Main {
 					limit = Integer.parseInt(args[i]);
 				compositionStateLimit = limit;
 			}
+			else if (args[i].equals("--fixed-batches"))
+				unsafeSimulation = true;
 			else if (args[i].equals("--unsafe-scheduling"))
 				unsafeComposition = true;
 			else if (args[i].equals("--no-forcing"))

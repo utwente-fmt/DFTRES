@@ -301,7 +301,7 @@ public class Composition implements MarkableLTS
 		//markLabels = new TreeMap<>();
 		//  ^^^ @Enno: shouldn't we copy all global data from orig?
 		//  I do that here below, else I get exceptions
-        markLabels = orig.markLabels;
+		markLabels = orig.markLabels;
 		transientGlobals = orig.transientGlobals;
 		if (!orig.globalVars.isEmpty())
 			globalVars = new HashMap<>();
@@ -903,7 +903,7 @@ public class Composition implements MarkableLTS
 	 * and we should probably just remove such automata, but it does
 	 * no harm to include them.
 	 *
-	 * @param outwardActions Which interactive transitions of the
+	 * @param outwardTransitions Which interactive transitions of the
 	 * the automaton communicate outside of the dependents.
 	 */
 	private Set<Integer> getDependents(int automaton, int global,
