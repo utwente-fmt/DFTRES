@@ -642,5 +642,6 @@ class Main {
 			benchmarkPostSim(time, results, seed);
 		else
 			showResults(time, results);
+		System.exit(0);
 	}
 }
