@@ -125,7 +125,17 @@ if __name__ == "__main__":
                             else:
                                 error_kind = "an absolute"
                                 error_value = tool_result["absolute-error"]
-                            notes.append("The tool result '{}' is tagged as incorrect. The reference result is '{}' (approx. {}) which means {} error of '{}' which is larger than the goal precision '{}'.".format(result, benchmark.get_reference_result(), try_to_float(benchmark.get_reference_result()), error_kind, error_value, try_to_float(settings.goal_precision())))
+                            if(invocation.track_id == "correct"):
+                                goal_prec = settings.goal_precision_correct()
+                            if(invocation.track_id == "epsilon-correct"):
+                                goal_prec = settings.goal_precision_epsilon_correct()
+                            if(invocation.track_id == "probably-epsilon-correct"):
+                                goal_prec = settings.goal_precision_probably_epsilon_correct()
+                            if(invocation.track_id == "often-epsilon-correct"):
+                                goal_prec = settings.goal_precision_often_epsilon_correct()
+                            if(invocation.track_id == "often-epsilon-correct-10-min"):
+                                goal_prec = settings.goal_precision_often_epsilon_correct()
+                            notes.append("The tool result '{}' is tagged as incorrect. The reference result is '{}' (approx. {}) which means {} error of '{}' which is larger than the goal precision '{}'.".format(result, benchmark.get_reference_result(), try_to_float(benchmark.get_reference_result()), error_kind, error_value, try_to_float(goal_prec)))
                     elif not tool_result["result-correct"]:
                         notes.append("Result '{}' is tagged as incorrect because it is different from the reference result '{}'.".format(result, benchmark.get_reference_result()))
                 else:

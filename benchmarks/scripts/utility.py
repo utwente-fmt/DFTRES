@@ -245,7 +245,7 @@ class Settings(object):
             self.json_data["goal-precision-correct"] = 0.0
             set_an_option = True
         if not "goal-precision-epsilon-correct" in self.json_data:
-            self.json_data["goal--epsilon-precision-correct"] = 1E-6
+            self.json_data["goal-precision-epsilon-correct"] = 1E-6
             set_an_option = True
         if not "goal-precision-probably-epsilon-correct" in self.json_data:
             self.json_data["goal-precision-probably-epsilon-correct"] = 5E-2
@@ -294,19 +294,19 @@ class Settings(object):
         return int(self.json_data["time-limit-short"])
 
     def goal_precision_correct(self):
-        """ Retrieves the precision the tools have to achieved for numerical results. """
+        """ Retrieves the precision the tools have to achieve for numerical results. """
         return Fraction(self.json_data["goal-precision-correct"])
 
     def goal_precision_epsilon_correct(self):
-        """ Retrieves the precision the tools have to achieved for numerical results. """
+        """ Retrieves the precision the tools have to achieve for numerical results. """
         return Fraction(self.json_data["goal-precision-epsilon-correct"])
 
     def goal_precision_probably_epsilon_correct(self):
-        """ Retrieves the precision the tools have to achieved for numerical results. """
+        """ Retrieves the precision the tools have to achieve for numerical results. """
         return Fraction(self.json_data["goal-precision-probably-epsilon-correct"])
 
     def goal_precision_often_epsilon_correct(self):
-        """ Retrieves the precision the tools have to achieved for numerical results. """
+        """ Retrieves the precision the tools have to achieve for numerical results. """
         return Fraction(self.json_data["goal-precision-often-epsilon-correct"])
 
     def is_relative_precision(self):
