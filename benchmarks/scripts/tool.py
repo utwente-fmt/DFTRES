@@ -87,10 +87,10 @@ def get_invocations(benchmark : Benchmark):
 		return []
 	#
 	OUR_TRACKS = {
-		# track-id : (relative error, timeout in sec)
-		"probably-epsilon-correct"     : (5e-2, 0),
-		"often-epsilon-correct"        : (1e-3, 0),
-		"often-epsilon-correct-10-min" : (0,  900),  # damn DFTRES time limits
+		# track-id : relative error
+		"probably-epsilon-correct"    : 5e-2,
+		"often-epsilon-correct"       : 1e-3,
+		"often-epsilon-correct-10-min": 1e-99,  # run till judgement day
 	}
 	TWEAKS = "--unsafe-scheduling --fixed-batches"
 	JVM = "java -Xmx6G -XX:+UseParallelGC"
@@ -101,15 +101,13 @@ def get_invocations(benchmark : Benchmark):
 		PARAMS += " --def " + p["name"] + " " + str(p["value"])
 	CALL = " ".join([JVM, "-jar DFTRES/DFTRES.jar", RNG, PROP, PARAMS])
 	invocations = []
-	for track,(precision,timeout) in OUR_TRACKS.items():
-		err  = ("--relErr " + str(precision)) if precision > 0 else ""
-		time = ("-t " + str(timeout)) if timeout > 0 else ""
-		CMD = CALL + err + time + benchmark.get_janifilename()
+	for track,precision in OUR_TRACKS.items():
+		err  = "--relErr " + str(precision)
 		for invID,tweaks in [("default",""), ("specific",TWEAKS)]:
 			i = Invocation()
 			i.identifier = invID
 			i.track_id = track
-			i.add_command(" ".join([CALL,err,time,tweaks,benchmark.get_janifilename()]))
+			i.add_command(" ".join([CALL,err,tweaks,benchmark.get_janifilename()]))
 			invocations.append(i)
 	return invocations
 
@@ -124,9 +122,10 @@ def get_result(benchmark : Benchmark, execution : Execution):
 	"""
 	invocation = execution.invocation
 	log = execution.concatenate_logs()
-	pos = log.find("point estimate: ")
+	RESULT_MARKER = "point estimate: "
+	pos = log.find(RESULT_MARKER)
 	if pos < 0:
 		return None
-	pos = pos + len("point estimate: ")
+	pos = pos + len(RESULT_MARKER)
 	eol_pos = log.find(",", pos)
 	return log[pos:eol_pos]
