@@ -108,7 +108,7 @@ public class ExpectedValueTracer extends TraceGenerator
 		sumSquares = Math.fma(diffEst, diffEst, sumSquares);
 	}
 
-	public SimulationResult getResult(double alpha)
+	protected SimulationResult getResult(double alpha)
 	{
 		long time = getElapsedTime();
 		if (M == 0) {

@@ -1,6 +1,5 @@
 package algorithms;
 
-import java.text.DecimalFormat;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 
 public class SimulationResult {
@@ -36,8 +35,21 @@ public class SimulationResult {
 		/* Widen to include maximal relative error */
 		return e / 0.9995;
 	}
-	
-	
+
+	public SimulationResult(Property prop, double alpha)
+	{
+		this.property = prop;
+		this.alpha = alpha;
+		this.mean = 0;
+		this.var = 0;
+		this.lbound = 0;
+		this.ubound = 0;
+		this.N = 0;
+		this.M = 0;
+		this.simTimeNanos = 0;
+		this.storedStates = 0;
+	}
+
 	public SimulationResult(Property prop, double alpha, double mean,
 	                        double var, long sims[], long time, int states)
 	{

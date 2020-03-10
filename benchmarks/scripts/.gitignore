@@ -1,4 +1,5 @@
-logs
+logs*
+results*
 *.json
 *.csv
 __pycache__

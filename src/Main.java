@@ -8,11 +8,11 @@ import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import nl.utwente.ewi.fmt.EXPRES.*;
 import schemes.SchemeUniform;
 import schemes.SchemeZVAd;
 import schemes.SchemeZVAv;
@@ -24,25 +24,12 @@ import algorithms.TraceGenerator;
 
 import ec.util.MersenneTwisterFast;
 import nl.ennoruijters.interval.XoroShiro128RandomSource;
-import nl.utwente.ewi.fmt.EXPRES.Automaton;
-import nl.utwente.ewi.fmt.EXPRES.MarkedAutomaton;
-import nl.utwente.ewi.fmt.EXPRES.MarkovReducedLTS;
-import nl.utwente.ewi.fmt.EXPRES.MarkovianComposition;
-import nl.utwente.ewi.fmt.EXPRES.NondeterminismException;
-import nl.utwente.ewi.fmt.EXPRES.Composition;
-import nl.utwente.ewi.fmt.EXPRES.JaniModel;
-import nl.utwente.ewi.fmt.EXPRES.LTS;
-import nl.utwente.ewi.fmt.EXPRES.MakeJani;
-import nl.utwente.ewi.fmt.EXPRES.MakeTraLab;
-import nl.utwente.ewi.fmt.EXPRES.Property;
-import nl.utwente.ewi.fmt.EXPRES.Version;
 import nl.utwente.ewi.fmt.EXPRES.expression.ConstantExpression;
 import nl.utwente.ewi.fmt.EXPRES.expression.VariableExpression;
 
 import models.ExpModel;
 
 class Main {
-	static Random rng;
 	static int maxTime = 0;
 	static long maxSims = 0;
 	static double epsilon = 0.01;
@@ -54,8 +41,11 @@ class Main {
 	static boolean jsonOutput = false;
 	static boolean unsafeComposition = false;
 	static boolean unsafeSimulation = false;
-	static LTS model;
-	static TreeSet<Property> properties = new TreeSet<>();
+	private static Random rng;
+	private static LTS model;
+	private static TreeSet<Property> properties = new TreeSet<>();
+	private static Simulator simulator;
+	private static ArrayList<SimulationResult> lastResults;
 
 	private static Long getMaximalMemory()
 	{
@@ -112,8 +102,15 @@ class Main {
 		return "CPU";
 	}
 
+	/**
+	 * Run simulations to estimate the value of a {@code Property}.
+     * A simulator of the specified IS {@code Scheme} is used,
+	 * deleting any pre-existent {@code simulator}.
+	 * @return Simulation result, including point estimate and CI
+	 */
 	private static SimulationResult runSim(Property prop, Scheme s)
 	{
+		final double alpha = 1-confidence;
 		double force;
 		if (forceBound != null) {
 			force = forceBound;
@@ -123,27 +120,35 @@ class Main {
 			else
 				force = 0;
 		}
-		Simulator simulator = unsafeSimulation
+		simulator = unsafeSimulation
 				? new Simulator(rng, prop, s, force, 0)
 				: new Simulator(rng, prop, s, force);
-		SimulationResult res;
 		if (!Double.isNaN(relErr)) {
 			if (maxSims > 0)
 				System.err.println("Warning: Simulating up to relative error, ignoring simulation bound.");
 			if (maxTime > 0)
 				System.err.println("Warning: Simulating up to relative error, ignoring time limit.");
-			res = simulator.simRelErr(relErr, 1-confidence, maxSims);
+			return simulator.simRelErr(relErr, alpha, maxSims);
 		} else {
-			res = simulator.sim(maxTime, maxSims, 1-confidence);
+			return simulator.sim(maxTime, maxSims, alpha);
 		}
-		return res;
+//		assert(simulator.pregnant());
+//		return simulator.bear(alpha);  // removes results from inside simulator
 	}
 
-	private static List<SimulationResult> runSimulations(Property prop)
-			throws IOException
+	/**
+	 * Run new simulations to estimate the value of a {@code Property}.
+	 * Any {@code lastResults} are reset; this field will contain the results
+	 * of the new simulations upon successful exit.
+	 * @param prop
+	 * @throws IOException
+	 */
+	private static void runSimulations(Property prop) throws IOException
 	{
-		boolean multiple = false;
+		lastResults = new ArrayList<>();
 		ExpModel statespace = new ExpModel(epsilon, model);
+		boolean multiple = ((mc ? 1 : 0) + (zvav ? 1 : 0)
+		                + (zvad ? 1 : 0) + (unif ? 1 : 0) > 1);
 		if (!(mc || zvav || zvad || zvat || unif)) {
 			Scheme s;
 			if (prop.type == Property.Type.EXPECTED_VALUE
@@ -153,20 +158,15 @@ class Main {
 			} else {
 				s = SchemeZVAv.instantiate(statespace, prop);
 			}
-			SimulationResult res = runSim(prop, s);
-			return List.of(res);
+			lastResults.add(runSim(prop,s));
 		}
-		if ((mc ? 1 : 0) + (zvav ? 1 : 0) + (zvad ? 1 : 0) + (unif ? 1 : 0) > 1)
-			multiple = true;
 
-		ArrayList<SimulationResult> ret = new ArrayList<>();
 		if (mc) {
 			Scheme mc = new Scheme(statespace);
 			Property nProp = prop;
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-MC");
-			SimulationResult res = runSim(nProp, mc);
-			ret.add(res);
+			lastResults.add(runSim(nProp, mc));
 		}
 
 		if (unif) {
@@ -174,45 +174,38 @@ class Main {
 			Property nProp = prop;
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-Unif");
-			SimulationResult res = runSim(nProp, s);
-			ret.add(res);
+			lastResults.add(runSim(nProp, s));
 		}
 
 		if (zvad) {
 			SchemeZVAd sc = SchemeZVAd.instantiate(statespace, prop);
-			if (prop.type == Property.Type.EXPECTED_VALUE) {
-				System.err.println("WARNING: Importance sampling and expected value queries often give misleading results.");
-			}
+			if (prop.type == Property.Type.EXPECTED_VALUE)
+				System.err.println("WARNING: Importance Sampling and expected value queries often give misleading results.");
 			Property nProp = prop;
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-ZVAd");
-			SimulationResult res = runSim(nProp, sc);
-			ret.add(res);
+			lastResults.add(runSim(nProp, sc));
 		}
 
 		if (zvav) {
-			if (prop.type == Property.Type.EXPECTED_VALUE) {
-				System.err.println("WARNING: Importance sampling and expected value queries often give misleading results.");
-			}
+			if (prop.type == Property.Type.EXPECTED_VALUE)
+				System.err.println("WARNING: Importance Sampling and expected value queries often give misleading results.");
 			SchemeZVAv sc = SchemeZVAv.instantiate(statespace, prop);
 			Property nProp = prop;
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-ZVAv");
-			SimulationResult res = runSim(nProp, sc);
-			ret.add(res);
+			lastResults.add(runSim(nProp, sc));
 		}
+
 		if (zvat) {
-			if (prop.type == Property.Type.EXPECTED_VALUE) {
-				System.err.println("WARNING: Importance sampling and expected value queries often give misleading results.");
-			}
+			if (prop.type == Property.Type.EXPECTED_VALUE)
+				System.err.println("WARNING: Importance Sampling and expected value queries often give misleading results.");
 			SchemeZVAt sc = SchemeZVAt.instantiate(statespace, prop);
 			Property nProp = prop;
 			if (multiple)
-				nProp = new Property(prop, prop.name + "-ZVAv");
-			SimulationResult res = runSim(nProp, sc);
-			ret.add(res);
+				nProp = new Property(prop, prop.name + "-ZVAt");
+			lastResults.add(runSim(nProp, sc));
 		}
-		return ret;
 	}
 
 	private static void benchmarkHeader(String[] args, String model)
@@ -263,28 +256,28 @@ class Main {
 		System.out.println("\t\"command\": \"java -jar DFTRES.jar " + String.join(" ", Arrays.asList(args)) + "\",");
 	}
 
-	private static void benchmarkPostSim(long timeNanos, ArrayList<SimulationResult> results, long seed)
+	private static void benchmarkPostSim(long timeNanos, long RNGseed)
 	{
 		System.out.println("\t\"time\": " + Double.toString(Math.round(timeNanos / 1000000.0) / 1000.0) + ",");
 		System.out.println("\t\"memory\": " + getMaximalMemory() + ",");
 		System.out.println("\t\"property-times\": [");
-		for (int i = 0; i < results.size(); i++) {
-			SimulationResult res = results.get(i);
-			System.out.format("\t\t{ \"name\": \"%s\", \"time\": %s }%s\n", res.property.name, Double.toString(Math.round(res.simTimeNanos / 1000000) / 1000.0), (i == results.size() - 1) ? "" : "," );
+		for (int i = 0; i < lastResults.size(); i++) {
+			SimulationResult res = lastResults.get(i);
+			System.out.format("\t\t{ \"name\": \"%s\", \"time\": %s }%s\n", res.property.name, Double.toString(Math.round(res.simTimeNanos / 1000000) / 1000.0), (i == lastResults.size() - 1) ? "" : "," );
 		}
 		System.out.println("\t],");
 		System.out.println("\t\"data\": [");
-		if (results.size() > 0) {
+		if (lastResults.size() > 0) {
 			System.out.println("\t\t{");
 			System.out.println("\t\t\t\"group\": \"Simulator\",");
 			System.out.println("\t\t\t\"values\": [");
-			System.out.println("\t\t\t\t{ \"name\": \"RNG Seed\", \"value\": " + seed + "},");
+			System.out.println("\t\t\t\t{ \"name\": \"RNG Seed\", \"value\": " + RNGseed + "},");
 			System.out.println("\t\t\t\t{ \"name\": \"CPU cores used\", \"value\": " + Simulator.coresToUse + "}");
 			System.out.println("\t\t\t]");
 			System.out.println("\t\t},");
 		}
-		for (int i = 0; i < results.size(); i++) {
-			SimulationResult res = results.get(i);
+		for (int i = 0; i < lastResults.size(); i++) {
+			SimulationResult res = lastResults.get(i);
 			System.out.println("\t\t{");
 			System.out.println("\t\t\t\"property\": \"" + res.property.name + "\",");
 			System.out.println("\t\t\t\"value\": " + res.mean + ",");
@@ -296,23 +289,13 @@ class Main {
 			System.out.println("\t\t\t\t{ \"name\": \"Relative error\", \"value\": " + res.getRelErr() + "},");
 			System.out.println("\t\t\t\t{ \"name\": \"95% Confidence interval\", \"value\": \"[" + res.getCI() + "]\" }");
 			System.out.println("\t\t\t]");
-			if (i < results.size() - 1)
+			if (i < lastResults.size() - 1)
 				System.out.println("\t\t},");
 			else
 				System.out.println("\t\t}");
 		}
 		System.out.println("\t]");
 		System.out.println("}");
-	}
-
-	private static void showResults(long timeNanos, ArrayList<SimulationResult> results)
-	{
-		System.out.println("Total time: " + Double.toString(Math.round(timeNanos / 1000000.0) / 1000.0) + " s.");
-		for (int i = 0; i < results.size(); i++) {
-			SimulationResult res = results.get(i);
-			System.out.println("Property " + res.property.name + ":");
-			System.out.println(res.toString());
-		}
 	}
 
 	private static LTS loadModel(String filename,
@@ -474,6 +457,38 @@ class Main {
 		System.exit(out == System.err ? -1 : 0);
 	}
 
+	/**
+	 * Bookkeeping of last simulations & results, followed by results dumping
+	 * @param startTimeNanos  System.nanoTime() value on main() start
+	 * @param RNGseed         Seed fed to the RNG for simulations
+	 */
+	private static void terminate(long startTimeNanos,
+								  long RNGseed)
+	{
+		// Are there any unregistered simulation results?
+		if (simulator.pregnant()) {
+			if (null == lastResults)
+				lastResults = new ArrayList<>();
+			lastResults.add(simulator.bear(1 - confidence));
+		}
+		// Dump all results
+		if (null != lastResults && !lastResults.isEmpty()) {
+			final long time = System.nanoTime() - startTimeNanos;
+			if (jsonOutput && !properties.isEmpty()) {
+				// JSON output for benchmark
+				benchmarkPostSim(time, RNGseed);
+			} else {
+				// Shell output
+				System.out.println("Total time: " + Double.toString(Math.round(time/1000000.0) / 1000.0) + " s.");
+				for (int i = 0; i < lastResults.size(); i++) {
+					SimulationResult res = lastResults.get(i);
+					System.out.println("Property " + res.property.name + ":");
+					System.out.println(res.toString());
+				}
+			}
+		}
+	}
+
 	public static void main(String args[]) throws Exception
 	{
 		long startTime = System.nanoTime();
@@ -504,6 +519,7 @@ class Main {
 		String filename = args[args.length - 1];
 		String janiOutputFile = null, traLabOutputFile = null;
 
+		// TODO: factor this CLI parsing out of the main() method
 		for (int i = 0; i < args.length - 1; i++) {
 			if (args[i].equals("-a")) {
 				Property av = new Property(Property.Type.STEADY_STATE, new VariableExpression("marked"), "Unavailability");
@@ -642,20 +658,25 @@ class Main {
 		}
 		if (jsonOutput && !properties.isEmpty())
 			benchmarkHeader(args, filename);
+
+		// This runs on exit, including early termination e.g. by user SIGNAL
+		final long seedChosen = seed;  // effectively final seed, you dense JVM
+		Runtime.getRuntime().addShutdownHook(new Thread()
+		{
+			@Override public void run() { terminate(startTime, seedChosen); }
+		});
+
 		for (Property prop : properties) {
 			if (!onlyProperties.isEmpty() && !onlyProperties.contains(prop.name))
 				continue;
 			try {
-				results.addAll(runSimulations(prop));
+				runSimulations(prop);
 			} catch (UnsupportedOperationException e2) {
 				System.err.println(prop.name + ": " + e2.getMessage());
 			}
 		}
-		long time = System.nanoTime() - startTime;
-		if (jsonOutput && !properties.isEmpty())
-			benchmarkPostSim(time, results, seed);
-		else
-			showResults(time, results);
-		System.exit(0);
+		assert(lastResults.isEmpty() || !simulator.hasResults());
+
+		System.exit(0);  // results are dumped by shutdown hook
 	}
 }

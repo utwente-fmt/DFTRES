@@ -366,7 +366,7 @@ public abstract class TraceGenerator
 		return System.nanoTime() - startTime;
 	}
 
-	public abstract SimulationResult getResult(double alpha);
+	protected abstract SimulationResult getResult(double alpha);
 	public abstract SimulationResult getResult(TraceGenerator[] ts, double alpha);
 	public abstract void sample();
 }

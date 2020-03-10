@@ -182,7 +182,7 @@ public class SteadyStateTracer extends TraceGenerator
 
 	}
 
-	public SimulationResult getResult(double alpha)
+	protected SimulationResult getResult(double alpha)
 	{
 		if (hasDeadlocks)
 			return getDeadlockResult(alpha);

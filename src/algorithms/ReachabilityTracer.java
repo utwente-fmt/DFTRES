@@ -189,7 +189,7 @@ public class ReachabilityTracer extends TraceGenerator
 		}
 	}
 
-	public SimulationResult getResult(double alpha)
+	protected SimulationResult getResult(double alpha)
 	{
 		long time = getElapsedTime();
 		if (M == 0) {

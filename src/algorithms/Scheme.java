@@ -4,9 +4,10 @@ import java.util.Arrays;
 import java.util.Map;
 import models.StateSpace;
 
-// general outlay of a general importance sampling scheme - extensions of this class are to be used
-// by actual simulators.
-
+/**
+ * General outlay of a (general) Importance Sampling scheme.
+ * Extensions of this class are to be used by actual simulators.
+ */
 public class Scheme
 {
 	public final String name;
