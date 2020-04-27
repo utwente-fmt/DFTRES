@@ -17,8 +17,7 @@ The standard syntax is:
 
 java -jar DFTRES.jar [options] [<input>.exp | <input>.jani | <input.dft>]
 
-NOTE: input from .dft files requires a working DFTCalc version (the
-'next' branch is required at the time this README is written).
+NOTE: input from .dft files requires a working DFTCalc version.
 
 Supported options are:
 -s <N>		Seed for the random number generator.
