@@ -1,0 +1,53 @@
+(* Number of rules: 20*)
+hide
+	ACTIVATE,
+	a_or1_be3,
+	d_or1_be3,
+	a_or1_be4,
+	d_or1_be4,
+	a_fdep2_be5,
+	d_fdep2_be5,
+	i__be3,
+	i__be4,
+	i__be5,
+	f_or1_be3,
+	f_or1_be4,
+	f_fdep2_be5,
+	f_fdep2_be4
+in
+	label par using
+	(*	tle                   or1                     fdep2                   be3                      be4                      be5                    *)
+		"ACTIVATE !0 !TRUE" * "ACTIVATE !0 !FALSE"  * _                     * _                      * _                      * _                      -> ACTIVATE,
+		_                   * "ACTIVATE !1 !TRUE"   * _                     * "ACTIVATE !0 !FALSE"   * _                      * _                      -> a_or1_be3,
+		_                   * "DEACTIVATE !1 !TRUE" * _                     * "DEACTIVATE !0 !FALSE" * _                      * _                      -> d_or1_be3,
+		_                   * "ACTIVATE !2 !TRUE"   * _                     * _                      * "ACTIVATE !0 !FALSE"   * _                      -> a_or1_be4,
+		_                   * "DEACTIVATE !2 !TRUE" * _                     * _                      * "DEACTIVATE !0 !FALSE" * _                      -> d_or1_be4,
+		_                   * _                     * "ACTIVATE !1 !TRUE"   * _                      * _                      * "ACTIVATE !0 !FALSE"   -> a_fdep2_be5,
+		_                   * _                     * "DEACTIVATE !1 !TRUE" * _                      * _                      * "DEACTIVATE !0 !FALSE" -> d_fdep2_be5,
+		_                   * _                     * _                     * "INSPECT !0"           * _                      * _                      -> i__be3,
+		_                   * _                     * _                     * _                      * "INSPECT !0"           * _                      -> i__be4,
+		_                   * _                     * _                     * _                      * _                      * "INSPECT !0"           -> i__be5,
+		_                   * "FAIL !0"             * _                     * _                      * _                      * _                      -> FAIL,
+		_                   * "FAIL !1"             * _                     * "FAIL !0"              * _                      * _                      -> f_or1_be3,
+		_                   * "FAIL !2"             * _                     * _                      * "FAIL !0"              * _                      -> f_or1_be4,
+		_                   * _                     * "FAIL !1"             * _                      * _                      * "FAIL !0"              -> f_fdep2_be5,
+		_                   * "FAIL !2"             * "FAIL !2"             * _                      * _                      * _                      -> f_fdep2_be4,
+		_                   * "IMPOSSIBLE"          * _                     * _                      * _                      * _                      -> IMPOSSIBLE_or1,
+		_                   * _                     * "IMPOSSIBLE"          * _                      * _                      * _                      -> IMPOSSIBLE_fdep2,
+		_                   * _                     * _                     * "IMPOSSIBLE"           * _                      * _                      -> IMPOSSIBLE_be3,
+		_                   * _                     * _                     * _                      * "IMPOSSIBLE"           * _                      -> IMPOSSIBLE_be4,
+		_                   * _                     * _                     * _                      * _                      * "IMPOSSIBLE"           -> IMPOSSIBLE_be5
+	in
+		"expfiles/toplevel.aut"
+		||
+		"expfiles/or_c2_aa.aut"
+		||
+		"expfiles/fdep_c1_d1_aa.aut"
+		||
+		total rename "RATE_FAIL !1 !2" -> "rate 0.1" in "expfiles/be_cold_aa.aut" end rename
+		||
+		total rename "RATE_FAIL !1 !2" -> "rate 0.2" in "expfiles/be_cold_aa.aut" end rename
+		||
+		total rename "RATE_FAIL !1 !2" -> "rate 0.3" in "expfiles/be_cold_aa.aut" end rename
+	end par
+end hide

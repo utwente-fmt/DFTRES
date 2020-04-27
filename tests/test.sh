@@ -111,6 +111,8 @@ fi
 do_tests < tests.txt
 if [ "$DO_DFTCALC_TESTS" = 1 ]; then
 	do_tests < dfttests.txt
+else
+	do_tests < <(sed -e 's/\(.*\)\.dft/expfiles\/\1.exp/' dfttests.txt)
 fi
 printf "\n";
 if [ "$TESTS_FAILED" = "0" ]; then

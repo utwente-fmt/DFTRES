@@ -1,0 +1,25 @@
+(* Number of rules: 8*)
+hide
+	ACTIVATE,
+	rep_2insp1_be2,
+	rr__be2,
+	insp_2insp1_be2
+in
+	label par using
+	(*	tle                   2insp1         be2                  *)
+		"ACTIVATE !0 !TRUE" * _            * "ACTIVATE !0 !FALSE" -> ACTIVATE,
+		_                   * "REPAIR !0"  * "REPAIR !FALSE"      -> rep_2insp1_be2,
+		_                   * _            * "RATE_REPAIR"        -> rr__be2,
+		_                   * _            * "ONLINE !0"          -> ONLINE,
+		_                   * "INSPECT !1" * "INSPECT !0"         -> insp_2insp1_be2,
+		_                   * "INSPECT !1" * "FAIL !0"            -> FAIL,
+		_                   * "IMPOSSIBLE" * _                    -> IMPOSSIBLE_2insp1,
+		_                   * _            * "IMPOSSIBLE"         -> IMPOSSIBLE_be2
+	in
+		"expfiles/toplevel.aut"
+		||
+		total rename "RATE_INSPECTION !1" -> "rate 2" in "expfiles/i2insp_c1_aa.aut" end rename
+		||
+		total rename "RATE_FAIL !1 !2" -> "rate 0.04", "RATE_FAIL !0 !2" -> "rate 0.06" in "expfiles/be_cold_im_interval1_aa.aut" end rename
+	end par
+end hide
