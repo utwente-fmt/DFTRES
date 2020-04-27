@@ -295,12 +295,7 @@ public class Composition implements MarkableLTS
 			synchronizedLabels = Arrays.copyOf(synchronizedLabels, i);
 			priorityVectors = Arrays.copyOf(priorityVectors, i);
 		}
-		//globalVars = Map.of();
-		//transientGlobals = Map.of();
-		//markLabels = new TreeMap<>();
-		//  ^^^ @Enno: shouldn't we copy all global data from orig?
-		//  I do that here below, else I get exceptions
-        markLabels = orig.markLabels;
+		markLabels = new TreeMap<>();
 		transientGlobals = orig.transientGlobals;
 		if (!orig.globalVars.isEmpty())
 			globalVars = new HashMap<>();
@@ -404,7 +399,7 @@ public class Composition implements MarkableLTS
 			String current = labels[i], sl = synchronizedLabels[i];
 			if (current == null)
 				continue;
-			if (markLabels != null && markLabels.containsKey(sl) != visible)
+			if ((markLabels != null && markLabels.containsKey(sl)) != visible)
 				continue;
 			for (int a : vectorAutomata[i]) {
 				if (Arrays.binarySearch(auts, a) < 0) {
@@ -484,7 +479,7 @@ public class Composition implements MarkableLTS
 			long states = 1;
 			if (vectorAutomata[i].length < 2)
 				continue;
-			if (null != hideLabels && !hideLabels.contains(synchronizedLabels[i]))
+			if (null == hideLabels || !hideLabels.contains(synchronizedLabels[i]))
 				continue;
 			for (int j : vectorAutomata[i]) {
 				auts.add(j);
@@ -1494,7 +1489,7 @@ public class Composition implements MarkableLTS
 			 */
 			Integer m;
 			target = from.clone();
-			if (null != markLabels && synchronizedLabels.length < i) {
+			if (null != markLabels) {
 				m = markLabels.get(synchronizedLabels[i]);
 				if (m != null)
 					target[automata.length] = m;
