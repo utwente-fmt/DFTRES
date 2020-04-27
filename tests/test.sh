@@ -1,7 +1,7 @@
-#!/bin/sh
+#!/bin/bash
 
 REL_ERROR_BOUND="10^-2";
-DFTRES_CMD="java -jar ../DFTRES.jar -s 0"
+DFTRES_CMD="java -jar ../DFTRES.jar -s 0 -p 4"
 DFTRES_OPTS="--relErr 1e-1"
 
 # Split an interval value into lower and upper bounds.
