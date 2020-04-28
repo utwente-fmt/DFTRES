@@ -1,0 +1,4 @@
+repair-spare.dft        "-a"    446/53361
+repair-pand.dft         "-a"    223/53361
+repair-prob.dft 	"-u"	0.4
+simple-fdep.dft         "-r 1"  0.451188363905973[5551; 6162]

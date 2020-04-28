@@ -1,0 +1,16 @@
+This directory contains automated tests of DFTRES.
+
+To run the tests, execute 'sh test.sh [--dft] [options]', where
+[options] is a list of options accepted by DFTRES (e.g. --zvav or
+-n 10000).
+
+The tests are listed in 'tests.txt', formatted as:
+	filename	"options"	reference_result
+where the options should specify the metric to calculate, and the
+reference result should be an interval known to contain the true value.
+
+If '--dft' is included, the tests in 'dfttests.txt' are also performed.
+These are .dft files which require DFTCalc to run.
+
+Tests are performed using a static seed and four threads, so they should
+be reproducible.

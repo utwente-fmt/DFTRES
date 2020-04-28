@@ -1,0 +1,53 @@
+(* Number of rules: 21*)
+hide
+	ACTIVATE,
+	a_wsp1_be3,
+	d_wsp1_be3,
+	a_wsp1_be4,
+	d_wsp1_be4,
+	rep_2insp2_be3,
+	rr__be3,
+	rr__be4,
+	o_wsp1_be3,
+	o_wsp1_be4,
+	insp_2insp2_wsp1,
+	insp_2insp2_be3,
+	insp_2insp2_be4,
+	f_wsp1_be3,
+	f_wsp1_be4
+in
+	label par using
+	(*	tle                   wsp1                    2insp2         be3                      be4                    *)
+		"ACTIVATE !0 !TRUE" * "ACTIVATE !0 !FALSE"  * _            * _                      * _                      -> ACTIVATE,
+		_                   * "ACTIVATE !1 !TRUE"   * _            * "ACTIVATE !0 !FALSE"   * _                      -> a_wsp1_be3,
+		_                   * "DEACTIVATE !1 !TRUE" * _            * "DEACTIVATE !0 !FALSE" * _                      -> d_wsp1_be3,
+		_                   * "ACTIVATE !2 !TRUE"   * _            * _                      * "ACTIVATE !0 !FALSE"   -> a_wsp1_be4,
+		_                   * "DEACTIVATE !2 !TRUE" * _            * _                      * "DEACTIVATE !0 !FALSE" -> d_wsp1_be4,
+		_                   * _                     * "REPAIR !0"  * "REPAIR !FALSE"        * "REPAIR !FALSE"        -> rep_2insp2_be3,
+		_                   * _                     * _            * "RATE_REPAIR"          * _                      -> rr__be3,
+		_                   * _                     * _            * _                      * "RATE_REPAIR"          -> rr__be4,
+		_                   * "ONLINE !0"           * _            * _                      * _                      -> ONLINE,
+		_                   * "ONLINE !1"           * _            * "ONLINE !0"            * _                      -> o_wsp1_be3,
+		_                   * "ONLINE !2"           * _            * _                      * "ONLINE !0"            -> o_wsp1_be4,
+		_                   * "INSPECT !0"          * "INSPECT !1" * _                      * _                      -> insp_2insp2_wsp1,
+		_                   * _                     * "INSPECT !2" * "INSPECT !0"           * _                      -> insp_2insp2_be3,
+		_                   * _                     * "INSPECT !3" * _                      * "INSPECT !0"           -> insp_2insp2_be4,
+		_                   * "FAIL !0"             * "INSPECT !1" * _                      * _                      -> FAIL,
+		_                   * "FAIL !1"             * "INSPECT !2" * "FAIL !0"              * _                      -> f_wsp1_be3,
+		_                   * "FAIL !2"             * "INSPECT !3" * _                      * "FAIL !0"              -> f_wsp1_be4,
+		_                   * "IMPOSSIBLE"          * _            * _                      * _                      -> IMPOSSIBLE_wsp1,
+		_                   * _                     * "IMPOSSIBLE" * _                      * _                      -> IMPOSSIBLE_2insp2,
+		_                   * _                     * _            * "IMPOSSIBLE"           * _                      -> IMPOSSIBLE_be3,
+		_                   * _                     * _            * _                      * "IMPOSSIBLE"           -> IMPOSSIBLE_be4
+	in
+		"expfiles/toplevel.aut"
+		||
+		"expfiles/wsp_c2_r_aa.aut"
+		||
+		total rename "RATE_INSPECTION !1" -> "rate 2" in "expfiles/i2insp_c3_r_aa.aut" end rename
+		||
+		total rename "RATE_FAIL !1 !2" -> "rate 0.1", "RATE_FAIL !1 !1" -> "rate 0.1" in "expfiles/be_im_interval1_aa.aut" end rename
+		||
+		total rename "RATE_FAIL !1 !2" -> "rate 0.1", "RATE_FAIL !1 !1" -> "rate 0.1" in "expfiles/be_im_interval1.aut" end rename
+	end par
+end hide

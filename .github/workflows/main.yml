@@ -1,0 +1,15 @@
+name: Compile and Test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set Java 11
+      run: echo ::set-env name=PATH::$(echo /usr/lib/jvm/zulu-11-azure-amd64/bin:$PATH)
+    - name: Compile
+      run: make jar
+    - name: Tests
+      run: cd tests && bash test.sh
