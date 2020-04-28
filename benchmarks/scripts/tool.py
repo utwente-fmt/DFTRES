@@ -93,6 +93,25 @@ def get_invocations(benchmark : Benchmark):
 		"often-epsilon-correct-10-min": 1e-99,  # run till judgement day
 	}
 	TWEAKS = "--unsafe-scheduling --fixed-batches"
+	# Some Unreliability queries need other tweaks in some tracks
+	IS_UNREL = benchmark.get_property_name().find("Unreliability") >= 0;
+	STWEAKS = {
+		"probably-epsilon-correct" : {
+			"cabinets.3-2-true.jani" : "--unsafe-scheduling",
+		},
+		"often-epsilon-correct" : {
+			"cabinets.3-2-true.jani" : "--unsafe-scheduling",
+			"hecs.false-1-1.jani" : "--unsafe-scheduling",
+			"hecs.false-2-2.jani" : "--unsafe-scheduling",
+			"hecs.false-3-2.jani" : "--unsafe-scheduling",
+		},
+		"often-epsilon-correct-10-min" : {
+			"cabinets.3-2-true.jani" : "--unsafe-scheduling",
+			"hecs.false-1-1.jani" : "--unsafe-scheduling",
+			"hecs.false-2-2.jani" : "--unsafe-scheduling",
+			"hecs.false-3-2.jani" : "--unsafe-scheduling",
+		},
+	}
 	JVM = "java -Xmx6G -XX:+UseParallelGC"
 	RNG = "-s 0"  # seed 0 for reproducibility
 	PROP = "--prop " + benchmark.get_property_name()
@@ -107,7 +126,11 @@ def get_invocations(benchmark : Benchmark):
 			i = Invocation()
 			i.identifier = invID
 			i.track_id = track
-			i.add_command(" ".join([CALL,err,tweaks,benchmark.get_janifilename()]))
+			fname = benchmark.get_janifilename()
+			CHECKIT = IS_UNREL and invID == "specific"
+			if CHECKIT and track in STWEAKS and fname in STWEAKS[track]:
+				tweaks = STWEAKS[track][fname]
+			i.add_command(" ".join([CALL,err,tweaks,fname]))
 			invocations.append(i)
 	return invocations
 
