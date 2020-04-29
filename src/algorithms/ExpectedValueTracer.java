@@ -100,15 +100,17 @@ public class ExpectedValueTracer extends TraceGenerator
 		if (prop.transientReward != null)
 			reward += evaluate(prop.transientReward, state);
 
-		N++;
-		if (reward > 0)
-			M++;
-		sum = Math.fma(reward, likelihood, sum);
-		double diffEst = Math.fma(reward, likelihood, -estMean);
-		sumSquares = Math.fma(diffEst, diffEst, sumSquares);
+		synchronized(this) {
+			N++;
+			if (reward > 0)
+				M++;
+			sum = Math.fma(reward, likelihood, sum);
+			double diffEst = Math.fma(reward, likelihood, -estMean);
+			sumSquares = Math.fma(diffEst, diffEst, sumSquares);
+		}
 	}
 
-	public SimulationResult getResult(double alpha)
+	public synchronized SimulationResult getResult(double alpha)
 	{
 		long time = getElapsedTime();
 		if (M == 0) {
@@ -134,16 +136,18 @@ public class ExpectedValueTracer extends TraceGenerator
 		for (TraceGenerator t : ts) {
 			if (t instanceof ExpectedValueTracer) {
 				ExpectedValueTracer rt = (ExpectedValueTracer)t;
-				if (estMean != rt.estMean) {
-					sum = 0;
-					sumSquares = 0;
-					N = M = 0;
+				synchronized(rt) {
+					if (estMean != rt.estMean) {
+						sum = 0;
+						sumSquares = 0;
+						N = M = 0;
+					}
+					estMean = rt.estMean;
+					sum += rt.sum;
+					sumSquares += rt.sumSquares;
+					N += rt.N;
+					M += rt.M;
 				}
-				estMean = rt.estMean;
-				sum += rt.sum;
-				sumSquares += rt.sumSquares;
-				N += rt.N;
-				M += rt.M;
 			}
 		}
 		return getResult(alpha);

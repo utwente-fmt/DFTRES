@@ -177,19 +177,21 @@ public class ReachabilityTracer extends TraceGenerator
 		        && timeLeft > 0
 		        && likelihood > 0);
 
-		N++;
-		if(timeLeft > 0 && prop.isRed(model, state)) {
-			M++;
-			double prob = 1;
-			if (path != null)
-				prob = computeProb(path);
-			sum = Math.fma(prob, likelihood, sum);
-			prob = Math.fma(prob, likelihood, -estMean);
-			sumSquares = Math.fma(prob, prob, sumSquares);
+		synchronized(this) {
+			N++;
+			if(timeLeft > 0 && prop.isRed(model, state)) {
+				M++;
+				double prob = 1;
+				if (path != null)
+					prob = computeProb(path);
+				sum = Math.fma(prob, likelihood, sum);
+				prob = Math.fma(prob, likelihood, -estMean);
+				sumSquares = Math.fma(prob, prob, sumSquares);
+			}
 		}
 	}
 
-	public SimulationResult getResult(double alpha)
+	public synchronized SimulationResult getResult(double alpha)
 	{
 		long time = getElapsedTime();
 		if (M == 0) {
@@ -226,16 +228,18 @@ public class ReachabilityTracer extends TraceGenerator
 		for (TraceGenerator t : ts) {
 			if (t instanceof ReachabilityTracer) {
 				ReachabilityTracer rt = (ReachabilityTracer)t;
-				if (estMean != rt.estMean) {
-					sum = 0;
-					sumSquares = 0;
-					N = M = 0;
+				synchronized(rt) {
+					if (estMean != rt.estMean) {
+						sum = 0;
+						sumSquares = 0;
+						N = M = 0;
+					}
+					estMean = rt.estMean;
+					sum += rt.sum;
+					sumSquares += rt.sumSquares;
+					N += rt.N;
+					M += rt.M;
 				}
-				estMean = rt.estMean;
-				sum += rt.sum;
-				sumSquares += rt.sumSquares;
-				N += rt.N;
-				M += rt.M;
 			}
 		}
 		return getResult(alpha);
@@ -276,7 +280,8 @@ public class ReachabilityTracer extends TraceGenerator
                 return numer / denom;
 	}
 
-	private SimulationResult binomialCI(double alpha, double var, long time)
+	private synchronized SimulationResult binomialCI(double alpha,
+	                                                 double var, long time)
 	{
 		double mean, lbound, ubound;
 		boolean inverse = false;

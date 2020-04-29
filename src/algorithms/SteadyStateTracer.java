@@ -113,19 +113,21 @@ public class SteadyStateTracer extends TraceGenerator
 			 * P(eventually red), probably very badly due to
 			 * the importance sampling.
 			 */
-			if (!hasDeadlocks) {
-				/* We didn't know yet we could deadlock.
-				 * */
-				hasDeadlocks = true;
-				M = 0;
-				N = 0;
-				sumRedTime = sumRedTimesSquared = 0;
-			}
-			N++;
-			if (prop.isRed(model, state)) {
-				M++;
-				sumRedTime += likelihood;
-				sumRedTimesSquared = Math.fma(likelihood, likelihood, sumRedTimesSquared);
+			synchronized(this) {
+				if (!hasDeadlocks) {
+					/* We didn't know yet we could deadlock.
+					 * */
+					hasDeadlocks = true;
+					M = 0;
+					N = 0;
+					sumRedTime = sumRedTimesSquared = 0;
+				}
+				N++;
+				if (prop.isRed(model, state)) {
+					M++;
+					sumRedTime += likelihood;
+					sumRedTimesSquared = Math.fma(likelihood, likelihood, sumRedTimesSquared);
+				}
 			}
 		}
 
@@ -141,37 +143,39 @@ public class SteadyStateTracer extends TraceGenerator
 			if (state == prevState)
 				deadlocked = true;
 		} while(!prop.isBlue(model, state) && !deadlocked);
-		if (deadlocked) {
+		synchronized(this) {
+			if (deadlocked) {
+				if (!hasDeadlocks) {
+					/* We didn't know yet we could deadlock.
+					 * */
+					hasDeadlocks = true;
+					M = 0;
+					N = 0;
+					sumRedTime = sumRedTimesSquared = 0;
+				}
+				N++;
+				if (prop.isRed(model, state)) {
+					M++;
+					sumRedTime += 1;
+					sumRedTimesSquared += 1;
+				}
+			}
 			if (!hasDeadlocks) {
-				/* We didn't know yet we could deadlock.
-				 * */
-				hasDeadlocks = true;
-				M = 0;
-				N = 0;
-				sumRedTime = sumRedTimesSquared = 0;
+				N++;
+				if (timeInRed > 0) {
+					M++;
+					sumRedTime = Math.fma(timeInRed, likelihood, sumRedTime);
+					double Z = Math.fma(timeInRed, likelihood, -estMeanRedTime);
+					sumRedTimesSquared = Math.fma(Z, Z, sumRedTimesSquared);
+				}
+				sumTime += totalTime;
+				totalTime -= estMeanTime;
+				sumTimesSquared = Math.fma(totalTime, totalTime, sumTimesSquared);
 			}
-			N++;
-			if (prop.isRed(model, state)) {
-				M++;
-				sumRedTime += 1;
-				sumRedTimesSquared += 1;
-			}
-		}
-		if (!hasDeadlocks) {
-			N++;
-			if (timeInRed > 0) {
-				M++;
-				sumRedTime = Math.fma(timeInRed, likelihood, sumRedTime);
-				double Z = Math.fma(timeInRed, likelihood, -estMeanRedTime);
-				sumRedTimesSquared = Math.fma(Z, Z, sumRedTimesSquared);
-			}
-			sumTime += totalTime;
-			totalTime -= estMeanTime;
-			sumTimesSquared = Math.fma(totalTime, totalTime, sumTimesSquared);
 		}
 	}
 
-	public SimulationResult getDeadlockResult(double alpha)
+	private SimulationResult getDeadlockResult(double alpha)
 	{
 		long time = getElapsedTime();
 		double mean = sumRedTime / N;
@@ -182,7 +186,7 @@ public class SteadyStateTracer extends TraceGenerator
 
 	}
 
-	public SimulationResult getResult(double alpha)
+	public synchronized SimulationResult getResult(double alpha)
 	{
 		if (hasDeadlocks)
 			return getDeadlockResult(alpha);
@@ -218,31 +222,33 @@ public class SteadyStateTracer extends TraceGenerator
 		for (TraceGenerator t : ts) {
 			if (t instanceof SteadyStateTracer) {
 				SteadyStateTracer st = (SteadyStateTracer)t;
-				if (deadlock && !st.hasDeadlocks)
-					continue;
-				if (st.hasDeadlocks && !deadlock) {
-					N = M = 0;
-					deadlock = true;
-					hasDeadlocks = true;
-					sumRedTime = sumRedTimesSquared = 0;
+				synchronized(st) {
+					if (deadlock && !st.hasDeadlocks)
+						continue;
+					if (st.hasDeadlocks && !deadlock) {
+						N = M = 0;
+						deadlock = true;
+						hasDeadlocks = true;
+						sumRedTime = sumRedTimesSquared = 0;
+					}
+					if (!deadlock
+					    && (estMeanTime != st.estMeanTime
+						|| estMeanRedTime != st.estMeanRedTime))
+					{
+						N = M = 0;
+						sumRedTime = sumTime = 0;
+						sumRedTimesSquared = 0;
+						sumTimesSquared = 0;
+					}
+					estMeanTime = st.estMeanTime;
+					estMeanRedTime = st.estMeanRedTime;
+					sumTime += st.sumTime;
+					sumRedTime += st.sumRedTime;
+					sumTimesSquared += st.sumTimesSquared;
+					sumRedTimesSquared += st.sumRedTimesSquared;
+					N += st.N;
+					M += st.M;
 				}
-				if (!deadlock
-				    && (estMeanTime != st.estMeanTime
-				        || estMeanRedTime != st.estMeanRedTime))
-				{
-					N = M = 0;
-					sumRedTime = sumTime = 0;
-					sumRedTimesSquared = 0;
-					sumTimesSquared = 0;
-				}
-				estMeanTime = st.estMeanTime;
-				estMeanRedTime = st.estMeanRedTime;
-				sumTime += st.sumTime;
-				sumRedTime += st.sumRedTime;
-				sumTimesSquared += st.sumTimesSquared;
-				sumRedTimesSquared += st.sumRedTimesSquared;
-				N += st.N;
-				M += st.M;
 			}
 		}
 		return getResult(alpha);

@@ -17,6 +17,9 @@ public class Simulator {
 	private final StateSpace initialModel;
 	private final TraceGenerator gen;
 	private static final Runtime r = Runtime.getRuntime();
+
+	private TraceGenerator[] currentGenerators;
+	private SimulationResult lastResult;
 	
 	static {
 		coresToUse = Runtime.getRuntime().availableProcessors();
@@ -110,6 +113,9 @@ public class Simulator {
 		TraceGenerator[] ret = new TraceGenerator[threads];
 		for (int i = 0; i < threads; i++)
 			ret[i] = gen.copy();
+		synchronized(this) {
+			currentGenerators = ret;
+		}
 		if (maxN == 0)
 			return ret;
 		ProgressPrinter p;
@@ -164,6 +170,17 @@ public class Simulator {
 			new Tracer(ret[0], maxN).run();
 		}
 		return ret;
+	}
+
+	/**
+	 * Get the current best estimate even if simulations are still
+	 * running.
+	 */
+	public synchronized SimulationResult getCurrentEstimate(double alpha)
+	{
+		if (currentGenerators != null)
+			return gen.getResult(currentGenerators, alpha);
+		return lastResult;
 	}
 
 	/**
@@ -235,7 +252,12 @@ public class Simulator {
 			System.err.println();
 		if (VERBOSE)
 			System.err.println("End size: "+gen.scheme.model.size());
-		return gen.getResult(ts, alpha);
+		SimulationResult ret = gen.getResult(ts, alpha);
+		synchronized(this) {
+			lastResult = ret;
+			currentGenerators = null;
+		}
+		return ret;
 	}
 
 	public SimulationResult simUnsafeRelErr(double err, double alpha)

@@ -56,6 +56,8 @@ class Main {
 	static LTS model;
 	static TreeSet<Property> properties = new TreeSet<>();
 
+	static volatile Simulator currentSimulator;
+
 	private static Long getMaximalMemory()
 	{
 		try (BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream("/proc/self/status"))))
@@ -123,6 +125,7 @@ class Main {
 				force = 0;
 		}
 		Simulator simulator = new Simulator(rng, prop, s, force);
+		currentSimulator = simulator;
 		SimulationResult res;
 		if (!Double.isNaN(relErr)) {
 			if (maxSims > 0)
@@ -136,7 +139,8 @@ class Main {
 		return res;
 	}
 
-	private static List<SimulationResult> runSimulations(Property prop)
+	private static void runSimulations(List<SimulationResult> ret,
+	                                   Property prop)
 			throws IOException
 	{
 		boolean multiple = false;
@@ -151,19 +155,25 @@ class Main {
 				s = SchemeZVAv.instantiate(statespace, prop);
 			}
 			SimulationResult res = runSim(prop, s);
-			return List.of(res);
+			synchronized(ret) {
+				ret.add(res);
+				currentSimulator = null;
+			}
+			return;
 		}
 		if ((mc ? 1 : 0) + (zvav ? 1 : 0) + (zvad ? 1 : 0) + (unif ? 1 : 0) > 1)
 			multiple = true;
 
-		ArrayList<SimulationResult> ret = new ArrayList<>();
 		if (mc) {
 			Scheme mc = new Scheme(statespace);
 			Property nProp = prop;
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-MC");
 			SimulationResult res = runSim(nProp, mc);
-			ret.add(res);
+			synchronized(ret) {
+				ret.add(res);
+				currentSimulator = null;
+			}
 		}
 
 		if (unif) {
@@ -172,7 +182,10 @@ class Main {
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-Unif");
 			SimulationResult res = runSim(nProp, s);
-			ret.add(res);
+			synchronized(ret) {
+				ret.add(res);
+				currentSimulator = null;
+			}
 		}
 
 		if (zvad) {
@@ -184,7 +197,10 @@ class Main {
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-ZVAd");
 			SimulationResult res = runSim(nProp, sc);
-			ret.add(res);
+			synchronized(ret) {
+				ret.add(res);
+				currentSimulator = null;
+			}
 		}
 
 		if (zvav) {
@@ -196,7 +212,10 @@ class Main {
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-ZVAv");
 			SimulationResult res = runSim(nProp, sc);
-			ret.add(res);
+			synchronized(ret) {
+				ret.add(res);
+				currentSimulator = null;
+			}
 		}
 		if (zvat) {
 			if (prop.type == Property.Type.EXPECTED_VALUE) {
@@ -207,9 +226,12 @@ class Main {
 			if (multiple)
 				nProp = new Property(prop, prop.name + "-ZVAv");
 			SimulationResult res = runSim(nProp, sc);
-			ret.add(res);
+			synchronized(ret) {
+				ret.add(res);
+				currentSimulator = null;
+			}
 		}
-		return ret;
+		return;
 	}
 
 	private static void benchmarkHeader(String[] args, String model)
@@ -260,7 +282,7 @@ class Main {
 		System.out.println("\t\"command\": \"java -jar DFTRES.jar " + String.join(" ", Arrays.asList(args)) + "\",");
 	}
 
-	private static void benchmarkPostSim(long timeNanos, ArrayList<SimulationResult> results, long seed)
+	private static void benchmarkPostSim(long timeNanos, List<SimulationResult> results, long seed)
 	{
 		System.out.println("\t\"time\": " + Double.toString(Math.round(timeNanos / 1000000.0) / 1000.0) + ",");
 		System.out.println("\t\"memory\": " + getMaximalMemory() + ",");
@@ -302,7 +324,7 @@ class Main {
 		System.out.println("}");
 	}
 
-	private static void showResults(long timeNanos, ArrayList<SimulationResult> results)
+	private static void showResults(long timeNanos, List<SimulationResult> results)
 	{
 		System.out.println("Total time: " + Double.toString(Math.round(timeNanos / 1000000.0) / 1000.0) + " s.");
 		for (int i = 0; i < results.size(); i++) {
@@ -469,6 +491,26 @@ class Main {
 		}
 		System.exit(out == System.err ? -1 : 0);
 	}
+	
+	private static void terminate(List<SimulationResult> goodResults,
+	                              long startTime,
+	                              long seed)
+	{
+		long time = System.nanoTime() - startTime;
+		synchronized(goodResults) {
+			if (jsonOutput && !properties.isEmpty())
+				benchmarkPostSim(time, goodResults, seed);
+			else
+				showResults(time, goodResults);
+			if (currentSimulator != null) {
+				SimulationResult res = currentSimulator.getCurrentEstimate(confidence);
+				System.err.println("***Unexpected interruption***");
+				System.err.println("Best estimate for property " + res.property.name + ":");
+				System.err.println(res.toString());
+
+			}
+		}
+	}
 
 	public static void main(String args[]) throws Exception
 	{
@@ -478,7 +520,6 @@ class Main {
 		boolean haveSeed = false;
 		boolean doDontCareElimination = true;
 		TreeMap<String, Number> constants = new TreeMap<>();
-		ArrayList<SimulationResult> results = new ArrayList<>();
 		TreeSet<String> onlyProperties = new TreeSet<>();
 		String useRng = "XS128";
 		if (args.length == 1 && args[0].equals("--version")) {
@@ -628,20 +669,26 @@ class Main {
 		}
 		if (jsonOutput && !properties.isEmpty())
 			benchmarkHeader(args, filename);
+
+		long finalSeed = seed;
+		ArrayList<SimulationResult> results = new ArrayList<>();
+		Runtime.getRuntime().addShutdownHook(new Thread() {
+			@Override
+			public void run() {
+				terminate(results, startTime, finalSeed);
+			}
+		});
+
 		for (Property prop : properties) {
 			if (!onlyProperties.isEmpty() && !onlyProperties.contains(prop.name))
 				continue;
 			try {
-				results.addAll(runSimulations(prop));
+				runSimulations(results, prop);
 			} catch (UnsupportedOperationException e2) {
 				System.err.println(prop.name + ": " + e2.getMessage());
 			}
 		}
-		long time = System.nanoTime() - startTime;
-		if (jsonOutput && !properties.isEmpty())
-			benchmarkPostSim(time, results, seed);
-		else
-			showResults(time, results);
+		/* Results are dumped by the shutdown hook */
 		System.exit(0);
 	}
 }
