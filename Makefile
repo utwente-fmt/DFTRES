@@ -7,16 +7,21 @@ COMMIT = $(shell git rev-parse HEAD)
 VERSION_MAJOR=1
 VERSION_MINOR=0
 VERSION_PATCH=2
-VERSIONSTRING="${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}"
+BASEVERSION=${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}
+VERSIONSTRING="${BASEVERSION}"
 ifeq ($(shell git status --porcelain),)
 else
 	VERSIONSTRING += + "+" + "$(COMMIT)".substring(0,8) + "-dirty"
 endif
 MAIN_CLASS = Main
-BUILD_DATE=$(shell git show --format=\%aD HEAD | head -1)
+ifeq (,$(wildcard .git))
+	BUILD_DATE=$(shell git show --format=\%aD HEAD | head -1)
+else
+	BUILD_DATE=$(shell stat -c %y $(SOURCE_DIR)/nl/utwente/ewi/fmt/EXPRES/Version.java)
+endif
 JFLAGS = -Xlint:deprecation -g
 
-.PHONY: jar all clean dir main repro_jar
+.PHONY: jar all clean dir main deb prep_package repro_jar
 
 main: dir all
 
@@ -42,10 +47,12 @@ dir: $(SOURCE_DIR)/nl/utwente/ewi/fmt/EXPRES/Version.java
 	@mkdir -p $(CLASS_DIR)
 
 $(SOURCE_DIR)/nl/utwente/ewi/fmt/EXPRES/Version.java: FORCE
+ifneq (,$(wildcard .git))
 	@echo "package nl.utwente.ewi.fmt.EXPRES;" > $@
 	@echo "public class Version {" >> $@
 	@echo '	public static final String version = ${VERSIONSTRING};' >> $@
 	@echo "}" >> $@
+endif
 
 $(CLASS_DIR)%.class: $(SOURCE_DIR)%.java
 	@javac -Xlint:unchecked -sourcepath $(SOURCE_DIR) $(JFLAGS) -d $(CLASS_DIR) $(patsubst $(SOURCE_DIR)/%.java,%.java , $<)
@@ -56,5 +63,23 @@ clean:
 	@echo 'RM    $(CLASS_DIR)'
 	@$(RM) -r DFTRES.jar
 	@echo 'RM    DFTRES.jar'
+
+prep_package: FORCE
+	@echo 'RM       pkgtmp'
+	@$(RM) -rf pkgtmp
+	@echo 'CHECKOUT pkgtmp'
+	@git checkout-index -a --prefix=pkgtmp/dftres-${BASEVERSION}/
+	@cp $(SOURCE_DIR)/nl/utwente/ewi/fmt/EXPRES/Version.java pkgtmp/dftres-$(BASEVERSION)/$(SOURCE_DIR)/nl/utwente/ewi/fmt/EXPRES
+	@echo 'CLEAN    pkgtmp'
+	@$(RM) -rf pkgtmp/dftres-${BASEVERSION}/package
+	@$(RM) -rf pkgtmp/dftres-${BASEVERSION}/.github
+	@mkdir pkgtmp/dftres-${BASEVERSION}/package
+	@cp -r package/DFTRES pkgtmp/dftres-${BASEVERSION}/package
+
+deb: prep_package $(addprefix $(SOURCE_DIR), $(SOURCES))
+	@cp -r package/debian pkgtmp/dftres-${BASEVERSION}
+	@echo 'DPKG-BUILDPACKGE'
+	@cd pkgtmp/dftres-${BASEVERSION} && dpkg-buildpackage -g -tc $(DPKG_FLAGS)
+	@cp pkgtmp/dftres_* .
 
 FORCE:

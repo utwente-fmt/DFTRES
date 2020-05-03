@@ -1,0 +1,28 @@
+#!/usr/bin/make -f
+DEB_VERSION := $(shell dpkg-parsechangelog | sed -n -e 's/^Version: //p')
+
+clean:
+	rm -rf debian/tmp
+	rm -rf bin
+	rm -f DFTRES.jar
+	rm -f debian/files
+
+build: build-arch build-indep
+
+build-arch:
+
+build-indep:
+	make JFLAGS='-target 11 -source 11' repro_jar
+
+binary: binary-arch binary-indep
+
+binary-arch:
+
+binary-indep:
+	mkdir -p debian/tmp/DEBIAN
+	dpkg-gencontrol
+	mkdir -p debian/tmp/usr/share/dftres
+	mkdir -p debian/tmp/usr/bin
+	cp DFTRES.jar debian/tmp/usr/share/dftres
+	cp package/DFTRES debian/tmp/usr/bin
+	dpkg-deb -b debian/tmp ../dftres_${DEB_VERSION}_all.deb

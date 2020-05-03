@@ -1,3 +1,4 @@
 bin/
 src/nl/utwente/ewi/fmt/EXPRES/Version.java
 *.jar
+pkgtmp/
