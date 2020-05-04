@@ -21,7 +21,7 @@ else
 endif
 JFLAGS = -Xlint:deprecation -g
 
-.PHONY: jar all clean dir main deb prep_package repro_jar
+.PHONY: jar all clean dir main deb rpm prep_package repro_jar
 
 main: dir all
 
@@ -81,5 +81,15 @@ deb: prep_package $(addprefix $(SOURCE_DIR), $(SOURCES))
 	@echo 'DPKG-BUILDPACKGE'
 	@cd pkgtmp/dftres-${BASEVERSION} && dpkg-buildpackage -g -tc $(DPKG_FLAGS)
 	@cp pkgtmp/dftres_* .
+
+rpm: prep_package
+	@mkdir pkgtmp/SOURCES
+	@sed -e 's/<version>/${BASEVERSION}/' package/dftres.spec > pkgtmp/dftres.spec
+	@echo "TAR dftres-${BASEVERSION}.tar.xz"
+	@(cd pkgtmp && tar c dftres-${BASEVERSION}) | xz > pkgtmp/SOURCES/dftres-${BASEVERSION}.tar.xz
+	@echo "RPMBUILD"
+	@cd pkgtmp && rpmbuild -D'_topdir $(shell pwd)/pkgtmp' $(RPMBUILD_FLAGS) -ba dftres.spec
+	@mv pkgtmp/RPMS/*/* .
+	@mv pkgtmp/SRPMS/* .
 
 FORCE:
