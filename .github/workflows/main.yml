@@ -13,3 +13,13 @@ jobs:
       run: make jar
     - name: Tests
       run: cd tests && bash test.sh
+    - name: Package
+      run: make deb rpm 'RPMBUILD_FLAGS=--nodeps --nocheck'
+    - uses: actions/upload-artifact@v2
+      with:
+        name: binary-packages
+        path: dftres-*.noarch.rpm
+    - uses: actions/upload-artifact@v2
+      with:
+        name: binary-packages
+        path: dftres_*_all.deb
