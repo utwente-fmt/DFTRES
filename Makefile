@@ -13,17 +13,28 @@ else
 	VERSIONSTRING += + "+" + "$(COMMIT)".substring(0,8) + "-dirty"
 endif
 MAIN_CLASS = Main
+BUILD_DATE=$(shell git show --format=\%aD HEAD | head -1)
 JFLAGS = -Xlint:deprecation -g
 
-.PHONY: jar all clean dir main
+.PHONY: jar all clean dir main repro_jar
 
 main: dir all
 
 jar: DFTRES.jar
 
+repro_jar: DFTRES.jar
+	@echo 'UNZIP $@'
+	@mkdir -p $(CLASS_DIR)/jar
+	@(cd $(CLASS_DIR)/jar && unzip -q ../../DFTRES.jar)
+	@find $(CLASS_DIR)/jar -exec touch --date='$(BUILD_DATE)' '{}' ';'
+	@rm DFTRES.jar
+	@echo 'ZIP $@'
+	@(cd $(CLASS_DIR)/jar && find | sort | zip -Xoq9@ ../../DFTRES.jar)
+
 DFTRES.jar: dir $(OBJECTS)
-	@jar cfe DFTRES.jar $(MAIN_CLASS) -C $(CLASS_DIR) .
+	@rm -rf $(CLASS_DIR)/jar
 	@echo 'JAR   $@'
+	@jar cfe DFTRES.jar $(MAIN_CLASS) -C $(CLASS_DIR) .
 
 all: dir $(OBJECTS)
 
