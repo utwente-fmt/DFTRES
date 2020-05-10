@@ -55,7 +55,7 @@ ifneq (,$(wildcard .git))
 endif
 
 $(CLASS_DIR)%.class: $(SOURCE_DIR)%.java
-	@javac -Xlint:unchecked -sourcepath $(SOURCE_DIR) $(JFLAGS) -d $(CLASS_DIR) $(patsubst $(SOURCE_DIR)/%.java,%.java , $<)
+	@javac -Xlint:unchecked -sourcepath $(SOURCE_DIR) $(JFLAGS) -d $(CLASS_DIR) $<
 	@echo JAVAC $(@:$(CLASS_DIR)%=%)
 
 clean:
