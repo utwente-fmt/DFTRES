@@ -7,8 +7,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Set Java 11
-      run: echo ::set-env name=PATH::$(echo /usr/lib/jvm/zulu-11-azure-amd64/bin:$PATH)
+    - uses: actions/setup-java@v1
+      with:
+        java-version: 11
     - name: Compile
       run: make jar
     - name: Tests
