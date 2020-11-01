@@ -197,11 +197,12 @@ public class Automaton implements LTS {
 				throw new ModelTooLargeException();
 		}
 		targets = Arrays.copyOf(targets, states.size());
-		labels = Arrays.copyOf(labels, states.size());
+		states = null;
+		labels = Arrays.copyOf(labels, targets.length);
 		if (!anyHasAssignments)
 			assignments = null;
 		else
-			assignments = Arrays.copyOf(assignments, states.size());
+			assignments = Arrays.copyOf(assignments, targets.length);
 		initState = 0;
 		int num_states;
 		boolean change = false, first = true;
