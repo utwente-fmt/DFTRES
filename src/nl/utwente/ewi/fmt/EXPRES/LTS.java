@@ -137,12 +137,15 @@ public interface LTS
 		}
 	}
 
-	public static interface StateWrapperLike {
+	public static interface StateWrapperLike extends Comparable<StateWrapperLike> {
 		public int[] getState();
+		public default int compareTo(StateWrapperLike other) {
+			return Arrays.compare(getState(), other.getState());
+		}
 	};
 
 	public static class ReducedStateWrapper implements StateWrapperLike {
-		public final byte[] state;
+		private final byte[] state;
 
 		private ReducedStateWrapper(int[] state) {
 			final byte[] tmp = new byte[state.length];
@@ -353,7 +356,7 @@ public interface LTS
 		public boolean retainAll(Collection <?> c) { throw new UnsupportedOperationException(); };
 	}
 
-	public static class StateWrapper implements Comparable<StateWrapper>, StateWrapperLike {
+	public static class StateWrapper implements StateWrapperLike {
 		public final int[] state;
 
 		public StateWrapper(int[] state)
@@ -386,21 +389,10 @@ public interface LTS
 			return new ReducedStateWrapper(state);
 		}
 
-		public int compareTo(StateWrapper other)
+		public int compareTo(StateWrapperLike other)
 		{
-			int[] s = state;
-			int[] o = other.state;
-			if (s.length > o.length)
-				return 1;
-			if (s.length < o.length)
-				return -1;
-			for (int i = 0; i < s.length; i++) {
-				if (s[i] > o[i])
-					return 1;
-				if (s[i] < o[i])
-					return -1;
-			}
-			return 0;
+			int[] o = other.getState();
+			return Arrays.compare(state, o);
 		}
 
 		public int hashCode()
