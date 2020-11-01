@@ -99,9 +99,10 @@ public class Automaton implements LTS {
 	                 long maxMem)
 		throws ModelTooLargeException
 	{
-		HashMap<LTS.StateWrapper, Integer> states = new HashMap<>();
-		ArrayDeque<LTS.StateWrapper> queue = new ArrayDeque<>();
+		HashMap<LTS.StateWrapperLike, Integer> states = new HashMap<>();
+		ArrayDeque<LTS.StateWrapperLike> queue = new ArrayDeque<>();
 		queue.add(new LTS.StateWrapper(system.getInitialState()));
+		int[] stateHint = new int[system.stateSize()];
 		states.put(queue.getFirst(), 0);
 		targets = new int[1][];
 		labels = new String[1][];
@@ -123,8 +124,8 @@ public class Automaton implements LTS {
 				labels = Arrays.copyOf(labels, n);
 				assignments = Arrays.copyOf(assignments, n);
 			}
-			LTS.StateWrapper cur = queue.poll();
-			int[] state = cur.state;
+			LTS.StateWrapperLike cur = queue.poll();
+			int[] state = cur.getState(stateHint);
 			int num = states.get(cur);
 			Collection<LTS.Transition> ts;
 			try {
@@ -151,9 +152,12 @@ public class Automaton implements LTS {
 				LTS.StateWrapper tgt = new LTS.StateWrapper(t.target);
 				Integer tgtNum = states.get(tgt);
 				if (tgtNum == null) {
+					LTS.StateWrapperLike wrap = tgt.tryReduce();
 					tgtNum = states.size();
-					states.put(tgt, tgtNum);
-					queue.add(tgt);
+					states.put(wrap, tgtNum);
+					queue.add(wrap);
+					memUsed += 120; /* Conservative estimate of states entry header size */
+					memUsed += stateHint.length * 4;
 				}
 				targets[num][i] = tgtNum;
 				labels[num][i] = t.label;
@@ -366,7 +370,7 @@ public class Automaton implements LTS {
 	}
 
 	private Collection<LTS.Transition> cleanupInternal(
-			Collection<LTS.Transition> ts, LTS.StateWrapper current,
+			Collection<LTS.Transition> ts, LTS.StateWrapperLike current,
 	                Set<String> internal, Set<String> maxProg)
 	{
 		boolean markovian = false, unstable = false, collapse = false;

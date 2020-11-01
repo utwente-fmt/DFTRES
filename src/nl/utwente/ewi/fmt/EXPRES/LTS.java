@@ -139,6 +139,8 @@ public interface LTS
 
 	public static interface StateWrapperLike extends Comparable<StateWrapperLike> {
 		public int[] getState();
+		public int[] getState(int[] hint);
+		public int getSize();
 		public default int compareTo(StateWrapperLike other) {
 			return Arrays.compare(getState(), other.getState());
 		}
@@ -164,6 +166,18 @@ public interface LTS
 			for (int i = state.length - 1; i >= 0; i--)
 				ret[i] = state[i];
 			return ret;
+		}
+
+		public int[] getState(int[] hint) {
+			if (hint.length < state.length)
+				return getState();
+			for (int i = state.length - 1; i >= 0; i--)
+				hint[i] = state[i];
+			return hint;
+		}
+
+		public int getSize() {
+			return state.length;
 		}
 
 		public boolean equals(Object o)
@@ -366,6 +380,14 @@ public interface LTS
 
 		public int[] getState() {
 			return state;
+		}
+
+		public int[] getState(int[] hint) {
+			return state;
+		}
+
+		public int getSize() {
+			return state.length;
 		}
 
 		public boolean equals(Object o)
