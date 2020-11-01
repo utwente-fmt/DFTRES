@@ -12,6 +12,8 @@ import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 
 public interface LTS
 {
+	static final int HASH_FACTOR = 32771;
+
 	public static class Transition implements Comparable<Transition> {
 		public final String label;
 		public final int[] target;
@@ -184,7 +186,10 @@ public interface LTS
 
 		public int hashCode()
 		{
-			return Arrays.hashCode(state);
+			int ret = 0;
+			for (int i = state.length - 1; i >= 0; i--)
+				ret = (ret * HASH_FACTOR) + state[i];
+			return ret;
 		}
 
 	}
@@ -400,7 +405,10 @@ public interface LTS
 
 		public int hashCode()
 		{
-			return Arrays.hashCode(state);
+			int ret = 0;
+			for (int i = state.length - 1; i >= 0; i--)
+				ret = (ret * HASH_FACTOR) + state[i];
+			return ret;
 		}
 
 		public String toString()
