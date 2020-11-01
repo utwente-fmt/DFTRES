@@ -12,6 +12,7 @@ import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 
 public interface LTS
 {
+	ThreadLocal<int[]> comparisonArray = ThreadLocal.withInitial(() -> new int[128]);
 	static final int HASH_FACTOR = 32771;
 
 	public static class Transition implements Comparable<Transition> {
@@ -192,6 +193,18 @@ public interface LTS
 				final byte[] our  = state;
 				if (their.length != our.length)
 					return false;
+				for (int i = our.length - 1; i >= 0; i--) {
+					if (their[i] != our[i])
+						return false;
+				}
+				return true;
+			}
+			if (o instanceof StateWrapperLike) {
+				StateWrapperLike w = (StateWrapperLike)o;
+				if (w.getSize() != state.length)
+					return false;
+				final int[] their = w.getState(comparisonArray.get());;
+				final byte[] our  = state;
 				for (int i = our.length - 1; i >= 0; i--) {
 					if (their[i] != our[i])
 						return false;
@@ -395,13 +408,25 @@ public interface LTS
 			if (!(o instanceof StateWrapper)) {
 				if (o instanceof ReducedStateWrapper)
 					return ((ReducedStateWrapper)o).equals(this);
-				return false;
+				if (!(o instanceof StateWrapperLike))
+					return false;
+				StateWrapperLike w = (StateWrapperLike)o;
+				if (w.getSize() != state.length)
+					return false;
+				int[] their = w.getState(comparisonArray.get());
+				int[] our = state;
+				return Arrays.equals(their, 0, our.length, our, 0, our.length);
 			}
 			StateWrapper other = (StateWrapper) o;
 			return Arrays.equals(state, other.state);
 		}
 
 		public StateWrapperLike tryReduce() {
+			if (state.length == 3) {
+				if (state[2] == 0)
+					return new StateWrapper2Z(state);
+				return new StateWrapper3(state);
+			}
 			for (int i = state.length - 1; i >= 0; i--) {
 				if (state[i] > Byte.MAX_VALUE)
 					return this;
@@ -428,6 +453,113 @@ public interface LTS
 		public String toString()
 		{
 			return Arrays.toString(state);
+		}
+	}
+
+	public static class StateWrapper2Z implements StateWrapperLike {
+		private int s1, s2;
+
+		private StateWrapper2Z(int[] state)
+		{
+			s1 = state[0];
+			s2 = state[1];
+		}
+
+		public int[] getState() {
+			return new int[] {s1, s2, 0};
+		}
+
+		public int[] getState(int[] hint) {
+			if (hint.length < 3) {
+				throw new RuntimeException();
+				// return getState();
+			}
+			hint[0] = s1;
+			hint[1] = s2;
+			hint[2] = 0;
+			return hint;
+		}
+
+		public int getSize() {
+			return 3;
+		}
+
+		public boolean equals(Object o)
+		{
+			if (o instanceof StateWrapper2Z) {
+				StateWrapper2Z w = (StateWrapper2Z)o;
+				return w.s1 == s1 && w.s2 == s2;
+			}
+			if (!(o instanceof StateWrapperLike))
+				return false;
+			StateWrapperLike w = (StateWrapperLike)o;
+			if (w.getSize() != 3)
+				return false;
+			int[] their = w.getState(comparisonArray.get());
+			return their[0] == s1 && their[1] == s2 && their[2] == 0;
+		}
+
+		public int hashCode()
+		{
+			return s1 + (HASH_FACTOR * s2);
+		}
+
+		public String toString()
+		{
+			return new StateWrapper(new int[]{s1, s2, 0}).toString();
+		}
+	}
+
+	public static class StateWrapper3 implements StateWrapperLike {
+		private int s1, s2, s3;
+
+		private StateWrapper3(int[] state)
+		{
+			s1 = state[0];
+			s2 = state[1];
+			s3 = state[2];
+		}
+
+		public int[] getState() {
+			return new int[] {s1, s2, s3};
+		}
+
+		public int[] getState(int[] hint) {
+			if (hint.length < 3)
+				return getState();
+			hint[0] = s1;
+			hint[1] = s2;
+			hint[2] = s3;
+			return hint;
+		}
+
+		public int getSize() {
+			return 3;
+		}
+
+		public boolean equals(Object o)
+		{
+			if (o instanceof StateWrapper3) {
+				StateWrapper3 w = (StateWrapper3)o;
+				return w.s1 == s1 && w.s2 == s2 && w.s3 == s3;
+			}
+			if (!(o instanceof StateWrapperLike))
+				return false;
+			StateWrapperLike w = (StateWrapperLike)o;
+			if (w.getSize() != 3)
+				return false;
+			int[] their = w.getState(comparisonArray.get());
+			return their[0] == s1 && their[1] == s2 && their[2] == s3;
+		}
+
+		public int hashCode()
+		{
+			return s1 + (HASH_FACTOR * (s2 + (HASH_FACTOR * s3)));
+		}
+
+		public String toString()
+		{
+			return new StateWrapper(new int[]{s1, s2, s3}).toString();
 		}
 	}
 
