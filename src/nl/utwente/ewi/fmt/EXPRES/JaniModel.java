@@ -50,8 +50,14 @@ public class JaniModel
 	/** Read a JANI model from a file.
 	 * @param filename The file to read.
 	 * @param overrideConstants The values of externally specified constants
+	 * @param additionalProperties Additional properties to add to
+	 * the model
 	 */
-	public JaniModel(String filename, Map<String, Number> overrideConstants)
+	public JaniModel(
+			String filename,
+			Map<String, Number> overrideConstants,
+			Set<Property> additionalProperties
+	)
 			throws IOException
 	{
 		globalVars = new TreeMap<>();
@@ -134,6 +140,7 @@ public class JaniModel
 				}
 			}
 		}
+		properties.addAll(additionalProperties);
 		Object variables = root.get("variables");
 		if (variables != null) {
 			if (!(variables instanceof Object[]))

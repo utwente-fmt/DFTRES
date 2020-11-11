@@ -367,7 +367,7 @@ class Main {
 			m.markStatesAfter("ONLINE", 0);
 			ret = m;
 		} else if (filename.endsWith(".jani")) {
-			JaniModel model = new JaniModel(filename, constants);
+			JaniModel model = new JaniModel(filename, constants, properties);
 			properties.addAll(model.getProperties());
 			LTS l = model.getLTS();
 			if ((l instanceof Composition) && compLimit != 0) {
