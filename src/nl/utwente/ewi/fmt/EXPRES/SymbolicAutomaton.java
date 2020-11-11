@@ -201,6 +201,8 @@ public class SymbolicAutomaton implements LTS {
 			}
 			String action = null;
 			Object ao = edge.get("action");
+			if ("".equals(ao))
+				throw new IllegalArgumentException("Action with empty name not supported");
 			Object ro = edge.get("rate");
 			if (ro == null && ao == null) {
 				action = "i";
@@ -343,6 +345,17 @@ public class SymbolicAutomaton implements LTS {
 			if (var.equals(variables[i]))
 				return state[i];
 		throw new IllegalArgumentException("Requested value of variable '" + var + "' but that is not a variable of this automaton");
+	}
+
+	public boolean hasInternalTransitions()
+	{
+		for (String[] labs : labels) {
+			for (String lab : labs) {
+				if ("i".equals(lab))
+					return true;
+			}
+		}
+		return false;
 	}
 
 	/** @return The number of states in this automaton */

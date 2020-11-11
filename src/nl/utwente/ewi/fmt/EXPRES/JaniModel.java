@@ -1,14 +1,7 @@
 package nl.utwente.ewi.fmt.EXPRES;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
+import java.util.*;
 import nl.ennoruijters.util.JSONParser;
 import nl.utwente.ewi.fmt.EXPRES.LTS;
 import nl.utwente.ewi.fmt.EXPRES.expression.ConstantExpression;
@@ -252,19 +245,28 @@ public class JaniModel
 			if (automata[i] == null)
 				throw new IllegalArgumentException("Element declaration contains undefined automaton: " + autName);
 		}
+		ArrayList<Integer> extraSyncs = new ArrayList<>();
+		for (int i = 0; i < automata.length; i++) {
+			if (automata[i].hasInternalTransitions())
+				extraSyncs.add(i);
+		}
+		int nSync;
 		Object synco = sysComp.get("syncs");
 		if (synco == null) {
-			vectorAutomata = new int[0][];
-			vectorLabels = new String[0][];
-			synchronizedLabels = new String[0];
+			vectorAutomata = new int[extraSyncs.size()][];
+			vectorLabels = new String[extraSyncs.size()][];
+			synchronizedLabels = new String[extraSyncs.size()];
+			nSync = 0;
 		} else {
 			if (!(synco instanceof Object[]))
 				throw new IllegalArgumentException("Synchronization specification should be array, not: " + synco);
 			Object[] syncs = (Object[]) synco;
-			vectorAutomata = new int[syncs.length][];
-			vectorLabels = new String[syncs.length][];
-			synchronizedLabels = new String[syncs.length];
-			for (int i = 0; i < syncs.length; i++) {
+			int count = syncs.length + extraSyncs.size();
+			nSync = syncs.length;
+			vectorAutomata = new int[count][];
+			vectorLabels = new String[count][];
+			synchronizedLabels = new String[count];
+			for (int i = 0; i < count; i++) {
 				Object syncItem = syncs[i];
 				if (!(syncItem instanceof Map))
 					throw new IllegalArgumentException("Synchronization item should be object, not: " + syncItem);
@@ -293,6 +295,12 @@ public class JaniModel
 				if (resultAction != null)
 					synchronizedLabels[i] = "i" + resultAction.toString();
 			}
+		}
+		for (Integer i : extraSyncs) {
+			vectorAutomata[nSync] = new int[] {i};
+			vectorLabels[nSync] = new String[] {"i"};
+			synchronizedLabels[nSync] = "i";
+			nSync++;
 		}
 	}
 

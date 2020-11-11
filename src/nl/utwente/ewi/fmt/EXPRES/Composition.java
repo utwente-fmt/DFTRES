@@ -205,6 +205,7 @@ public class Composition implements MarkableLTS
 		this.vectorAutomata = vectorAutomata;
 		this.vectorLabels = vectorLabels;
 		this.synchronizedLabels = synchronizedLabels;
+		this.priorityVectors = new boolean[vectorAutomata.length];
 		afterParsing();
 	}
 
