@@ -1302,6 +1302,13 @@ public class Composition implements MarkableLTS
 			val += vData[3];
 			ret.put(name, val);
 		}
+		for (Map.Entry<String, Expression> trn : transientGlobals.entrySet()) {
+			Number val = trn.getValue().evaluate(this, state);
+			if (val instanceof Integer)
+				ret.put(trn.getKey(), (Integer) val);
+			else
+				throw new RuntimeException("Transient variable '" + trn.getKey() + "' has non-integer value: " + val);
+		}
 		return ret;
 	}
 
@@ -1311,8 +1318,16 @@ public class Composition implements MarkableLTS
 			return state[state.length - 1];
 		}
 		int[] vData = globalVars.get(var);
-		if (vData == null)
-			throw new IllegalArgumentException("Attempt to read value of undeclared variable '" + var + "'");
+		if (vData == null) {
+			Expression expr = transientGlobals.get(var);
+			if (expr == null)
+				throw new IllegalArgumentException("Attempt to read value of undeclared variable '" + var + "'");
+			Number ret = expr.evaluate(this, state);
+			if (ret instanceof Integer)
+				return (Integer)ret;
+			else
+				throw new RuntimeException("Transient variable '" + var + "' has non-integer value: " + ret);
+		}
 		int word = vData[0] / 32 + automata.length;
 		int vals = state[word];
 		int lowBit = vData[0] % 32;
