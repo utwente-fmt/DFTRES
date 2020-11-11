@@ -12,7 +12,7 @@ build: build-arch build-indep
 build-arch:
 
 build-indep:
-	make JFLAGS='-target 11 -source 11' repro_jar
+	make JFLAGS='-encoding UTF8 -target 11 -source 11' repro_jar
 
 binary: binary-arch binary-indep
 

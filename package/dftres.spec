@@ -8,8 +8,8 @@ URL:		https://github.com/utwente-fmt/DFTRES
 Source0:	%{name}-%{version}.tar.xz
 BuildArch:      noarch
 
-BuildRequires:	make, java-openjdk >= 1:11
-Requires:	java-openjdk >= 1:11
+BuildRequires:	make, java-latest-openjdk-devel >= 1:11, git, bc
+Requires:	java-latest-openjdk >= 1:11
 
 %description
 The Dynamic Fault Tree Rare Event Simulator

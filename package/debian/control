@@ -3,7 +3,7 @@ Maintainer: Enno Ruijters <mail@ennoruijters.nl>
 Section: science
 Priority: optional
 Standards-Version: 4.3.0
-Build-Depends: zip (>=3.0), findutils (>=4.4)
+Build-Depends: zip (>=3.0), unzip (>=3.0), findutils (>=4.4), default-jdk (>=2:1.11), bc, git
 
 Package: dftres
 Architecture: all
