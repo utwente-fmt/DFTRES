@@ -1,8 +1,4 @@
-import java.io.BufferedReader;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintStream;
+import java.io.*;
 import java.security.SecureRandom;
 import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
@@ -337,6 +333,7 @@ class Main {
 	private static LTS loadModel(String filename,
 	                             Map<String, Number> constants,
 				     boolean doDontCareElimination,
+	                             boolean useStorm,
 				     int compLimit)
 			throws IOException
 	{
@@ -382,6 +379,35 @@ class Main {
 				}
 			}
 			ret = l;
+		} else if (filename.endsWith(".dft") && useStorm) {
+			File janiFile = File.createTempFile("dftres", ".jani");
+			janiFile.deleteOnExit();
+			String[] cmd = new String[]{
+				"storm-dft",
+				"-dft",
+				filename,
+				"--to-gspn",
+				"--dftGspn:to-jani",
+				janiFile.toString()
+			};
+			Process storm = Runtime.getRuntime().exec(cmd);
+			int sret = 0;
+			boolean done = false;
+			while (!done) {
+				try {
+					sret = storm.waitFor();
+					done = true;
+				} catch (InterruptedException e) {
+				}
+			}
+			if (sret != 0)
+				throw new IOException("Error executing Storm-DFT.");
+			constants.putIfAbsent("TIME_BOUND", 0);
+			ret = loadModel(janiFile.toString(), constants,
+					false, /* Storm already do DC-Opt */
+					false,
+					compLimit);
+			janiFile.delete();
 		} else if (filename.endsWith(".dft")) {
 			String[] cmd = new String[]{"dftcalc", "-x", filename};
 			Process dftc = Runtime.getRuntime().exec(cmd);
@@ -400,7 +426,7 @@ class Main {
 			if (basename.lastIndexOf('/') != -1)
 				basename = basename.substring(basename.lastIndexOf('/') + 1, basename.length());
 			basename = basename.substring(0, basename.length() - 4);
-			return loadModel("output/" + basename + ".exp", null, doDontCareElimination, compLimit);
+			return loadModel("output/" + basename + ".exp", null, doDontCareElimination, false, compLimit);
 		} else {
 			throw new IllegalArgumentException("Type of file " + filename + " unknown");
 		}
@@ -447,6 +473,8 @@ class Main {
 			{"",            "than N states each (default: 256)."},
 			{"--def P V", "(for JANI models): Define constant P to value V."},
 			{"--no-dc", "Do not perform \"don't care\" optimizations."},
+			{"--storm", "Use Storm-DFT to convert .dft files to automata"},
+			{"--dftcalc", "Use DFTCalc to convert .dft files to automata (default)"},
 			/* Undocumented option: --unsafe-scheduling */
 			{"Output options:"},
 			{"--json", "Format the output in JSON format following the QComp"},
@@ -518,6 +546,7 @@ class Main {
 		long seed = 0;
 		int compositionStateLimit = 256;
 		boolean haveSeed = false;
+		boolean useStorm = false;
 		boolean doDontCareElimination = true;
 		TreeMap<String, Number> constants = new TreeMap<>();
 		TreeSet<String> onlyProperties = new TreeSet<>();
@@ -534,23 +563,19 @@ class Main {
 		for (int i = 0; i < args.length - 1; i++) {
 			if (args[i].equals("--help"))
 				usage(System.out);
+			/* Properties can only be generated after
+			 * the other options, as the exact query
+			 * generated will differ for Storm vs. DFTCalc.
+			 */
 			if (args[i].equals("-a")) {
-				Property av = new Property(Property.Type.STEADY_STATE, new VariableExpression("marked"), "Unavailability");
-				properties.add(av);
-				onlyProperties.add(av.name);
+				//
 			} else if (args[i].equals("-u")) {
-				Property rel = new Property(Property.Type.REACHABILITY, new VariableExpression("marked"), "Unreliability");
-				properties.add(rel);
-				onlyProperties.add(rel.name);
+				//
 			} else if (args[i].equals("-r")) {
-				double time = Double.parseDouble(args[++i]);
-				Property rel = new Property(Property.Type.REACHABILITY, time, new VariableExpression("marked"), "Unreliability");
-				properties.add(rel);
-				onlyProperties.add(rel.name);
+				i++;
+				//
 			} else if (args[i].equals("--mttf")) {
-				Property mttf = new Property(Property.Type.EXPECTED_VALUE, Double.POSITIVE_INFINITY, new VariableExpression("marked"), "MTTF", new ConstantExpression(1), null);
-				properties.add(mttf);
-				onlyProperties.add(mttf.name);
+				//
 			} else if (args[i].equals("-s")) {
 				seed = Long.parseLong(args[++i]);
 				haveSeed = true;
@@ -630,9 +655,37 @@ class Main {
 				forceBound = Double.POSITIVE_INFINITY;
 			else if (args[i].equals("--no-hpc-boost"))
 				TraceGenerator.enableHpcBoost = false;
+			else if (args[i].equals("--storm"))
+				useStorm = true;
+			else if (args[i].equals("--dftcalc"))
+				useStorm = false;
 			else
 				System.err.format("Unknown option '%s', ignoring\n", args[i]);
 		}
+		/* Process the queries now that we know out input
+		 * variables */
+		String failedVar = useStorm ? "failed" : "marked";
+		for (int i = 0; i < args.length - 1; i++) {
+			if (args[i].equals("-a")) {
+				Property av = new Property(Property.Type.STEADY_STATE, new VariableExpression(failedVar), "Unavailability");
+				properties.add(av);
+				onlyProperties.add(av.name);
+			} else if (args[i].equals("-u")) {
+				Property rel = new Property(Property.Type.REACHABILITY, new VariableExpression(failedVar), "Unreliability");
+				properties.add(rel);
+				onlyProperties.add(rel.name);
+			} else if (args[i].equals("-r")) {
+				double time = Double.parseDouble(args[++i]);
+				Property rel = new Property(Property.Type.REACHABILITY, time, new VariableExpression(failedVar), "Unreliability");
+				properties.add(rel);
+				onlyProperties.add(rel.name);
+			} else if (args[i].equals("--mttf")) {
+				Property mttf = new Property(Property.Type.EXPECTED_VALUE, Double.POSITIVE_INFINITY, new VariableExpression(failedVar), "MTTF", new ConstantExpression(1), null);
+				properties.add(mttf);
+				onlyProperties.add(mttf.name);
+			}
+		}
+
 		if (!haveSeed)
 			seed = new SecureRandom().nextLong();
 		if (useRng.equalsIgnoreCase("xs128")) {
@@ -641,7 +694,7 @@ class Main {
 			rng = new MersenneTwisterFast(seed);
 		}
 
-		model = loadModel(filename, constants, doDontCareElimination, compositionStateLimit);
+		model = loadModel(filename, constants, doDontCareElimination, useStorm, compositionStateLimit);
 		if (janiOutputFile != null)
 			MakeJani.makeJani(model, janiOutputFile, jsonOutput ? filename : null, args, properties);
 		if (traLabOutputFile != null) {
@@ -650,7 +703,7 @@ class Main {
 				mtl.convert(traLabOutputFile);
 			} catch (NondeterminismException e) {
 				e.printStackTrace();
-				LTS tmpModel = loadModel(filename, constants, false, compositionStateLimit);
+				LTS tmpModel = loadModel(filename, constants, false, useStorm, compositionStateLimit);
 				MakeTraLab mtl = new MakeTraLab(tmpModel, unsafeComposition);
 				mtl.convert(traLabOutputFile);
 			}
