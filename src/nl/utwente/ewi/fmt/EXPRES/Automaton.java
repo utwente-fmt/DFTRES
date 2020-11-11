@@ -324,6 +324,8 @@ public class Automaton implements LTS {
 		boolean anyChanges = false;
 		initState = orig.initState;
 		targets = orig.targets;
+		guards = orig.guards;
+		assignments = orig.assignments;
 		labels = new String[orig.labels.length][];
 		for (int i = 0; i < labels.length; i++) {
 			boolean changed = false;
@@ -856,6 +858,15 @@ public class Automaton implements LTS {
 		for (int i = 0; i < targets[src].length; i++) {
 			target = targets[src][i];
 			String label = labels[src][i];
+			Expression guard = ConstantExpression.TRUE;
+			if (guards != null
+			    && guards.length > src
+			    && guards[src] != null
+			    && guards[src].length > i
+			    && guards[src][i] != null)
+			{
+				guard = guards[src][i];
+			}
 			Map<String, Expression> assigns = Map.of();
 			if (assignments != null
 			    && assignments.length > src
@@ -864,7 +875,7 @@ public class Automaton implements LTS {
 				assigns = assignments[src][i];
 			}
 			ret.add(new LTS.Transition(label, new int[]{target},
-			                           ConstantExpression.TRUE,
+			                           guard,
 			                           assigns));
 		}
 		return ret;
