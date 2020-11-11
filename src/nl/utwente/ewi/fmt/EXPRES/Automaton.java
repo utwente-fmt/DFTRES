@@ -1422,10 +1422,15 @@ stateLoop:
 		ret.append(String.format("Initial state: %d\n", initState));
 		for (int i = 0; i < getNumStates(); i++) {
 			for (int j = 0; getTransitionTarget(i, j) > -1; j++) {
-				ret.append(String.format("%5d ---> %5d (%s)\n",
+				Expression guard = getTransitionGuard(i, j);
+				Map<String, Expression> assigns = getAssignments(i, j);
+				ret.append(String.format("%5d %s %5d (%s)%s\n",
 						i,
+						guard == null ? "--->" : ("--" + guard + "->"),
 						getTransitionTarget(i, j),
-						getTransitionLabel(i, j)));
+						getTransitionLabel(i, j),
+						assigns == null ? "" : (" [" + assigns + "]")
+						));
 			}
 		}
 		return ret.toString();

@@ -134,7 +134,10 @@ public interface LTS
 
 		public String toString()
 		{
-			return label + " -> " + Arrays.toString(target);
+			return label
+				+ (guard == null ? " -> " : guard)
+				+ Arrays.toString(target)
+				+ (assignments == null ? "" : (" [" + assignments + ']'));
 		}
 	}
 
