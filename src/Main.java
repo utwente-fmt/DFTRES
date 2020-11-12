@@ -403,7 +403,6 @@ class Main {
 			}
 			if (sret != 0)
 				throw new IOException("Error executing Storm-DFT.");
-			constants.putIfAbsent("TIME_BOUND", 0);
 			ret = loadModel(janiFile.toString(), constants,
 					onlyProperties,
 					false, /* Storm already does DC-Opt */
@@ -657,8 +656,11 @@ class Main {
 				forceBound = Double.POSITIVE_INFINITY;
 			else if (args[i].equals("--no-hpc-boost"))
 				TraceGenerator.enableHpcBoost = false;
-			else if (args[i].equals("--storm"))
+			else if (args[i].equals("--storm")) {
 				useStorm = true;
+				if (!constants.containsKey("TIME_BOUND"))
+					constants.put("TIME_BOUND", 0);
+			}
 			else if (args[i].equals("--dftcalc"))
 				useStorm = false;
 			else
