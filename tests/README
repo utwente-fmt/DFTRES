@@ -1,7 +1,8 @@
 This directory contains automated tests of DFTRES.
 
-To run the tests, execute 'sh test.sh [--dft] [options]', where
-[options] is a list of options accepted by DFTRES (e.g. --zvav or
+To run the tests, execute
+# 'sh test.sh [--dft dftcalc] [--dft storm] [--] [options]'
+where [options] is a list of options accepted by DFTRES (e.g. --zvav or
 -n 10000).
 
 The tests are listed in 'tests.txt', formatted as:
@@ -9,8 +10,18 @@ The tests are listed in 'tests.txt', formatted as:
 where the options should specify the metric to calculate, and the
 reference result should be an interval known to contain the true value.
 
-If '--dft' is included, the tests in 'dfttests.txt' are also performed.
-These are .dft files which require DFTCalc to run.
+Tests that are expected to fail are lister in 'expect-fail.txt',
+formatted as:
+	filename	[+|!]"condition1" [+|!]"condition2" ...
+where +"condition" means that the test is expected to fail if
+"condition" is an option on the DFTRES commandline, while !"condition"
+means the test is expected to fail if the condition is not given as an
+option to DFTRES. Conditions can be mixed arbitrarily, and test is
+expected to fail is all conditions match.
+
+If '--dft dftcalc' and/or '--dft storm' is included, the tests in
+'dfttests.txt' are also performed. These are .dft files which require
+DFTCalc and/or Storm-DFT to run.
 
 Tests are performed using a static seed and four threads, so they should
 be reproducible.

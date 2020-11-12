@@ -4,6 +4,49 @@ REL_ERROR_BOUND="10^-2";
 DFTRES_CMD="java -jar ../DFTRES.jar -s 0 -p 4"
 DFTRES_OPTS="--relErr 1e-1"
 
+all_match () {
+	VAL=$1;
+	while [ "$#" -gt 1 ]; do
+		shift;
+		GREP_CMD="grep -F"
+		PATTERN="$1";
+		if [ "${1#!\"}" != "$1" ]; then
+			GREP_CMD="$GREP_CMD -v";
+			PATTERN="${1#!\"}";
+		elif [ "${1#+\"}" != "$1" ]; then
+			PATTERN="${1#+\"}";
+		else
+			echo "Invalid expected failure criterion: '$1'"
+			exit 1;
+		fi
+		if [ "$PATTERN" == "${PATTERN%\"}" ]; then
+			echo "Invalid expected failure criterion: '$1'"
+			exit 1;
+		fi
+		PATTERN="${PATTERN%\"}";
+		if ! echo "$VAL" | $GREP_CMD -e "$PATTERN" > /dev/null; then
+			return 1;
+		fi
+	done
+	return 0;
+}
+
+expect_fail () {
+	DFT="$1";
+	ARGS="$2";
+	while read LINE; do
+		FFILE=$(echo "$LINE" | sed -e 's/[[:space:]].*//');
+		if [ "$FFILE" != "$DFT" ]; then
+			continue;
+		fi
+		NEED=$(echo "$LINE" | sed -e 's/^[^[:space:]]*[[:space:]]*//');
+		if all_match "$ARGS" $NEED; then
+			return 0;
+		fi
+	done
+	return 1;
+}
+
 # Split an interval value into lower and upper bounds.
 # Usage: split_interval "1.23[45; 67]e-1" VAR_LOW VAR_HIGH
 # sets $VAR_LOW to '1.2345e-1' and $VAR_HIGH to '1.2367e-1'.
@@ -60,26 +103,36 @@ do_tests() {
 		REF=$(echo "$LINE" | sed -e 's/^.*"\s*//');
 		printf "Test $FILE ($DFTRES_OPTS $OPTS)";
 		RESULT=$($DFTRES_CMD $DFTRES_OPTS $OPTS "$FILE" 2>/dev/null | grep -o "CI: .*]" | sed -e 's/CI: //' | sed -e 's/,/;/');
-		compare "$RESULT" "$REF";
-		OUTCOME=$?
-		if [ "$OUTCOME" = "0" ]; then
-			VERDICT="PASS";
-			MSG="";
-		elif [ "$OUTCOME" = "1" ]; then
-			VERDICT="PASS";
-			MSG="overlap";
-		elif [ "$OUTCOME" = "2" ] && [ "$BOUND_OK" = "1" ]; then
-			VERDICT="PASS";
-			MSG="within bounds";
-		elif [ "$OUTCOME" = "2" ]; then
-			VERDICT="FAIL";
-			MSG="within bounds, got $RESULT, want $REF";
-		else
-			VERDICT="FAIL";
-			if ! [ -z "$RESULT" ]; then
-				MSG="got $RESULT, want $REF";
+		if expect_fail "$FILE" "$DFTRES_OPTS $OPTS" <expect-fail.txt; then
+			if [ -z "$RESULT" ]; then
+				MSG="failed as expected";
+				VERDICT="PASS";
 			else
-				MSG="Got no result";
+				MSG="got $RESULT, expected failure";
+				VERDICT="FAIL";
+			fi
+		else
+			compare "$RESULT" "$REF";
+			OUTCOME=$?
+			if [ "$OUTCOME" = "0" ]; then
+				VERDICT="PASS";
+				MSG="";
+			elif [ "$OUTCOME" = "1" ]; then
+				VERDICT="PASS";
+				MSG="overlap";
+			elif [ "$OUTCOME" = "2" ] && [ "$BOUND_OK" = "1" ]; then
+				VERDICT="PASS";
+				MSG="within bounds";
+			elif [ "$OUTCOME" = "2" ]; then
+				VERDICT="FAIL";
+				MSG="within bounds, got $RESULT, want $REF";
+			else
+				VERDICT="FAIL";
+				if ! [ -z "$RESULT" ]; then
+					MSG="got $RESULT, want $REF";
+				else
+					MSG="Got no result";
+				fi
 			fi
 		fi
 		printf "\r$VERDICT: $FILE ($DFTRES_OPTS $OPTS)";
@@ -101,8 +154,16 @@ TESTS_TOTAL=0
 BOUND_OK=1
 
 DO_DFTCALC_TESTS=0;
-if [ "$1" = "--dft" ]; then
-	DO_DFTCALC_TESTS=1;
+DO_STORM_TESTS=0;
+while [ "$1" = "--dft" ]; do
+	if [ "$2" = "dftcalc" ]; then
+		DO_DFTCALC_TESTS=1;
+	elif [ "$2" = "storm" ]; then
+		DO_STORM_TESTS=1;
+	fi
+	shift 2;
+done
+if [ "$1" = "--" ]; then
 	shift;
 fi
 if [ "$#" -gt 0 ]; then
@@ -113,6 +174,11 @@ if [ "$DO_DFTCALC_TESTS" = 1 ]; then
 	do_tests < dfttests.txt
 else
 	do_tests < <(sed -e 's/\(.*\)\.dft/expfiles\/\1.exp/' dfttests.txt)
+fi
+if [ "$DO_STORM_TESTS" = 1 ]; then
+	DFTRES_OPTS="$DFTRES_OPTS --storm" do_tests < dfttests.txt
+else
+	DFTRES_OPTS="$DFTRES_OPTS --storm" do_tests < <(sed -e 's/\(.*\)\.dft/janifiles\/\1.jani/' dfttests.txt)
 fi
 printf "\n";
 if [ "$TESTS_FAILED" = "0" ]; then

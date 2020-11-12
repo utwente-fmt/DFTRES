@@ -1,0 +1,6 @@
+repair-spare.dft        +"--storm"
+repair-pand.dft         +"--storm"
+repair-prob.dft 	+"--storm"
+janifiles/repair-spare.jani
+janifiles/repair-pand.jani
+janifiles/repair-prob.jani

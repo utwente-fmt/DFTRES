@@ -1,0 +1,1970 @@
+{
+    "actions": [],
+    "automata": [
+        {
+            "edges": [
+                {
+                    "destinations": [
+                        {
+                            "assignments": [
+                                {
+                                    "comment": "B_failed <- ((B_failed + 1) - 1)",
+                                    "ref": "B_failed",
+                                    "value": {
+                                        "left": {
+                                            "left": "B_failed",
+                                            "op": "+",
+                                            "right": 1
+                                        },
+                                        "op": "-",
+                                        "right": 1
+                                    }
+                                },
+                                {
+                                    "comment": "SystemAA_failed <- (SystemAA_failed + 1)",
+                                    "ref": "SystemAA_failed",
+                                    "value": {
+                                        "left": "SystemAA_failed",
+                                        "op": "+",
+                                        "right": 1
+                                    }
+                                }
+                            ],
+                            "location": "loc",
+                            "probability": {
+                                "comment": "(((B_failed >= 1) & (SystemAA_failed < 1)) ? (1 / (0 + (((B_failed >= 1) & (SystemAA_failed < 1)) ? 1 : 0))) : 0)",
+                                "exp": {
+                                    "else": 0,
+                                    "if": {
+                                        "left": {
+                                            "left": "B_failed",
+                                            "op": "≥",
+                                            "right": 1
+                                        },
+                                        "op": "∧",
+                                        "right": {
+                                            "left": "SystemAA_failed",
+                                            "op": "<",
+                                            "right": 1
+                                        }
+                                    },
+                                    "op": "ite",
+                                    "then": {
+                                        "left": 1,
+                                        "op": "/",
+                                        "right": {
+                                            "left": 0,
+                                            "op": "+",
+                                            "right": {
+                                                "else": 0,
+                                                "if": {
+                                                    "left": {
+                                                        "left": "B_failed",
+                                                        "op": "≥",
+                                                        "right": 1
+                                                    },
+                                                    "op": "∧",
+                                                    "right": {
+                                                        "left": "SystemAA_failed",
+                                                        "op": "<",
+                                                        "right": 1
+                                                    }
+                                                },
+                                                "op": "ite",
+                                                "then": 1
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "guard": {
+                        "comment": "((B_failed >= 1) & (SystemAA_failed < 1))",
+                        "exp": {
+                            "left": {
+                                "left": "B_failed",
+                                "op": "≥",
+                                "right": 1
+                            },
+                            "op": "∧",
+                            "right": {
+                                "left": "SystemAA_failed",
+                                "op": "<",
+                                "right": 1
+                            }
+                        }
+                    },
+                    "location": "loc"
+                },
+                {
+                    "destinations": [
+                        {
+                            "assignments": [
+                                {
+                                    "comment": "A_failed <- ((A_failed + 1) - 1)",
+                                    "ref": "A_failed",
+                                    "value": {
+                                        "left": {
+                                            "left": "A_failed",
+                                            "op": "+",
+                                            "right": 1
+                                        },
+                                        "op": "-",
+                                        "right": 1
+                                    }
+                                },
+                                {
+                                    "comment": "SystemAA_failed <- (SystemAA_failed + 1)",
+                                    "ref": "SystemAA_failed",
+                                    "value": {
+                                        "left": "SystemAA_failed",
+                                        "op": "+",
+                                        "right": 1
+                                    }
+                                }
+                            ],
+                            "location": "loc",
+                            "probability": {
+                                "comment": "(((A_failed >= 1) & (SystemAA_failed < 1)) ? (1 / (0 + (((A_failed >= 1) & (SystemAA_failed < 1)) ? 1 : 0))) : 0)",
+                                "exp": {
+                                    "else": 0,
+                                    "if": {
+                                        "left": {
+                                            "left": "A_failed",
+                                            "op": "≥",
+                                            "right": 1
+                                        },
+                                        "op": "∧",
+                                        "right": {
+                                            "left": "SystemAA_failed",
+                                            "op": "<",
+                                            "right": 1
+                                        }
+                                    },
+                                    "op": "ite",
+                                    "then": {
+                                        "left": 1,
+                                        "op": "/",
+                                        "right": {
+                                            "left": 0,
+                                            "op": "+",
+                                            "right": {
+                                                "else": 0,
+                                                "if": {
+                                                    "left": {
+                                                        "left": "A_failed",
+                                                        "op": "≥",
+                                                        "right": 1
+                                                    },
+                                                    "op": "∧",
+                                                    "right": {
+                                                        "left": "SystemAA_failed",
+                                                        "op": "<",
+                                                        "right": 1
+                                                    }
+                                                },
+                                                "op": "ite",
+                                                "then": 1
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "guard": {
+                        "comment": "((A_failed >= 1) & (SystemAA_failed < 1))",
+                        "exp": {
+                            "left": {
+                                "left": "A_failed",
+                                "op": "≥",
+                                "right": 1
+                            },
+                            "op": "∧",
+                            "right": {
+                                "left": "SystemAA_failed",
+                                "op": "<",
+                                "right": 1
+                            }
+                        }
+                    },
+                    "location": "loc"
+                },
+                {
+                    "destinations": [
+                        {
+                            "assignments": [
+                                {
+                                    "comment": "B_failed <- (B_failed + 1)",
+                                    "ref": "B_failed",
+                                    "value": {
+                                        "left": "B_failed",
+                                        "op": "+",
+                                        "right": 1
+                                    }
+                                },
+                                {
+                                    "comment": "C_failed <- ((C_failed + 1) - 1)",
+                                    "ref": "C_failed",
+                                    "value": {
+                                        "left": {
+                                            "left": "C_failed",
+                                            "op": "+",
+                                            "right": 1
+                                        },
+                                        "op": "-",
+                                        "right": 1
+                                    }
+                                }
+                            ],
+                            "location": "loc",
+                            "probability": {
+                                "comment": "(((C_failed >= 1) & (B_failed < 1)) ? (1 / (0 + (((C_failed >= 1) & (B_failed < 1)) ? 1 : 0))) : 0)",
+                                "exp": {
+                                    "else": 0,
+                                    "if": {
+                                        "left": {
+                                            "left": "C_failed",
+                                            "op": "≥",
+                                            "right": 1
+                                        },
+                                        "op": "∧",
+                                        "right": {
+                                            "left": "B_failed",
+                                            "op": "<",
+                                            "right": 1
+                                        }
+                                    },
+                                    "op": "ite",
+                                    "then": {
+                                        "left": 1,
+                                        "op": "/",
+                                        "right": {
+                                            "left": 0,
+                                            "op": "+",
+                                            "right": {
+                                                "else": 0,
+                                                "if": {
+                                                    "left": {
+                                                        "left": "C_failed",
+                                                        "op": "≥",
+                                                        "right": 1
+                                                    },
+                                                    "op": "∧",
+                                                    "right": {
+                                                        "left": "B_failed",
+                                                        "op": "<",
+                                                        "right": 1
+                                                    }
+                                                },
+                                                "op": "ite",
+                                                "then": 1
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "guard": {
+                        "comment": "(!((((B_failed >= 1) & (SystemAA_failed < 1)) | ((A_failed >= 1) & (SystemAA_failed < 1)))) & ((C_failed >= 1) & (B_failed < 1)))",
+                        "exp": {
+                            "left": {
+                                "exp": {
+                                    "left": {
+                                        "left": {
+                                            "left": "B_failed",
+                                            "op": "≥",
+                                            "right": 1
+                                        },
+                                        "op": "∧",
+                                        "right": {
+                                            "left": "SystemAA_failed",
+                                            "op": "<",
+                                            "right": 1
+                                        }
+                                    },
+                                    "op": "∨",
+                                    "right": {
+                                        "left": {
+                                            "left": "A_failed",
+                                            "op": "≥",
+                                            "right": 1
+                                        },
+                                        "op": "∧",
+                                        "right": {
+                                            "left": "SystemAA_failed",
+                                            "op": "<",
+                                            "right": 1
+                                        }
+                                    }
+                                },
+                                "op": "¬"
+                            },
+                            "op": "∧",
+                            "right": {
+                                "left": {
+                                    "left": "C_failed",
+                                    "op": "≥",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "left": "B_failed",
+                                    "op": "<",
+                                    "right": 1
+                                }
+                            }
+                        }
+                    },
+                    "location": "loc"
+                },
+                {
+                    "destinations": [
+                        {
+                            "assignments": [
+                                {
+                                    "comment": "B_dependency_prop <- ((B_dependency_prop + 1) - 1)",
+                                    "ref": "B_dependency_prop",
+                                    "value": {
+                                        "left": {
+                                            "left": "B_dependency_prop",
+                                            "op": "+",
+                                            "right": 1
+                                        },
+                                        "op": "-",
+                                        "right": 1
+                                    }
+                                },
+                                {
+                                    "comment": "F_dontcare <- (F_dontcare + 1)",
+                                    "ref": "F_dontcare",
+                                    "value": {
+                                        "left": "F_dontcare",
+                                        "op": "+",
+                                        "right": 1
+                                    }
+                                }
+                            ],
+                            "location": "loc",
+                            "probability": {
+                                "comment": "(((B_dependency_prop >= 1) & (F_dontcare < 1)) ? (1 / (0 + (((B_dependency_prop >= 1) & (F_dontcare < 1)) ? 1 : 0))) : 0)",
+                                "exp": {
+                                    "else": 0,
+                                    "if": {
+                                        "left": {
+                                            "left": "B_dependency_prop",
+                                            "op": "≥",
+                                            "right": 1
+                                        },
+                                        "op": "∧",
+                                        "right": {
+                                            "left": "F_dontcare",
+                                            "op": "<",
+                                            "right": 1
+                                        }
+                                    },
+                                    "op": "ite",
+                                    "then": {
+                                        "left": 1,
+                                        "op": "/",
+                                        "right": {
+                                            "left": 0,
+                                            "op": "+",
+                                            "right": {
+                                                "else": 0,
+                                                "if": {
+                                                    "left": {
+                                                        "left": "B_dependency_prop",
+                                                        "op": "≥",
+                                                        "right": 1
+                                                    },
+                                                    "op": "∧",
+                                                    "right": {
+                                                        "left": "F_dontcare",
+                                                        "op": "<",
+                                                        "right": 1
+                                                    }
+                                                },
+                                                "op": "ite",
+                                                "then": 1
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "guard": {
+                        "comment": "((!((((B_failed >= 1) & (SystemAA_failed < 1)) | ((A_failed >= 1) & (SystemAA_failed < 1)))) & !(((((B_failed >= 1) & (SystemAA_failed < 1)) | ((A_failed >= 1) & (SystemAA_failed < 1))) | ((C_failed >= 1) & (B_failed < 1))))) & ((B_dependency_prop >= 1) & (F_dontcare < 1)))",
+                        "exp": {
+                            "left": {
+                                "left": {
+                                    "left": "B_dependency_prop",
+                                    "op": "≥",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "exp": {
+                                        "left": {
+                                            "left": {
+                                                "left": {
+                                                    "left": "B_failed",
+                                                    "op": "≥",
+                                                    "right": 1
+                                                },
+                                                "op": "∧",
+                                                "right": {
+                                                    "left": "SystemAA_failed",
+                                                    "op": "<",
+                                                    "right": 1
+                                                }
+                                            },
+                                            "op": "∨",
+                                            "right": {
+                                                "left": {
+                                                    "left": "A_failed",
+                                                    "op": "≥",
+                                                    "right": 1
+                                                },
+                                                "op": "∧",
+                                                "right": {
+                                                    "left": "SystemAA_failed",
+                                                    "op": "<",
+                                                    "right": 1
+                                                }
+                                            }
+                                        },
+                                        "op": "∨",
+                                        "right": {
+                                            "left": {
+                                                "left": "C_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "B_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        }
+                                    },
+                                    "op": "¬"
+                                }
+                            },
+                            "op": "∧",
+                            "right": {
+                                "left": {
+                                    "left": "F_dontcare",
+                                    "op": "<",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "exp": {
+                                        "left": {
+                                            "left": {
+                                                "left": "B_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "SystemAA_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        },
+                                        "op": "∨",
+                                        "right": {
+                                            "left": {
+                                                "left": "A_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "SystemAA_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        }
+                                    },
+                                    "op": "¬"
+                                }
+                            }
+                        }
+                    },
+                    "location": "loc"
+                },
+                {
+                    "destinations": [
+                        {
+                            "assignments": [
+                                {
+                                    "comment": "C_dontcare <- (C_dontcare + 1)",
+                                    "ref": "C_dontcare",
+                                    "value": {
+                                        "left": "C_dontcare",
+                                        "op": "+",
+                                        "right": 1
+                                    }
+                                },
+                                {
+                                    "comment": "F_dontcare <- ((F_dontcare + 1) - 1)",
+                                    "ref": "F_dontcare",
+                                    "value": {
+                                        "left": {
+                                            "left": "F_dontcare",
+                                            "op": "+",
+                                            "right": 1
+                                        },
+                                        "op": "-",
+                                        "right": 1
+                                    }
+                                }
+                            ],
+                            "location": "loc",
+                            "probability": {
+                                "comment": "(((F_dontcare >= 1) & (C_dontcare < 1)) ? (1 / (0 + (((F_dontcare >= 1) & (C_dontcare < 1)) ? 1 : 0))) : 0)",
+                                "exp": {
+                                    "else": 0,
+                                    "if": {
+                                        "left": {
+                                            "left": "F_dontcare",
+                                            "op": "≥",
+                                            "right": 1
+                                        },
+                                        "op": "∧",
+                                        "right": {
+                                            "left": "C_dontcare",
+                                            "op": "<",
+                                            "right": 1
+                                        }
+                                    },
+                                    "op": "ite",
+                                    "then": {
+                                        "left": 1,
+                                        "op": "/",
+                                        "right": {
+                                            "left": 0,
+                                            "op": "+",
+                                            "right": {
+                                                "else": 0,
+                                                "if": {
+                                                    "left": {
+                                                        "left": "F_dontcare",
+                                                        "op": "≥",
+                                                        "right": 1
+                                                    },
+                                                    "op": "∧",
+                                                    "right": {
+                                                        "left": "C_dontcare",
+                                                        "op": "<",
+                                                        "right": 1
+                                                    }
+                                                },
+                                                "op": "ite",
+                                                "then": 1
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "guard": {
+                        "comment": "((!((((B_failed >= 1) & (SystemAA_failed < 1)) | ((A_failed >= 1) & (SystemAA_failed < 1)))) & !(((((B_failed >= 1) & (SystemAA_failed < 1)) | ((A_failed >= 1) & (SystemAA_failed < 1))) | ((C_failed >= 1) & (B_failed < 1))))) & ((F_dontcare >= 1) & (C_dontcare < 1)))",
+                        "exp": {
+                            "left": {
+                                "left": {
+                                    "left": "F_dontcare",
+                                    "op": "≥",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "exp": {
+                                        "left": {
+                                            "left": {
+                                                "left": {
+                                                    "left": "B_failed",
+                                                    "op": "≥",
+                                                    "right": 1
+                                                },
+                                                "op": "∧",
+                                                "right": {
+                                                    "left": "SystemAA_failed",
+                                                    "op": "<",
+                                                    "right": 1
+                                                }
+                                            },
+                                            "op": "∨",
+                                            "right": {
+                                                "left": {
+                                                    "left": "A_failed",
+                                                    "op": "≥",
+                                                    "right": 1
+                                                },
+                                                "op": "∧",
+                                                "right": {
+                                                    "left": "SystemAA_failed",
+                                                    "op": "<",
+                                                    "right": 1
+                                                }
+                                            }
+                                        },
+                                        "op": "∨",
+                                        "right": {
+                                            "left": {
+                                                "left": "C_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "B_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        }
+                                    },
+                                    "op": "¬"
+                                }
+                            },
+                            "op": "∧",
+                            "right": {
+                                "left": {
+                                    "left": "C_dontcare",
+                                    "op": "<",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "exp": {
+                                        "left": {
+                                            "left": {
+                                                "left": "B_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "SystemAA_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        },
+                                        "op": "∨",
+                                        "right": {
+                                            "left": {
+                                                "left": "A_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "SystemAA_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        }
+                                    },
+                                    "op": "¬"
+                                }
+                            }
+                        }
+                    },
+                    "location": "loc"
+                },
+                {
+                    "destinations": [
+                        {
+                            "assignments": [
+                                {
+                                    "comment": "B_dependency_prop <- ((B_dependency_prop + 1) - 1)",
+                                    "ref": "B_dependency_prop",
+                                    "value": {
+                                        "left": {
+                                            "left": "B_dependency_prop",
+                                            "op": "+",
+                                            "right": 1
+                                        },
+                                        "op": "-",
+                                        "right": 1
+                                    }
+                                },
+                                {
+                                    "comment": "B_dontcare <- (B_dontcare + 1)",
+                                    "ref": "B_dontcare",
+                                    "value": {
+                                        "left": "B_dontcare",
+                                        "op": "+",
+                                        "right": 1
+                                    }
+                                }
+                            ],
+                            "location": "loc",
+                            "probability": {
+                                "comment": "(((B_dependency_prop >= 1) & (B_dependency_prop < 1)) ? (1 / (0 + (((B_dependency_prop >= 1) & (B_dependency_prop < 1)) ? 1 : 0))) : 0)",
+                                "exp": {
+                                    "else": 0,
+                                    "if": {
+                                        "left": {
+                                            "left": "B_dependency_prop",
+                                            "op": "≥",
+                                            "right": 1
+                                        },
+                                        "op": "∧",
+                                        "right": {
+                                            "left": "B_dependency_prop",
+                                            "op": "<",
+                                            "right": 1
+                                        }
+                                    },
+                                    "op": "ite",
+                                    "then": {
+                                        "left": 1,
+                                        "op": "/",
+                                        "right": {
+                                            "left": 0,
+                                            "op": "+",
+                                            "right": {
+                                                "else": 0,
+                                                "if": {
+                                                    "left": {
+                                                        "left": "B_dependency_prop",
+                                                        "op": "≥",
+                                                        "right": 1
+                                                    },
+                                                    "op": "∧",
+                                                    "right": {
+                                                        "left": "B_dependency_prop",
+                                                        "op": "<",
+                                                        "right": 1
+                                                    }
+                                                },
+                                                "op": "ite",
+                                                "then": 1
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "guard": {
+                        "comment": "((!((((B_failed >= 1) & (SystemAA_failed < 1)) | ((A_failed >= 1) & (SystemAA_failed < 1)))) & !(((((B_failed >= 1) & (SystemAA_failed < 1)) | ((A_failed >= 1) & (SystemAA_failed < 1))) | ((C_failed >= 1) & (B_failed < 1))))) & ((B_dependency_prop >= 1) & (B_dependency_prop < 1)))",
+                        "exp": {
+                            "left": {
+                                "left": {
+                                    "left": "B_dependency_prop",
+                                    "op": "≥",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "exp": {
+                                        "left": {
+                                            "left": {
+                                                "left": {
+                                                    "left": "B_failed",
+                                                    "op": "≥",
+                                                    "right": 1
+                                                },
+                                                "op": "∧",
+                                                "right": {
+                                                    "left": "SystemAA_failed",
+                                                    "op": "<",
+                                                    "right": 1
+                                                }
+                                            },
+                                            "op": "∨",
+                                            "right": {
+                                                "left": {
+                                                    "left": "A_failed",
+                                                    "op": "≥",
+                                                    "right": 1
+                                                },
+                                                "op": "∧",
+                                                "right": {
+                                                    "left": "SystemAA_failed",
+                                                    "op": "<",
+                                                    "right": 1
+                                                }
+                                            }
+                                        },
+                                        "op": "∨",
+                                        "right": {
+                                            "left": {
+                                                "left": "C_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "B_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        }
+                                    },
+                                    "op": "¬"
+                                }
+                            },
+                            "op": "∧",
+                            "right": {
+                                "left": {
+                                    "left": "B_dependency_prop",
+                                    "op": "<",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "exp": {
+                                        "left": {
+                                            "left": {
+                                                "left": "B_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "SystemAA_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        },
+                                        "op": "∨",
+                                        "right": {
+                                            "left": {
+                                                "left": "A_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "SystemAA_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        }
+                                    },
+                                    "op": "¬"
+                                }
+                            }
+                        }
+                    },
+                    "location": "loc"
+                },
+                {
+                    "destinations": [
+                        {
+                            "assignments": [
+                                {
+                                    "comment": "B_dependency_prop <- (B_dependency_prop + 1)",
+                                    "ref": "B_dependency_prop",
+                                    "value": {
+                                        "left": "B_dependency_prop",
+                                        "op": "+",
+                                        "right": 1
+                                    }
+                                },
+                                {
+                                    "comment": "B_failed <- ((B_failed + 1) - 1)",
+                                    "ref": "B_failed",
+                                    "value": {
+                                        "left": {
+                                            "left": "B_failed",
+                                            "op": "+",
+                                            "right": 1
+                                        },
+                                        "op": "-",
+                                        "right": 1
+                                    }
+                                }
+                            ],
+                            "location": "loc",
+                            "probability": {
+                                "comment": "(((B_failed >= 1) & (B_dependency_prop < 1)) ? (1 / (0 + (((B_failed >= 1) & (B_dependency_prop < 1)) ? 1 : 0))) : 0)",
+                                "exp": {
+                                    "else": 0,
+                                    "if": {
+                                        "left": {
+                                            "left": "B_failed",
+                                            "op": "≥",
+                                            "right": 1
+                                        },
+                                        "op": "∧",
+                                        "right": {
+                                            "left": "B_dependency_prop",
+                                            "op": "<",
+                                            "right": 1
+                                        }
+                                    },
+                                    "op": "ite",
+                                    "then": {
+                                        "left": 1,
+                                        "op": "/",
+                                        "right": {
+                                            "left": 0,
+                                            "op": "+",
+                                            "right": {
+                                                "else": 0,
+                                                "if": {
+                                                    "left": {
+                                                        "left": "B_failed",
+                                                        "op": "≥",
+                                                        "right": 1
+                                                    },
+                                                    "op": "∧",
+                                                    "right": {
+                                                        "left": "B_dependency_prop",
+                                                        "op": "<",
+                                                        "right": 1
+                                                    }
+                                                },
+                                                "op": "ite",
+                                                "then": 1
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "guard": {
+                        "comment": "((!((((B_failed >= 1) & (SystemAA_failed < 1)) | ((A_failed >= 1) & (SystemAA_failed < 1)))) & !(((((B_failed >= 1) & (SystemAA_failed < 1)) | ((A_failed >= 1) & (SystemAA_failed < 1))) | ((C_failed >= 1) & (B_failed < 1))))) & ((B_failed >= 1) & (B_dependency_prop < 1)))",
+                        "exp": {
+                            "left": {
+                                "left": {
+                                    "left": "B_failed",
+                                    "op": "≥",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "exp": {
+                                        "left": {
+                                            "left": {
+                                                "left": {
+                                                    "left": "B_failed",
+                                                    "op": "≥",
+                                                    "right": 1
+                                                },
+                                                "op": "∧",
+                                                "right": {
+                                                    "left": "SystemAA_failed",
+                                                    "op": "<",
+                                                    "right": 1
+                                                }
+                                            },
+                                            "op": "∨",
+                                            "right": {
+                                                "left": {
+                                                    "left": "A_failed",
+                                                    "op": "≥",
+                                                    "right": 1
+                                                },
+                                                "op": "∧",
+                                                "right": {
+                                                    "left": "SystemAA_failed",
+                                                    "op": "<",
+                                                    "right": 1
+                                                }
+                                            }
+                                        },
+                                        "op": "∨",
+                                        "right": {
+                                            "left": {
+                                                "left": "C_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "B_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        }
+                                    },
+                                    "op": "¬"
+                                }
+                            },
+                            "op": "∧",
+                            "right": {
+                                "left": {
+                                    "left": "B_dependency_prop",
+                                    "op": "<",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "exp": {
+                                        "left": {
+                                            "left": {
+                                                "left": "B_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "SystemAA_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        },
+                                        "op": "∨",
+                                        "right": {
+                                            "left": {
+                                                "left": "A_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "SystemAA_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        }
+                                    },
+                                    "op": "¬"
+                                }
+                            }
+                        }
+                    },
+                    "location": "loc"
+                },
+                {
+                    "destinations": [
+                        {
+                            "assignments": [
+                                {
+                                    "comment": "B_dontcare <- (B_dontcare + 1)",
+                                    "ref": "B_dontcare",
+                                    "value": {
+                                        "left": "B_dontcare",
+                                        "op": "+",
+                                        "right": 1
+                                    }
+                                },
+                                {
+                                    "comment": "SystemAA_failed <- ((SystemAA_failed + 1) - 1)",
+                                    "ref": "SystemAA_failed",
+                                    "value": {
+                                        "left": {
+                                            "left": "SystemAA_failed",
+                                            "op": "+",
+                                            "right": 1
+                                        },
+                                        "op": "-",
+                                        "right": 1
+                                    }
+                                }
+                            ],
+                            "location": "loc",
+                            "probability": {
+                                "comment": "(((SystemAA_failed >= 1) & (B_dontcare < 1)) ? (1 / (0 + (((SystemAA_failed >= 1) & (B_dontcare < 1)) ? 1 : 0))) : 0)",
+                                "exp": {
+                                    "else": 0,
+                                    "if": {
+                                        "left": {
+                                            "left": "SystemAA_failed",
+                                            "op": "≥",
+                                            "right": 1
+                                        },
+                                        "op": "∧",
+                                        "right": {
+                                            "left": "B_dontcare",
+                                            "op": "<",
+                                            "right": 1
+                                        }
+                                    },
+                                    "op": "ite",
+                                    "then": {
+                                        "left": 1,
+                                        "op": "/",
+                                        "right": {
+                                            "left": 0,
+                                            "op": "+",
+                                            "right": {
+                                                "else": 0,
+                                                "if": {
+                                                    "left": {
+                                                        "left": "SystemAA_failed",
+                                                        "op": "≥",
+                                                        "right": 1
+                                                    },
+                                                    "op": "∧",
+                                                    "right": {
+                                                        "left": "B_dontcare",
+                                                        "op": "<",
+                                                        "right": 1
+                                                    }
+                                                },
+                                                "op": "ite",
+                                                "then": 1
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "guard": {
+                        "comment": "((!((((B_failed >= 1) & (SystemAA_failed < 1)) | ((A_failed >= 1) & (SystemAA_failed < 1)))) & !(((((B_failed >= 1) & (SystemAA_failed < 1)) | ((A_failed >= 1) & (SystemAA_failed < 1))) | ((C_failed >= 1) & (B_failed < 1))))) & ((SystemAA_failed >= 1) & (B_dontcare < 1)))",
+                        "exp": {
+                            "left": {
+                                "left": {
+                                    "left": "SystemAA_failed",
+                                    "op": "≥",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "exp": {
+                                        "left": {
+                                            "left": {
+                                                "left": {
+                                                    "left": "B_failed",
+                                                    "op": "≥",
+                                                    "right": 1
+                                                },
+                                                "op": "∧",
+                                                "right": {
+                                                    "left": "SystemAA_failed",
+                                                    "op": "<",
+                                                    "right": 1
+                                                }
+                                            },
+                                            "op": "∨",
+                                            "right": {
+                                                "left": {
+                                                    "left": "A_failed",
+                                                    "op": "≥",
+                                                    "right": 1
+                                                },
+                                                "op": "∧",
+                                                "right": {
+                                                    "left": "SystemAA_failed",
+                                                    "op": "<",
+                                                    "right": 1
+                                                }
+                                            }
+                                        },
+                                        "op": "∨",
+                                        "right": {
+                                            "left": {
+                                                "left": "C_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "B_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        }
+                                    },
+                                    "op": "¬"
+                                }
+                            },
+                            "op": "∧",
+                            "right": {
+                                "left": {
+                                    "left": "B_dontcare",
+                                    "op": "<",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "exp": {
+                                        "left": {
+                                            "left": {
+                                                "left": "B_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "SystemAA_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        },
+                                        "op": "∨",
+                                        "right": {
+                                            "left": {
+                                                "left": "A_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "SystemAA_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        }
+                                    },
+                                    "op": "¬"
+                                }
+                            }
+                        }
+                    },
+                    "location": "loc"
+                },
+                {
+                    "destinations": [
+                        {
+                            "assignments": [
+                                {
+                                    "comment": "A_dontcare <- (A_dontcare + 1)",
+                                    "ref": "A_dontcare",
+                                    "value": {
+                                        "left": "A_dontcare",
+                                        "op": "+",
+                                        "right": 1
+                                    }
+                                },
+                                {
+                                    "comment": "SystemAA_failed <- ((SystemAA_failed + 1) - 1)",
+                                    "ref": "SystemAA_failed",
+                                    "value": {
+                                        "left": {
+                                            "left": "SystemAA_failed",
+                                            "op": "+",
+                                            "right": 1
+                                        },
+                                        "op": "-",
+                                        "right": 1
+                                    }
+                                }
+                            ],
+                            "location": "loc",
+                            "probability": {
+                                "comment": "(((SystemAA_failed >= 1) & (A_dontcare < 1)) ? (1 / (0 + (((SystemAA_failed >= 1) & (A_dontcare < 1)) ? 1 : 0))) : 0)",
+                                "exp": {
+                                    "else": 0,
+                                    "if": {
+                                        "left": {
+                                            "left": "SystemAA_failed",
+                                            "op": "≥",
+                                            "right": 1
+                                        },
+                                        "op": "∧",
+                                        "right": {
+                                            "left": "A_dontcare",
+                                            "op": "<",
+                                            "right": 1
+                                        }
+                                    },
+                                    "op": "ite",
+                                    "then": {
+                                        "left": 1,
+                                        "op": "/",
+                                        "right": {
+                                            "left": 0,
+                                            "op": "+",
+                                            "right": {
+                                                "else": 0,
+                                                "if": {
+                                                    "left": {
+                                                        "left": "SystemAA_failed",
+                                                        "op": "≥",
+                                                        "right": 1
+                                                    },
+                                                    "op": "∧",
+                                                    "right": {
+                                                        "left": "A_dontcare",
+                                                        "op": "<",
+                                                        "right": 1
+                                                    }
+                                                },
+                                                "op": "ite",
+                                                "then": 1
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "guard": {
+                        "comment": "((!((((B_failed >= 1) & (SystemAA_failed < 1)) | ((A_failed >= 1) & (SystemAA_failed < 1)))) & !(((((B_failed >= 1) & (SystemAA_failed < 1)) | ((A_failed >= 1) & (SystemAA_failed < 1))) | ((C_failed >= 1) & (B_failed < 1))))) & ((SystemAA_failed >= 1) & (A_dontcare < 1)))",
+                        "exp": {
+                            "left": {
+                                "left": {
+                                    "left": "SystemAA_failed",
+                                    "op": "≥",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "exp": {
+                                        "left": {
+                                            "left": {
+                                                "left": {
+                                                    "left": "B_failed",
+                                                    "op": "≥",
+                                                    "right": 1
+                                                },
+                                                "op": "∧",
+                                                "right": {
+                                                    "left": "SystemAA_failed",
+                                                    "op": "<",
+                                                    "right": 1
+                                                }
+                                            },
+                                            "op": "∨",
+                                            "right": {
+                                                "left": {
+                                                    "left": "A_failed",
+                                                    "op": "≥",
+                                                    "right": 1
+                                                },
+                                                "op": "∧",
+                                                "right": {
+                                                    "left": "SystemAA_failed",
+                                                    "op": "<",
+                                                    "right": 1
+                                                }
+                                            }
+                                        },
+                                        "op": "∨",
+                                        "right": {
+                                            "left": {
+                                                "left": "C_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "B_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        }
+                                    },
+                                    "op": "¬"
+                                }
+                            },
+                            "op": "∧",
+                            "right": {
+                                "left": {
+                                    "left": "A_dontcare",
+                                    "op": "<",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "exp": {
+                                        "left": {
+                                            "left": {
+                                                "left": "B_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "SystemAA_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        },
+                                        "op": "∨",
+                                        "right": {
+                                            "left": {
+                                                "left": "A_failed",
+                                                "op": "≥",
+                                                "right": 1
+                                            },
+                                            "op": "∧",
+                                            "right": {
+                                                "left": "SystemAA_failed",
+                                                "op": "<",
+                                                "right": 1
+                                            }
+                                        }
+                                    },
+                                    "op": "¬"
+                                }
+                            }
+                        }
+                    },
+                    "location": "loc"
+                },
+                {
+                    "destinations": [
+                        {
+                            "assignments": [
+                                {
+                                    "comment": "A_active <- ((A_active + 1) - 1)",
+                                    "ref": "A_active",
+                                    "value": {
+                                        "left": {
+                                            "left": "A_active",
+                                            "op": "+",
+                                            "right": 1
+                                        },
+                                        "op": "-",
+                                        "right": 1
+                                    }
+                                },
+                                {
+                                    "comment": "A_failed <- (A_failed + 1)",
+                                    "ref": "A_failed",
+                                    "value": {
+                                        "left": "A_failed",
+                                        "op": "+",
+                                        "right": 1
+                                    }
+                                }
+                            ],
+                            "location": "loc"
+                        }
+                    ],
+                    "guard": {
+                        "comment": "(((A_active >= 1) & (A_dontcare < 1)) & (A_failed < 1))",
+                        "exp": {
+                            "left": {
+                                "left": {
+                                    "left": "A_active",
+                                    "op": "≥",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "left": "A_dontcare",
+                                    "op": "<",
+                                    "right": 1
+                                }
+                            },
+                            "op": "∧",
+                            "right": {
+                                "left": "A_failed",
+                                "op": "<",
+                                "right": 1
+                            }
+                        }
+                    },
+                    "location": "loc",
+                    "rate": {
+                        "comment": "3602879701896397/36028797018963968",
+                        "exp": 0.1000000000000000056
+                    }
+                },
+                {
+                    "destinations": [
+                        {
+                            "assignments": [
+                                {
+                                    "comment": "A_failed <- (A_failed + 1)",
+                                    "ref": "A_failed",
+                                    "value": {
+                                        "left": "A_failed",
+                                        "op": "+",
+                                        "right": 1
+                                    }
+                                }
+                            ],
+                            "location": "loc"
+                        }
+                    ],
+                    "guard": {
+                        "comment": "(((A_dontcare < 1) & (A_failed < 1)) & (A_active < 1))",
+                        "exp": {
+                            "left": {
+                                "left": {
+                                    "left": "A_dontcare",
+                                    "op": "<",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "left": "A_failed",
+                                    "op": "<",
+                                    "right": 1
+                                }
+                            },
+                            "op": "∧",
+                            "right": {
+                                "left": "A_active",
+                                "op": "<",
+                                "right": 1
+                            }
+                        }
+                    },
+                    "location": "loc",
+                    "rate": {
+                        "comment": "3602879701896397/36028797018963968",
+                        "exp": 0.1000000000000000056
+                    }
+                },
+                {
+                    "destinations": [
+                        {
+                            "assignments": [
+                                {
+                                    "comment": "B_active <- ((B_active + 1) - 1)",
+                                    "ref": "B_active",
+                                    "value": {
+                                        "left": {
+                                            "left": "B_active",
+                                            "op": "+",
+                                            "right": 1
+                                        },
+                                        "op": "-",
+                                        "right": 1
+                                    }
+                                },
+                                {
+                                    "comment": "B_failed <- (B_failed + 1)",
+                                    "ref": "B_failed",
+                                    "value": {
+                                        "left": "B_failed",
+                                        "op": "+",
+                                        "right": 1
+                                    }
+                                }
+                            ],
+                            "location": "loc"
+                        }
+                    ],
+                    "guard": {
+                        "comment": "(((B_active >= 1) & (B_dontcare < 1)) & (B_failed < 1))",
+                        "exp": {
+                            "left": {
+                                "left": {
+                                    "left": "B_active",
+                                    "op": "≥",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "left": "B_dontcare",
+                                    "op": "<",
+                                    "right": 1
+                                }
+                            },
+                            "op": "∧",
+                            "right": {
+                                "left": "B_failed",
+                                "op": "<",
+                                "right": 1
+                            }
+                        }
+                    },
+                    "location": "loc",
+                    "rate": {
+                        "comment": "3602879701896397/18014398509481984",
+                        "exp": 0.2000000000000000111
+                    }
+                },
+                {
+                    "destinations": [
+                        {
+                            "assignments": [
+                                {
+                                    "comment": "B_failed <- (B_failed + 1)",
+                                    "ref": "B_failed",
+                                    "value": {
+                                        "left": "B_failed",
+                                        "op": "+",
+                                        "right": 1
+                                    }
+                                }
+                            ],
+                            "location": "loc"
+                        }
+                    ],
+                    "guard": {
+                        "comment": "(((B_dontcare < 1) & (B_failed < 1)) & (B_active < 1))",
+                        "exp": {
+                            "left": {
+                                "left": {
+                                    "left": "B_dontcare",
+                                    "op": "<",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "left": "B_failed",
+                                    "op": "<",
+                                    "right": 1
+                                }
+                            },
+                            "op": "∧",
+                            "right": {
+                                "left": "B_active",
+                                "op": "<",
+                                "right": 1
+                            }
+                        }
+                    },
+                    "location": "loc",
+                    "rate": {
+                        "comment": "3602879701896397/18014398509481984",
+                        "exp": 0.2000000000000000111
+                    }
+                },
+                {
+                    "destinations": [
+                        {
+                            "assignments": [
+                                {
+                                    "comment": "C_active <- ((C_active + 1) - 1)",
+                                    "ref": "C_active",
+                                    "value": {
+                                        "left": {
+                                            "left": "C_active",
+                                            "op": "+",
+                                            "right": 1
+                                        },
+                                        "op": "-",
+                                        "right": 1
+                                    }
+                                },
+                                {
+                                    "comment": "C_failed <- (C_failed + 1)",
+                                    "ref": "C_failed",
+                                    "value": {
+                                        "left": "C_failed",
+                                        "op": "+",
+                                        "right": 1
+                                    }
+                                }
+                            ],
+                            "location": "loc"
+                        }
+                    ],
+                    "guard": {
+                        "comment": "(((C_active >= 1) & (C_dontcare < 1)) & (C_failed < 1))",
+                        "exp": {
+                            "left": {
+                                "left": {
+                                    "left": "C_active",
+                                    "op": "≥",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "left": "C_dontcare",
+                                    "op": "<",
+                                    "right": 1
+                                }
+                            },
+                            "op": "∧",
+                            "right": {
+                                "left": "C_failed",
+                                "op": "<",
+                                "right": 1
+                            }
+                        }
+                    },
+                    "location": "loc",
+                    "rate": {
+                        "comment": "5404319552844595/18014398509481984",
+                        "exp": 0.2999999999999999889
+                    }
+                },
+                {
+                    "destinations": [
+                        {
+                            "assignments": [
+                                {
+                                    "comment": "C_failed <- (C_failed + 1)",
+                                    "ref": "C_failed",
+                                    "value": {
+                                        "left": "C_failed",
+                                        "op": "+",
+                                        "right": 1
+                                    }
+                                }
+                            ],
+                            "location": "loc"
+                        }
+                    ],
+                    "guard": {
+                        "comment": "(((C_dontcare < 1) & (C_failed < 1)) & (C_active < 1))",
+                        "exp": {
+                            "left": {
+                                "left": {
+                                    "left": "C_dontcare",
+                                    "op": "<",
+                                    "right": 1
+                                },
+                                "op": "∧",
+                                "right": {
+                                    "left": "C_failed",
+                                    "op": "<",
+                                    "right": 1
+                                }
+                            },
+                            "op": "∧",
+                            "right": {
+                                "left": "C_active",
+                                "op": "<",
+                                "right": 1
+                            }
+                        }
+                    },
+                    "location": "loc",
+                    "rate": {
+                        "comment": "5404319552844595/18014398509481984",
+                        "exp": 0.2999999999999999889
+                    }
+                }
+            ],
+            "initial-locations": [
+                "loc"
+            ],
+            "locations": [
+                {
+                    "name": "loc",
+                    "transient-values": [
+                        {
+                            "comment": "failed <- (1 = SystemAA_failed)",
+                            "ref": "failed",
+                            "value": {
+                                "left": 1,
+                                "op": "=",
+                                "right": "SystemAA_failed"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "name": "dft_gspn",
+            "variables": []
+        }
+    ],
+    "constants": [
+        {
+            "name": "TIME_BOUND",
+            "type": "real"
+        }
+    ],
+    "features": [
+        "derived-operators"
+    ],
+    "jani-version": 1,
+    "name": "DftToGspnTransformation",
+    "properties": [
+        {
+            "expression": {
+                "fun": "values",
+                "op": "filter",
+                "states": {
+                    "op": "initial"
+                },
+                "values": {
+                    "exp": {
+                        "left": true,
+                        "op": "U",
+                        "right": {
+                            "left": 1,
+                            "op": "=",
+                            "right": "SystemAA_failed"
+                        }
+                    },
+                    "op": "Pmax"
+                }
+            },
+            "name": "MaxPrReachFailed"
+        },
+        {
+            "expression": {
+                "fun": "values",
+                "op": "filter",
+                "states": {
+                    "op": "initial"
+                },
+                "values": {
+                    "exp": {
+                        "left": true,
+                        "op": "U",
+                        "right": {
+                            "left": 1,
+                            "op": "=",
+                            "right": "SystemAA_failed"
+                        },
+                        "time-bounds": {
+                            "upper": "TIME_BOUND",
+                            "upper-exclusive": false
+                        }
+                    },
+                    "op": "Pmax"
+                }
+            },
+            "name": "MaxPrReachFailedTB"
+        },
+        {
+            "expression": {
+                "fun": "values",
+                "op": "filter",
+                "states": {
+                    "op": "initial"
+                },
+                "values": {
+                    "accumulate": [
+                        "time"
+                    ],
+                    "exp": 1,
+                    "op": "Emin",
+                    "reach": {
+                        "left": 1,
+                        "op": "=",
+                        "right": "SystemAA_failed"
+                    }
+                }
+            },
+            "name": "MinExpTimeFailed"
+        }
+    ],
+    "restrict-initial": {
+        "exp": true
+    },
+    "system": {
+        "elements": [
+            {
+                "automaton": "dft_gspn"
+            }
+        ]
+    },
+    "type": "ma",
+    "variables": [
+        {
+            "initial-value": 0,
+            "name": "A_failed",
+            "type": {
+                "base": "int",
+                "kind": "bounded",
+                "lower-bound": 0,
+                "upper-bound": 1
+            }
+        },
+        {
+            "initial-value": 1,
+            "name": "A_active",
+            "type": {
+                "base": "int",
+                "kind": "bounded",
+                "lower-bound": 0,
+                "upper-bound": 1
+            }
+        },
+        {
+            "initial-value": 0,
+            "name": "A_dontcare",
+            "type": {
+                "base": "int",
+                "kind": "bounded",
+                "lower-bound": 0,
+                "upper-bound": 1
+            }
+        },
+        {
+            "initial-value": 0,
+            "name": "B_failed",
+            "type": {
+                "base": "int",
+                "kind": "bounded",
+                "lower-bound": 0,
+                "upper-bound": 1
+            }
+        },
+        {
+            "initial-value": 1,
+            "name": "B_active",
+            "type": {
+                "base": "int",
+                "kind": "bounded",
+                "lower-bound": 0,
+                "upper-bound": 1
+            }
+        },
+        {
+            "initial-value": 0,
+            "name": "B_dontcare",
+            "type": {
+                "base": "int",
+                "kind": "bounded",
+                "lower-bound": 0,
+                "upper-bound": 1
+            }
+        },
+        {
+            "initial-value": 0,
+            "name": "B_dependency_prop",
+            "type": {
+                "base": "int",
+                "kind": "bounded",
+                "lower-bound": 0,
+                "upper-bound": 1
+            }
+        },
+        {
+            "initial-value": 0,
+            "name": "SystemAA_failed",
+            "type": {
+                "base": "int",
+                "kind": "bounded",
+                "lower-bound": 0,
+                "upper-bound": 1
+            }
+        },
+        {
+            "initial-value": 0,
+            "name": "C_failed",
+            "type": {
+                "base": "int",
+                "kind": "bounded",
+                "lower-bound": 0,
+                "upper-bound": 1
+            }
+        },
+        {
+            "initial-value": 1,
+            "name": "C_active",
+            "type": {
+                "base": "int",
+                "kind": "bounded",
+                "lower-bound": 0,
+                "upper-bound": 1
+            }
+        },
+        {
+            "initial-value": 0,
+            "name": "C_dontcare",
+            "type": {
+                "base": "int",
+                "kind": "bounded",
+                "lower-bound": 0,
+                "upper-bound": 1
+            }
+        },
+        {
+            "initial-value": 0,
+            "name": "F_dontcare",
+            "type": {
+                "base": "int",
+                "kind": "bounded",
+                "lower-bound": 0,
+                "upper-bound": 1
+            }
+        },
+        {
+            "initial-value": false,
+            "name": "failed",
+            "transient": true,
+            "type": "bool"
+        }
+    ]
+}
