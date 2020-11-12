@@ -6,14 +6,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.util.AbstractMap;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 
 import nl.utwente.ewi.fmt.EXPRES.JaniModel.JaniType;
 import nl.utwente.ewi.fmt.EXPRES.JaniModel.JaniBaseType;
@@ -69,6 +62,42 @@ public class SymbolicAutomaton implements LTS {
 					map = new HashMap<>(map);
 					map.remove(toRemove);
 					as[i] = map;
+				}
+			}
+		}
+		numberedVariables = tryToNumberVariables();
+	}
+
+	private SymbolicAutomaton(SymbolicAutomaton other, String tVar,
+			Expression tVal)
+	{
+		this.targets = other.targets;
+		this.labels = other.labels;
+		this.guards = other.guards;
+		this.probs = other.probs;
+		this.assignments = other.assignments.clone();
+		int n = other.variables.length;
+		variables = Arrays.copyOf(other.variables, n + 1);
+		initialState = Arrays.copyOf(other.initialState, n + 1);
+		variables[n] = tVar;
+		Number initialValue = tVal.evaluate(other, other.getInitialState());
+		if (!(initialValue instanceof Integer))
+			throw new UnsupportedOperationException("Transient variable '" + tVar + "' has non-integer initial type: " + initialValue);
+		initialState[n] = (Integer)initialValue;
+
+		for (int i = 0; i < assignments.length; i++) {
+			HashMap<String, Expression>[] as = assignments[i];
+			if (as.length < labels[i].length) {
+				as = Arrays.copyOf(as, labels[i].length);
+				assignments[i] = as;
+			}
+			for (int j = 0; j < as.length; j++) {
+				if (as[j] == null) {
+					as[j] = new HashMap<>();
+					as[j].put(tVar, tVal);
+				} else if (!as[j].containsKey(tVar)) {
+					as[j] = new HashMap<>(as[j]);
+					as[j].put(tVar, tVal);
 				}
 			}
 		}
@@ -323,6 +352,11 @@ public class SymbolicAutomaton implements LTS {
 		return new SymbolicAutomaton(janiData, constants);
 	}	
 
+	public SymbolicAutomaton addTransientVariable(String name, Expression expr)
+	{
+		return new SymbolicAutomaton(this, name, expr);
+	}
+
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private HashMap<String, Expression>[][] createAssignmentArray(int len)
 	{
@@ -345,6 +379,18 @@ public class SymbolicAutomaton implements LTS {
 			if (var.equals(variables[i]))
 				return state[i];
 		throw new IllegalArgumentException("Requested value of variable '" + var + "' but that is not a variable of this automaton");
+	}
+
+	public Set<String> getAllTransitionLabels()
+	{
+		Set<String> ret = new HashSet<>();
+		for (String[] labs : labels) {
+			for (String lab : labs) {
+				if (lab.startsWith("i"))
+					ret.add(lab);
+			}
+		}
+		return ret;
 	}
 
 	public boolean hasInternalTransitions()

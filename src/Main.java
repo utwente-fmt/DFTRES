@@ -332,6 +332,7 @@ class Main {
 
 	private static LTS loadModel(String filename,
 	                             Map<String, Number> constants,
+				     TreeSet<String> onlyProperties,
 				     boolean doDontCareElimination,
 	                             boolean useStorm,
 				     int compLimit)
@@ -369,7 +370,7 @@ class Main {
 		} else if (filename.endsWith(".jani")) {
 			JaniModel model = new JaniModel(filename, constants, properties);
 			properties.addAll(model.getProperties());
-			LTS l = model.getLTS();
+			LTS l = model.getLTS(onlyProperties);
 			if ((l instanceof Composition) && compLimit != 0) {
 				Composition c = (Composition)l;
 				ret = null;
@@ -404,7 +405,8 @@ class Main {
 				throw new IOException("Error executing Storm-DFT.");
 			constants.putIfAbsent("TIME_BOUND", 0);
 			ret = loadModel(janiFile.toString(), constants,
-					false, /* Storm already do DC-Opt */
+					onlyProperties,
+					false, /* Storm already does DC-Opt */
 					false,
 					compLimit);
 			janiFile.delete();
@@ -426,7 +428,7 @@ class Main {
 			if (basename.lastIndexOf('/') != -1)
 				basename = basename.substring(basename.lastIndexOf('/') + 1, basename.length());
 			basename = basename.substring(0, basename.length() - 4);
-			return loadModel("output/" + basename + ".exp", null, doDontCareElimination, false, compLimit);
+			return loadModel("output/" + basename + ".exp", null, onlyProperties, doDontCareElimination, false, compLimit);
 		} else {
 			throw new IllegalArgumentException("Type of file " + filename + " unknown");
 		}
@@ -694,7 +696,7 @@ class Main {
 			rng = new MersenneTwisterFast(seed);
 		}
 
-		model = loadModel(filename, constants, doDontCareElimination, useStorm, compositionStateLimit);
+		model = loadModel(filename, constants, onlyProperties, doDontCareElimination, useStorm, compositionStateLimit);
 		if (janiOutputFile != null)
 			MakeJani.makeJani(model, janiOutputFile, jsonOutput ? filename : null, args, properties);
 		if (traLabOutputFile != null) {
@@ -703,7 +705,7 @@ class Main {
 				mtl.convert(traLabOutputFile);
 			} catch (NondeterminismException e) {
 				e.printStackTrace();
-				LTS tmpModel = loadModel(filename, constants, false, useStorm, compositionStateLimit);
+				LTS tmpModel = loadModel(filename, constants, onlyProperties, false, useStorm, compositionStateLimit);
 				MakeTraLab mtl = new MakeTraLab(tmpModel, unsafeComposition);
 				mtl.convert(traLabOutputFile);
 			}

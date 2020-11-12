@@ -451,31 +451,56 @@ public class JaniModel
 		                       transientGlobals);
 	}
 
-	public LTS getLTS() {
+	public LTS getLTS(Set<String> keepProperties) {
+		if (automata.length != 1)
+			return getComposition();
+		SymbolicAutomaton ret = automata[0];
+		for (String label : ret.getAllTransitionLabels()) {
+			boolean found = false;
+			for (String[] sync : vectorLabels) {
+				for (String s : sync) {
+					if (s.equals(label)) {
+						found = true;
+						break;
+					}
+				}
+			}
+			if (!found) {
+				System.err.println("Warning: Transition label '" + label + "' will never be taken as it is not in any synchronization element");
+				return getComposition();
+			}
+		}
 		Set<String> propertyVars = new TreeSet<>();
-		for (Property p : properties)
-			propertyVars.addAll(p.getReferencedVariables());
-		if (automata.length == 1 && vectorAutomata.length == 0) {
-			SymbolicAutomaton ret = automata[0];
-			for (String name : transientGlobals.keySet()) {
-				if (propertyVars.contains(name))
-					return getComposition();
+		HashMap<String, Expression> transients = new HashMap<>();
+		Iterator<Property> propertyIt = properties.iterator();
+		while (propertyIt.hasNext()) {
+			Property p = propertyIt.next();
+			if (!keepProperties.contains(p.name))
+				propertyIt.remove();
+			else
+				propertyVars.addAll(p.getReferencedVariables());
+		}
+		for (String name : transientGlobals.keySet()) {
+			if (propertyVars.contains(name)) {
+				ret = ret.addTransientVariable(name,
+						transientGlobals.get(name));
+			} else {
 				ret = ret.removeVariable(name);
 				if (ret == null)
 					return getComposition();
-				globalVars.remove(name);
 			}
-			for (var entry : globalVars.entrySet()) {
-				String name = entry.getKey();
-				JaniVariable info = entry.getValue();
-				if (info.type.base == JaniBaseType.REAL)
-					throw new UnsupportedOperationException("Real-values variables not supported");
-				int init = JaniUtils.safeToInteger(info.initial);
-				ret = ret.addVariable(name, init);
-			}
-			return ret;
+			globalVars.remove(name);
 		}
-		return getComposition();
+		for (var entry : globalVars.entrySet()) {
+			String name = entry.getKey();
+			JaniVariable info = entry.getValue();
+			if (info.type.base == JaniBaseType.REAL)
+				throw new UnsupportedOperationException("Real-values variables not supported");
+			int init = JaniUtils.safeToInteger(info.initial);
+			ret = ret.addVariable(name, init);
+			System.err.println("Internalized " + name);
+		}
+		return ret;
 	}
 
 	public Set<Property> getProperties() {
