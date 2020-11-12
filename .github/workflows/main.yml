@@ -4,16 +4,33 @@ on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
     - uses: actions/setup-java@v1
       with:
         java-version: 11
+    - name: Cache Storm download
+      run: |
+        curl https://www.ennoruijters.nl/package.gpg | sudo apt-key add -
+        echo "deb http://packages.ennoruijters.nl focal main" | sudo tee -a /etc/apt/sources.list
+        sudo apt update
+        sudo apt-cache show storm | grep Version | sed -e 's/Version: /STORM_VERSION=/' >> $GITHUB_ENV
+        sudo mkdir apt-archive
+    - name: APT cache
+      uses: actions/cache@v2
+      with:
+        path: apt-archive.tar
+        key: ${{ runner.os }}-apt-${{ env.STORM_VERSION }}
+    - name: Install dependencies
+      run: |
+        if [ -e apt-archive.tar ]; then sudo tar xf apt-archive.tar; fi
+        sudo apt-get -o dir::cache=$GITHUB_WORKSPACE/apt-archive install storm
+        sudo tar cf apt-archive.tar apt-archive/archives
     - name: Compile
       run: make jar
     - name: Tests
-      run: cd tests && bash test.sh
+      run: cd tests && bash test.sh --dft storm
     - name: Package
       run: make deb rpm 'RPMBUILD_FLAGS=--nodeps --nocheck' 'DPKG_FLAGS=-d'
     - uses: actions/upload-artifact@v2
