@@ -216,9 +216,11 @@ public class MakeTraLab {
 		if (!transitionTimes.isEmpty()) {
 			String modeLine = "MODES";
 			String timesLine = "TIMES";
+			BigDecimal prevTime = BigDecimal.ZERO;
 			for (BigDecimal t : transitionTimes.keySet()) {
 				modeLine += " ctmc dtmc";
-				timesLine += " " + t + " 1";
+				timesLine += " " + t.subtract(prevTime) + " 1";
+				prevTime = t;
 			}
 			traWriter.format("%s\n%s\n", modeLine, timesLine);
 			traWriter.format("STATES %d\n", numStates);
