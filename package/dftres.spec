@@ -18,7 +18,7 @@ The Dynamic Fault Tree Rare Event Simulator
 %setup
 
 %build
-make "JFLAGS=-target 11 -source 11 -encoding UTF-8" repro_jar
+make "JFLAGS=--release 11 -encoding UTF-8" repro_jar
 
 %check
 cd tests && bash test.sh
