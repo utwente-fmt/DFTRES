@@ -1,6 +1,7 @@
 package nl.ennoruijters.util;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -287,25 +288,29 @@ public class JSONParser {
 
 	public static Object readJsonFromFile(String file) throws IOException {
 		byte data[];
-		try (BufferedReader rd = new BufferedReader(
-					new InputStreamReader(
-						new FileInputStream(file),
-						Charset.forName("UTF-8"))))
+		try (FileInputStream inStr = new FileInputStream(file);
+			ByteArrayOutputStream str = new ByteArrayOutputStream())
 		{
-			data = readAll(rd).getBytes();
+			byte buf[] = new byte[4096];
+			int bytesRead;
+			while ((bytesRead = inStr.read(buf)) != -1)
+				str.write(buf, 0, bytesRead);
+			data = str.toByteArray();
 		}
 		return JSONParser.parse(data);
 	}
 
 	public static Object readJsonFromUrl(String url) throws IOException {
-		InputStream is = new URL(url).openStream();
-		try {
-			BufferedReader rd = new BufferedReader(new InputStreamReader(is,
-					Charset.forName("UTF-8")));
-			String jsonText = readAll(rd);
-			return JSONParser.parse(jsonText.getBytes());
-		} finally {
-			is.close();
+		byte data[];
+		try (InputStream inStr = new URL(url).openStream();
+			ByteArrayOutputStream str = new ByteArrayOutputStream())
+		{
+			byte buf[] = new byte[4096];
+			int bytesRead;
+			while ((bytesRead = inStr.read(buf)) != -1)
+				str.write(buf, 0, bytesRead);
+			data = str.toByteArray();
 		}
+		return JSONParser.parse(data);
 	}
 }
