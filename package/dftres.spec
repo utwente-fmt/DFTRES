@@ -34,5 +34,9 @@ install -m 0755 package/DFTRES %{buildroot}/%{_bindir}
 %{_datadir}/dftres/DFTRES.jar
 
 %changelog
+* Fri Oct 07 2022 Enno Ruijters <mail@ennoruijters.nl> - 1.1.0-1
+- Performance improvements.
+- Support for Storm as DFT front-end.
+- Support for more Jani features.
 * Tue May 05 2020 Enno Ruijters <mail@ennoruijters.nl> - 1.0.2-1
 - Initial RPM relase
