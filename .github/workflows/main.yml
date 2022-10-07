@@ -4,7 +4,10 @@ on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
     - uses: actions/setup-java@v1
@@ -12,8 +15,9 @@ jobs:
         java-version: 11
     - name: Cache Storm download
       run: |
+        . /etc/os-release
         curl https://www.ennoruijters.nl/package.gpg | sudo apt-key add -
-        echo "deb http://packages.ennoruijters.nl focal main" | sudo tee -a /etc/apt/sources.list
+        echo "deb http://packages.ennoruijters.nl $VERSION_CODENAME main" | sudo tee -a /etc/apt/sources.list
         sudo apt update
         sudo apt-cache show storm | grep Version | sed -e 's/Version: /STORM_VERSION=/' >> $GITHUB_ENV
         sudo mkdir apt-archive
