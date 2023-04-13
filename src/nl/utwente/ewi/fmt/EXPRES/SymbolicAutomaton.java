@@ -308,8 +308,21 @@ public class SymbolicAutomaton implements LTS {
 							prob = null;
 					}
 				}
-				if (prob != null && !action.equals("i"))
+				if (prob != null && !action.equals("i") && ro == null)
 					throw new UnsupportedOperationException("Probabilistic transitions must not have labels");
+				if (prob != null && ro != null) {
+					Map<?, ?> map = (Map<?, ?>)ro;
+					Object rate = map.get("exp");
+					map = (Map<?, ?>)probO;
+					Object probExpr = map.get("exp");
+					Map<String, Object> multipliedRate = Map.of("exp", Map.of(
+								"op", "*",
+								"left", rate,
+								"right", probExpr
+					));
+					prob = null;
+					action = makeLabel(ao, multipliedRate, constants);
+				}
 				if (prob != null && hasProbabilisticEdge)
 					throw new UnsupportedOperationException("Nondeterminism in selection of probabilistic transitions from " + src);
 				Object assignO = dest.get("assignments");
