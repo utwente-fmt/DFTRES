@@ -104,6 +104,27 @@ public class SymbolicAutomaton implements LTS {
 		numberedVariables = tryToNumberVariables();
 	}
 
+	private static String makeLabel(Object actionLabel, Object rateExpr, Map<String, Number> constants)
+	{
+		if (actionLabel == null && rateExpr == null) {
+			return "i";
+		} else if (actionLabel != null && rateExpr == null) {
+			return 'i' + actionLabel.toString();
+		} else if (actionLabel == null && rateExpr != null) {
+			if (!(rateExpr instanceof Map))
+				throw new IllegalArgumentException("Edge rates must be JSON objects, not: " + rateExpr);
+			Map<?, ?> rateMap = (Map<?, ?>)rateExpr;
+			Number rate = JaniUtils.getConstantDouble(rateMap.get("exp"), constants);
+			return "r" + rate;
+		} else { /* both action and rate specified */
+			if (!(rateExpr instanceof Map))
+				throw new IllegalArgumentException("Edge rates must be JSON objects, not: " + rateExpr);
+			Map<?, ?> rateMap = (Map<?, ?>)rateExpr;
+			Number rate = JaniUtils.getConstantDouble(rateMap.get("exp"), constants);
+			return "c" + rate + ";" + actionLabel.toString();
+		}
+	}
+
 	/* Private since 'Map' may in the future be suitable for
 	 * multiple types.
 	 */
@@ -233,23 +254,7 @@ public class SymbolicAutomaton implements LTS {
 			if ("".equals(ao))
 				throw new IllegalArgumentException("Action with empty name not supported");
 			Object ro = edge.get("rate");
-			if (ro == null && ao == null) {
-				action = "i";
-			} else if (ao != null && ro == null) {
-				action = 'i' + ao.toString();
-			} else if (ao == null && ro != null) {
-				if (!(ro instanceof Map))
-					throw new IllegalArgumentException("Edge rates must be JSON objects, not: " + ro);
-				Map<?, ?> rateMap = (Map<?, ?>)ro;
-				Number rate = JaniUtils.getConstantDouble(rateMap.get("exp"), constants);
-				action = "r" + rate;
-			} else { /* both action and rate specified */
-				if (!(ro instanceof Map))
-					throw new IllegalArgumentException("Edge rates must be JSON objects, not: " + ro);
-				Map<?, ?> rateMap = (Map<?, ?>)ro;
-				Number rate = JaniUtils.getConstantDouble(rateMap.get("exp"), constants);
-				action = "c" + rate + ";" + ao.toString();
-			}
+			action = makeLabel(ao, ro, constants);
 			Expression guard = ConstantExpression.TRUE;
 			if (edge.containsKey("guard")) {
 				Object gO = edge.get("guard");
