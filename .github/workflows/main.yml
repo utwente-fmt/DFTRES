@@ -17,8 +17,8 @@ jobs:
     - name: Cache Storm download
       run: |
         . /etc/os-release
-        curl https://www.ennoruijters.nl/package.gpg | sudo apt-key add -
-        echo "deb http://packages.ennoruijters.nl $VERSION_CODENAME main" | sudo tee -a /etc/apt/sources.list
+        curl https://www.ennoruijters.nl/package.gpg | gpg --dearmor | sudo tee /usr/share/keyrings/ennoruijters.gpg >/dev/null
+        echo "deb [signed-by=/usr/share/keyrings/ennoruijters.gpg] http://packages.ennoruijters.nl $VERSION_CODENAME main" | sudo tee -a /etc/apt/sources.list
         sudo apt update
         sudo apt-cache show storm | grep Version | sed -e 's/Version: /STORM_VERSION=/' >> $GITHUB_ENV
         sudo mkdir apt-archive
