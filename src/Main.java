@@ -532,7 +532,7 @@ class Main {
 			else
 				showResults(time, goodResults);
 			if (currentSimulator != null) {
-				SimulationResult res = currentSimulator.getCurrentEstimate(confidence);
+				SimulationResult res = currentSimulator.getCurrentEstimate(1-confidence);
 				System.err.println("***Unexpected interruption***");
 				System.err.println("Best estimate for property " + res.property.name + ":");
 				System.err.println(res.toString());
