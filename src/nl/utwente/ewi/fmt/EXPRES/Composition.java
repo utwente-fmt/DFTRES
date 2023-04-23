@@ -206,6 +206,7 @@ public class Composition implements MarkableLTS
 		this.vectorLabels = vectorLabels;
 		this.synchronizedLabels = synchronizedLabels;
 		this.priorityVectors = new boolean[vectorAutomata.length];
+		fixCombinedActions();
 		afterParsing();
 	}
 
@@ -590,14 +591,14 @@ public class Composition implements MarkableLTS
 				int k;
 				int[] auts = vAuts.get(j);
 				for (k = auts.length - 1; k >= 0; k--)
-					if (k == i)
+					if (auts[k] == i)
 						break;
 				if (k < 0)
 					continue;
 				String[] labels = vLabels.get(j);
 				String ilabel = labels[k];
 				String label = ilabel.substring(1);
-				boolean keepInteractive = false;
+				boolean keepInteractive = false, match = false;
 				for (String action : actions) {
 					if (action.equals(ilabel)) {
 						keepInteractive = true;
@@ -608,6 +609,7 @@ public class Composition implements MarkableLTS
 					String[] parts = action.split(";", 2);
 					if (!parts[1].equals(label))
 						continue;
+					match = true;
 					String rateStr = parts[0].substring(1);
 					String sLabel = sLabels.get(j);
 					if (sLabel == null) {
@@ -615,7 +617,7 @@ public class Composition implements MarkableLTS
 					} else if (sLabel.charAt(0) == 'r') {
 						sLabel = mult(sLabel, parts[0]);
 					} else {
-						System.err.format("Caution: discarding synchronization result label '%s' in Markovian synchronization.");
+						System.err.format("Caution: discarding synchronization result label '%s' in Markovian synchronization.\n", sLabel);
 						sLabel = 'r' + rateStr;
 					}
 					String[] newLabels = labels.clone();
@@ -624,7 +626,7 @@ public class Composition implements MarkableLTS
 					vLabels.add(newLabels);
 					sLabels.add(sLabel);
 				}
-				if (!keepInteractive) {
+				if (match && !keepInteractive) {
 					vAuts.remove(j);
 					vLabels.remove(j);
 					sLabels.remove(j);
