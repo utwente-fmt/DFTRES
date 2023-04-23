@@ -1418,7 +1418,7 @@ public class Composition implements MarkableLTS
 				String l = aut.getTransitionLabel(orig, j);
 				if (l == null)
 					break;
-				Expression g = automata[i].getTransitionGuard(orig, j);
+				Expression g = aut.getTransitionGuard(orig, j);
 				boolean guardOK = true;
 				if (g != null) {
 					Number v = g.evaluate(this, from);
