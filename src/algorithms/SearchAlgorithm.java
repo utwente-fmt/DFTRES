@@ -531,6 +531,7 @@ public class SearchAlgorithm {
 				//System.out.println(x+", "+z+": "+X.size());
 				int dZ = d.get(x) + z.getOrderTo(x);
 				if (dZ < d.get(z)) {
+					suitables.add(z);
 					v.put(z, zero);
 					d.put(z, dZ);
 					if (dZ < dCur) {
@@ -554,11 +555,10 @@ public class SearchAlgorithm {
 					continue;
 				boolean suitable = true;
 				for (State xx : z.getNeighbours().neighbours) {
-					if (!Lambda.contains(xx))
+					if (!suitables.contains(xx))
 						continue;
-					Neighbours es = xx.getNeighbours();
-					int rxxz = xx.getOrderTo(z);
-					if (!(prop.isBlue(model, xx) || lambdaP.contains(xx) || redsAndGamma.contains(xx) || rxxz > 0)) {
+					int rzxx = z.getOrderTo(xx);
+					if (!(prop.isBlue(model, xx) || lambdaP.contains(xx) || redsAndGamma.contains(xx) || rzxx > 0)) {
 						suitable = false;
 						break;
 					}
