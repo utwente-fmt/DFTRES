@@ -251,6 +251,22 @@ public class JaniModel
 			automata[i] = declaredAuts.get(autName);
 			if (automata[i] == null)
 				throw new IllegalArgumentException("Element declaration contains undefined automaton: " + autName);
+			element = emap.get("input-enable");
+			if (element != null) {
+				if (!(element instanceof Object[]))
+					throw new IllegalArgumentException("input-enable is not an array: " + element);
+				ArrayList<String> inputEnable = new ArrayList<>();
+				for (Object action : (Object[])element) {
+					if (!(action instanceof String))
+						throw new IllegalArgumentException("input-enable element is not a string: " + action);
+					inputEnable.add((String)action);
+				}
+				if (!inputEnable.isEmpty()) {
+					if (type.equals("dtmc"))
+						throw new UnsupportedOperationException("Cannot make DTMCs input-enabled");
+					automata[i] = automata[i].makeInputEnabled(inputEnable, type.equals("ctmc"));
+				}
+			}
 		}
 		ArrayList<Integer> extraSyncs = new ArrayList<>();
 		for (int i = 0; i < automata.length; i++) {

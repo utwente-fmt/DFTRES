@@ -10,6 +10,8 @@ import java.util.*;
 
 import nl.utwente.ewi.fmt.EXPRES.JaniModel.JaniType;
 import nl.utwente.ewi.fmt.EXPRES.JaniModel.JaniBaseType;
+import nl.utwente.ewi.fmt.EXPRES.expression.BinaryExpression;
+import nl.utwente.ewi.fmt.EXPRES.expression.BinaryExpression.Operator;
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 import nl.utwente.ewi.fmt.EXPRES.expression.ConstantExpression;
 
@@ -102,6 +104,87 @@ public class SymbolicAutomaton implements LTS {
 			}
 		}
 		numberedVariables = tryToNumberVariables();
+	}
+
+	private SymbolicAutomaton(SymbolicAutomaton other, Map<Integer, Map<String, Expression>> addInputEnable, boolean isCtmc)
+	{
+		this.initialState = other.initialState;
+		this.variables = other.variables;
+		this.numberedVariables = other.numberedVariables;
+
+		this.targets = other.targets.clone();
+		this.labels = other.labels.clone();
+		this.guards = other.guards.clone();
+		this.probs = other.probs.clone();
+		this.assignments = other.assignments.clone();
+
+		String prefix = isCtmc ? "c1;" : "i";
+
+		for (var stateEntry : addInputEnable.entrySet()) {
+			int i = stateEntry.getKey();
+			int j = targets[i].length;
+			Map<String, Expression> toAdd = stateEntry.getValue();
+			int newLength = j + toAdd.size();
+
+			targets[i] = Arrays.copyOf(targets[i], newLength);
+			labels[i] = Arrays.copyOf(labels[i], newLength);
+			guards[i] = Arrays.copyOf(guards[i], newLength);
+			probs[i] = Arrays.copyOf(probs[i], newLength);
+			assignments[i] = Arrays.copyOf(assignments[i], newLength);
+
+			for (Map.Entry<String, Expression> entry : toAdd.entrySet()) {
+				targets[i][j] = i;
+				labels[i][j] = prefix + entry.getKey();
+				guards[i][j] = new BinaryExpression(
+						Operator.NOT_EQUALS,
+						ConstantExpression.TRUE,
+						entry.getValue());
+				assignments[i][j] = new HashMap<>();
+				j++;
+			}
+		}
+	}
+
+	public SymbolicAutomaton makeInputEnabled(Collection<String> actions, boolean isCtmc)
+	{
+		Map<Integer, Map<String, Expression>> toAdd = new TreeMap<>();
+
+		for (int i = 0; i < targets.length; i++) {
+			Map<String, Expression> newGuards = new HashMap<>();
+			for (String act : actions)
+				newGuards.put(act, ConstantExpression.FALSE);
+
+			for (int j = 0; j < labels[i].length; j++) {
+				String label = labels[i][j];
+				Expression prevGuard = null;
+				if (label.charAt(0) == 'i') {
+					if (isCtmc)
+						throw new IllegalStateException("Interactive transition in CTMC");
+					label = label.substring(1);
+					prevGuard = newGuards.get(label);
+				} else if (label.charAt(0) == 'c') {
+					if (!isCtmc)
+						throw new IllegalStateException("Combined transition in non-CTMC");
+					label = label.substring(label.indexOf(';') + 1);
+					prevGuard = newGuards.get(label);
+				}
+				if (prevGuard != null) {
+					Expression newGuard = new BinaryExpression(
+							Operator.OR,
+							prevGuard,
+							guards[i][j]);
+					newGuards.put(label, newGuard);
+				}
+			}
+
+			newGuards.values().removeIf(e -> e.simplify(Map.of()).equals(ConstantExpression.TRUE));
+			if (!newGuards.isEmpty())
+				toAdd.put(i, newGuards);
+		}
+
+		if (toAdd.isEmpty())
+			return this;
+		return new SymbolicAutomaton(this, toAdd, isCtmc);
 	}
 
 	private static String makeLabel(Object actionLabel, Object rateExpr, Map<String, Number> constants)

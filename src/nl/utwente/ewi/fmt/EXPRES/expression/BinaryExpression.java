@@ -255,24 +255,24 @@ public class BinaryExpression extends Expression
 			case AND:
 				if (constL != null) {
 					if (constL.doubleValue() == 0)
-						return new ConstantExpression(0);
+						return ConstantExpression.FALSE;
 					return simplerR;
 				}
 				if (constR != null) {
 					if (constR.doubleValue() == 0)
-						return new ConstantExpression(0);
+						return ConstantExpression.FALSE;
 					return simplerL;
 				}
 				break;
 			case OR:
 				if (constL != null) {
 					if (constL.doubleValue() != 0)
-						return new ConstantExpression(1);
+						return ConstantExpression.TRUE;
 					return simplerR;
 				}
 				if (constR != null) {
 					if (constR.doubleValue() != 0)
-						return new ConstantExpression(1);
+						return ConstantExpression.TRUE;
 					return simplerL;
 				}
 				break;
