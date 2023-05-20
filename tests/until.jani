@@ -1,0 +1,125 @@
+{
+	"jani-version": 1,
+	"type": "ctmc",
+	"actions": [],
+	"automata": [
+		{
+			"initial-locations": [
+				"location"
+			],
+			"locations": [
+				{
+					"name": "location"
+				}
+			],
+			"name": "A1",
+			"variables": [],
+			"edges": [
+				{
+					"destinations": [
+						{
+							"assignments": [
+								{
+									"ref": "count",
+									"value": {
+										"left": "count",
+										"op": "+",
+										"right": 1
+									}
+								}
+							],
+							"location": "location"
+						}
+					],
+					"guard": {
+						"exp": {
+							"left": "count",
+							"op": "<",
+							"right": 2
+						}
+					},
+					"location": "location",
+					"rate": {
+						"exp": 2
+					}
+				},
+				{
+					"destinations": [
+						{
+							"assignments": [
+								{
+									"ref": "count",
+									"value": {
+										"left": "count",
+										"op": "-",
+										"right": 1
+									}
+								}
+							],
+							"location": "location"
+						}
+					],
+					"guard": {
+						"exp": {
+							"left": "count",
+							"op": ">",
+							"right": 0
+						}
+					},
+					"location": "location",
+					"rate": {
+						"exp": 1
+					}
+				}
+			]
+		}
+	],
+	"variables": [
+		{
+			"initial-value": 1,
+			"name": "count",
+			"type": {
+				"base": "int",
+				"kind": "bounded",
+				"lower-bound": 0,
+				"upper-bound": 2
+			}
+		}
+	],
+	"properties": [
+		{
+			"expression": {
+				"fun": "max",
+				"op": "filter",
+				"states": {
+					"op": "initial"
+				},
+				"values": {
+					"exp": {
+						"left": {
+							"left": "count",
+							"op": ">",
+							"right": 0
+						},
+						"op": "U",
+						"right": {
+							"left": "count",
+							"op": ">",
+							"right": 1
+						}
+					},
+					"op": "Pmax"
+				}
+			},
+			"name": "until"
+		}
+	],
+	"system": {
+		"elements": [
+			{
+				"automaton": "A1"
+			}
+		],
+		"syncs": []
+	}
+}

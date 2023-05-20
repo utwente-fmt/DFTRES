@@ -2,3 +2,4 @@ cabinets.2-1.jani   "--def T 1 --def L 0 -a"     4.256846805440[124; 338]e-4
 cabinets.2-1.jani   "--def T 1 --def L 0 -r 1"   9.1994667421837[374; 409]e-4
 cabinets.2-1.jani   "--def T 1 --def L 0 --mttf" 784.2282128540[494; 751]
 input-enabled-ctmc.jani "--prop TBR"  0.080301[35; 44]
+until.jani "--prop until"  0.666666666666[6; 7]
