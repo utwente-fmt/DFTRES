@@ -703,12 +703,12 @@ class Main {
 			MakeJani.makeJani(model, janiOutputFile, jsonOutput ? filename : null, args, properties);
 		if (traLabOutputFile != null) {
 			try {
-				MakeTraLab mtl = new MakeTraLab(model, unsafeComposition);
+				MakeTraLab mtl = new MakeTraLab(model, unsafeComposition, properties);
 				mtl.convert(traLabOutputFile);
 			} catch (NondeterminismException e) {
 				e.printStackTrace();
 				LTS tmpModel = loadModel(filename, constants, onlyProperties, false, useStorm, compositionStateLimit);
-				MakeTraLab mtl = new MakeTraLab(tmpModel, unsafeComposition);
+				MakeTraLab mtl = new MakeTraLab(tmpModel, unsafeComposition, properties);
 				mtl.convert(traLabOutputFile);
 			}
 		}
