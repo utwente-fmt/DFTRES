@@ -86,6 +86,11 @@ public class MakeTraLab {
 					Number eval = prop.reachTarget.evaluate(vals);
 					if (eval.doubleValue() != 0)
 						markings.add("p_" + prop.name + "_target");
+					if (prop.avoidTarget == null)
+						continue;
+					eval = prop.avoidTarget.evaluate(vals);
+					if (eval.doubleValue() != 0)
+						markings.add("p_" + prop.name + "_stay");
 				}
 
 				if (markings.isEmpty())

@@ -671,20 +671,20 @@ class Main {
 		String failedVar = useStorm ? "failed" : "marked";
 		for (int i = 0; i < args.length - 1; i++) {
 			if (args[i].equals("-a")) {
-				Property av = new Property(Property.Type.STEADY_STATE, new VariableExpression(failedVar), "Unavailability");
+				Property av = new Property(Property.Type.STEADY_STATE, new VariableExpression(failedVar), null, "Unavailability");
 				properties.add(av);
 				onlyProperties.add(av.name);
 			} else if (args[i].equals("-u")) {
-				Property rel = new Property(Property.Type.REACHABILITY, new VariableExpression(failedVar), "Unreliability");
+				Property rel = new Property(Property.Type.REACHABILITY, new VariableExpression(failedVar), null, "Unreliability");
 				properties.add(rel);
 				onlyProperties.add(rel.name);
 			} else if (args[i].equals("-r")) {
 				double time = Double.parseDouble(args[++i]);
-				Property rel = new Property(Property.Type.REACHABILITY, time, new VariableExpression(failedVar), "Unreliability");
+				Property rel = new Property(Property.Type.REACHABILITY, time, new VariableExpression(failedVar), null, "Unreliability");
 				properties.add(rel);
 				onlyProperties.add(rel.name);
 			} else if (args[i].equals("--mttf")) {
-				Property mttf = new Property(Property.Type.EXPECTED_VALUE, Double.POSITIVE_INFINITY, new VariableExpression(failedVar), "MTTF", new ConstantExpression(1), null);
+				Property mttf = new Property(Property.Type.EXPECTED_VALUE, Double.POSITIVE_INFINITY, new VariableExpression(failedVar), null, "MTTF", new ConstantExpression(1), null);
 				properties.add(mttf);
 				onlyProperties.add(mttf.name);
 			}

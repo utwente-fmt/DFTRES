@@ -1739,9 +1739,9 @@ public class Composition implements MarkableLTS
 		if (props.isEmpty() && !markLabels.isEmpty()) {
 			/* Special cases as we write min/max. */
 			props = new HashSet<>();
-			Property av = new Property(Property.Type.STEADY_STATE, new BinaryExpression(BinaryExpression.Operator.GREATER, new VariableExpression("marked"), ConstantExpression.FALSE), "Unavailability");
+			Property av = new Property(Property.Type.STEADY_STATE, new BinaryExpression(BinaryExpression.Operator.GREATER, new VariableExpression("marked"), ConstantExpression.FALSE), null, "Unavailability");
 			props.add(av);
-			Property mttf = new Property(Property.Type.EXPECTED_VALUE, Double.POSITIVE_INFINITY, new BinaryExpression(BinaryExpression.Operator.NOT_EQUALS, new VariableExpression("marked"), ConstantExpression.FALSE), "MTTF", new ConstantExpression(1), null);
+			Property mttf = new Property(Property.Type.EXPECTED_VALUE, Double.POSITIVE_INFINITY, new BinaryExpression(BinaryExpression.Operator.NOT_EQUALS, new VariableExpression("marked"), ConstantExpression.FALSE), null, "MTTF", new ConstantExpression(1), null);
 			props.add(mttf);
 			out.println("\t{\"name\":\"TBLmax_Unreliability\",");
 			out.println("\t \"expression\":{");
@@ -1857,125 +1857,5 @@ public class Composition implements MarkableLTS
 		/* End of properties */
 		out.println("]");
 		out.println("}");
-	}
-
-	private static Property parseJaniProperty(Map<?, ?> prop, Map<String, Number> constants)
-	{
-		Object nameO = prop.get("name");
-		if (!(nameO instanceof String))
-			throw new IllegalArgumentException("Property name should be string, not: " + nameO);
-		String name = (String) nameO;
-		Object expO = prop.get("expression");
-		if (!(expO instanceof Map))
-			throw new IllegalArgumentException("Property expression should be object, not: " + expO);
-		Map<?, ?> expr = (Map<?, ?>)expO;
-		if (!"filter".equals(expr.get("op")))
-			throw new UnsupportedOperationException("I don't know what to do property operation '" + expr.get("op") + "'");
-		Object fun = expr.get("fun");
-		if (!("max".equals(fun) || "min".equals(fun) || "avg".equals(fun) || "values".equals(fun)))
-			throw new UnsupportedOperationException("Unsupported property function: " + fun);
-		if (!Collections.singletonMap("op", "initial").equals(expr.get("states")))
-			throw new UnsupportedOperationException("Only properties over initial states currently supported.");
-		Object valO = expr.get("values");
-		if (!(valO instanceof Map))
-			throw new IllegalArgumentException("Property values should be object, not: " + valO);
-		Map<?, ?> values = (Map<?, ?>)valO;
-		Object op = values.get("op");
-		Property.Type propType = null;
-		if ("Smax".equals(op) || "Smin".equals(op))
-			propType = Property.Type.STEADY_STATE;
-		else if ("Pmax".equals(op) || "Pmin".equals(op))
-			propType = Property.Type.REACHABILITY;
-		else if ("Emax".equals(op) || "Emin".equals(op))
-			propType = Property.Type.EXPECTED_VALUE;
-		else
-			throw new UnsupportedOperationException("Unsupported property operation: " + op);
-		double timeBound = 0;
-		Expression reachTarget = null;
-		if (propType == Property.Type.STEADY_STATE
-		    || propType == Property.Type.REACHABILITY)
-		{
-			expO = values.get("exp");
-		} else {
-			expO = values.get("reach");
-		}
-		if (expO instanceof String) {
-			reachTarget = Expression.fromJani(expO);
-		} else if (expO instanceof Map) {
-			expr = (Map<?, ?>)expO;
-			if ("U".equals(expr.get("op"))) {
-				if (!Boolean.TRUE.equals(expr.get("left")))
-					throw new UnsupportedOperationException("Until formulae currently only supported with 'true' left operand.");
-				expO = expr.get("right");
-				reachTarget = Expression.fromJani(expO);
-			} else if ("F".equals(expr.get("op"))) {
-				expO = expr.get("exp");
-				reachTarget = Expression.fromJani(expO);
-			} else {
-				try {
-					reachTarget = Expression.fromJani(expO);
-				} catch (UnsupportedOperationException e) {
-					throw new UnsupportedOperationException("The only currently supported formulae are variables and formulae 'F variable' or 'true U variable' (with time bound); Ignoring property '" + name + "'");
-				}
-			}
-			Object boundO = expr.get("time-bounds");
-			if (boundO == null) {
-				timeBound = Double.POSITIVE_INFINITY;
-			} else if (boundO instanceof Map) {
-				Map<?, ?> bound = (Map<?, ?>)boundO;
-				for (Object o : bound.keySet()) {
-					if ("upper".equals(o)) {
-						o = bound.get("upper");
-						timeBound = JaniUtils.getConstantDouble(o, constants).doubleValue();
-					} else if (!"upper-exclusive".equals(o)) {
-						throw new UnsupportedOperationException("Only constant-valued upper bounds currently supported.");
-					}
-				}
-			}
-		} else if (propType == Property.Type.EXPECTED_VALUE
-		           && expO == null)
-		{
-			reachTarget = null;
-		} else {
-			throw new IllegalArgumentException("Property expression should be identifier or expression.");
-		}
-		if (reachTarget != null)
-			reachTarget = reachTarget.simplify(constants);
-		if (propType == Property.Type.EXPECTED_VALUE) {
-			timeBound = Double.POSITIVE_INFINITY;
-			if (values.containsKey("step-instant"))
-				throw new UnsupportedOperationException("Step-bounded properties currently not supported.");
-			if (values.containsKey("reward-instants"))
-				throw new UnsupportedOperationException("Reward-instant queries currently not supported.");
-			expO = values.get("exp");
-			if (expO == null)
-				throw new IllegalArgumentException("Expected-reward query without reward expression.");
-			Expression transientRew = Expression.fromJani(expO);
-			Expression cumulativeRew = null;
-			expO = values.get("accumulate");
-			if (expO != null) {
-				if (!(expO instanceof Object[]))
-					throw new IllegalArgumentException("Reward accumulation should be an array.");
-				Object[] accs = (Object[])expO;
-				if (accs.length > 1)
-					throw new UnsupportedOperationException("Only time-accumulating or time-instant reward queries currently supported.");
-				if (accs.length == 1) {
-					if (!"time".equals(accs[0]))
-						throw new UnsupportedOperationException("Only time-accumulating or time-instant reward queries currently supported.");
-				}
-				cumulativeRew = transientRew;
-				transientRew = null;
-			}
-			if (values.containsKey("time-instant")) {
-				Expression instant = Expression.fromJani(values.get("time-instant"));
-				instant = instant.simplify(constants);
-				if (instant.getReferencedVariables().size() > 0) {
-					throw new UnsupportedOperationException("Time-instant expression involves variables.");
-				}
-				timeBound = instant.evaluate(constants).doubleValue();
-			}
-			return new Property(propType, timeBound, reachTarget, name, cumulativeRew, transientRew);
-		}
-		return new Property(propType, timeBound, reachTarget, name);
 	}
 }

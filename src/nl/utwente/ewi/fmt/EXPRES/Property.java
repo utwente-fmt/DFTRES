@@ -19,13 +19,17 @@ public class Property implements Comparable<Property>
 	public final String name;
 	public final Type type;
 	public final double timeBound;
-	public final Expression reachTarget;
+	public final Expression reachTarget, avoidTarget;
 	public final Expression timeCumulativeReward, transientReward;
 
-	public Property(Type type, double bound, Expression target, String name,
+	public Property(Type type, double bound, Expression target,
+			Expression avoid,
+			String name,
 	                Expression cumulativeReward,
 			Expression transientReward)
 	{
+		if (avoid != null && type != Type.REACHABILITY)
+			throw new IllegalArgumentException("Avoid states only supported for reachability queries");
 		this.name = name;
 		this.type = type;
 		this.timeBound = bound;
@@ -33,6 +37,10 @@ public class Property implements Comparable<Property>
 			reachTarget = target.simplify(Map.of());
 		else
 			reachTarget = null;
+		if (avoid != null)
+			avoidTarget = avoid.simplify(Map.of());
+		else
+			avoidTarget = null;
 		if (cumulativeReward != null)
 			timeCumulativeReward = cumulativeReward.simplify(Map.of());
 		else
@@ -43,14 +51,14 @@ public class Property implements Comparable<Property>
 			this.transientReward = null;
 	}
 
-	public Property(Type type, double bound, Expression target, String name)
+	public Property(Type type, double bound, Expression target, Expression avoid, String name)
 	{
-		this(type, bound, target, name, null, null);
+		this(type, bound, target, avoid, name, null, null);
 	}
 
-	public Property(Type type, Expression target, String name)
+	public Property(Type type, Expression target, Expression avoid, String name)
 	{
-		this(type, Double.POSITIVE_INFINITY, target, name);
+		this(type, Double.POSITIVE_INFINITY, target, avoid, name);
 	}
 
 	public Property(Property other, String newName)
@@ -58,6 +66,7 @@ public class Property implements Comparable<Property>
 		this.type = other.type;
 		this.timeBound = other.timeBound;
 		this.reachTarget = other.reachTarget;
+		this.avoidTarget = other.avoidTarget;
 		this.name = newName;
 		this.timeCumulativeReward = other.timeCumulativeReward;
 		this.transientReward = other.transientReward;
@@ -82,6 +91,9 @@ public class Property implements Comparable<Property>
 		ret = compareExprs(this.reachTarget, other.reachTarget);
 		if (ret != 0)
 			return ret;
+		ret = compareExprs(this.avoidTarget, other.avoidTarget);
+		if (ret != 0)
+			return ret;
 		if (this.timeBound < other.timeBound)
 			return -1;
 		else if (this.timeBound > other.timeBound)
@@ -96,6 +108,8 @@ public class Property implements Comparable<Property>
 		TreeSet<String> ret = new TreeSet<>();
 		if (reachTarget != null)
 			ret.addAll(reachTarget.getReferencedVariables());
+		if (avoidTarget != null)
+			ret.addAll(avoidTarget.getReferencedVariables());
 		if (timeCumulativeReward != null)
 			ret.addAll(timeCumulativeReward.getReferencedVariables());
 		if (transientReward != null)
@@ -104,14 +118,16 @@ public class Property implements Comparable<Property>
 	}
 
 	public Property simplify(Map<String, ? extends Number> valuation) {
-		Expression target = null, cumReward = null, transReward = null;
+		Expression target = null, avoid = null, cumReward = null, transReward = null;
 		if (reachTarget != null)
 			target = reachTarget.simplify(valuation);
+		if (avoidTarget != null)
+			avoid = avoidTarget.simplify(valuation);
 		if (timeCumulativeReward != null)
 			cumReward = timeCumulativeReward.simplify(valuation);
 		if (transientReward != null)
 			transReward = transientReward.simplify(valuation);
-		return new Property(this.type, timeBound, target, this.name,
+		return new Property(this.type, timeBound, target, avoid, this.name,
 	                            cumReward, transReward);
 	}
 
@@ -123,6 +139,9 @@ public class Property implements Comparable<Property>
 		ret *= 3;
 		if (reachTarget != null)
 			ret += reachTarget.hashCode();
+		ret *= 3;
+		if (avoidTarget != null)
+			ret += avoidTarget.hashCode();
 		ret *= 3;
 		if (timeCumulativeReward != null)
 			ret += timeCumulativeReward.hashCode();
@@ -143,6 +162,8 @@ public class Property implements Comparable<Property>
 			return false;
 		if (compareExprs(reachTarget, other.reachTarget) != 0)
 			return false;
+		if (compareExprs(avoidTarget, other.avoidTarget) != 0)
+			return false;
 		if (compareExprs(timeCumulativeReward, other.timeCumulativeReward) != 0)
 			return false;
 		return compareExprs(transientReward, other.transientReward) == 0;
@@ -160,8 +181,16 @@ public class Property implements Comparable<Property>
 	
 	public boolean isBlue(StateSpace ss, StateSpace.State state)
 	{
-		if (type != Type.STEADY_STATE)
+		if (type != Type.STEADY_STATE) {
+			if (avoidTarget != null) {
+				Number n = avoidTarget.evaluate(ss, state);
+				if (n instanceof Integer || n instanceof Long)
+					return n.longValue() != 0;
+				return n.doubleValue() != 0;
+			}
+
 			return false;
+		}
 		StateSpace.State init = ss.getInitialState();
 		return state.equals(init);
 	}
@@ -187,7 +216,12 @@ public class Property implements Comparable<Property>
 				break;
 			case REACHABILITY:
 				out.println("Pmax\",");
-				out.print(tabs + "\t\t\"exp\":{\"op\":\"U\", \"left\":true, \"right\":");
+				out.print(tabs + "\t\t\"exp\":{\"op\":\"U\", \"left\":");
+				if (avoidTarget != null)
+					avoidTarget.booleanExpression().writeJani(out, 3);
+				else
+					out.print("true");
+				out.print(", \"right\":");
 				reachTarget.booleanExpression().writeJani(out, 3);
 				if (Double.isFinite(timeBound))
 					out.print(", \"time-bounds\":{\"upper\":" + timeBound + "}");

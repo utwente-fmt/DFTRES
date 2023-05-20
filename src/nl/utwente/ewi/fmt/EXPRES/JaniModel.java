@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.*;
 import nl.ennoruijters.util.JSONParser;
 import nl.utwente.ewi.fmt.EXPRES.LTS;
+import nl.utwente.ewi.fmt.EXPRES.expression.BinaryExpression;
 import nl.utwente.ewi.fmt.EXPRES.expression.ConstantExpression;
 import nl.utwente.ewi.fmt.EXPRES.expression.Expression;
 
@@ -372,7 +373,7 @@ public class JaniModel
 		else
 			throw new UnsupportedOperationException("Unsupported property operation: " + op);
 		double timeBound = 0;
-		Expression reachTarget = null;
+		Expression reachTarget = null, avoidTarget = null;
 		if (propType == Property.Type.STEADY_STATE
 		    || propType == Property.Type.REACHABILITY)
 		{
@@ -385,8 +386,13 @@ public class JaniModel
 		} else if (expO instanceof Map) {
 			expr = (Map<?, ?>)expO;
 			if ("U".equals(expr.get("op"))) {
-				if (!Boolean.TRUE.equals(expr.get("left")))
-					throw new UnsupportedOperationException("Until formulae currently only supported with 'true' left operand.");
+				expO = expr.get("left");
+				avoidTarget = Expression.fromJani(expO);
+				avoidTarget = new BinaryExpression(
+						BinaryExpression.Operator.NOT_EQUALS,
+						avoidTarget,
+						ConstantExpression.TRUE);
+
 				expO = expr.get("right");
 				reachTarget = Expression.fromJani(expO);
 			} else if ("F".equals(expr.get("op"))) {
@@ -396,7 +402,7 @@ public class JaniModel
 				try {
 					reachTarget = Expression.fromJani(expO);
 				} catch (UnsupportedOperationException e) {
-					throw new UnsupportedOperationException("The only currently supported formulae are variables and formulae 'F variable' or 'true U variable' (with time bound); Ignoring property '" + name + "'");
+					throw new UnsupportedOperationException("The only currently supported formulae are variables and formulae 'F <expression>' or '<expression> U <expression>' (with time bound); Ignoring property '" + name + "'");
 				}
 			}
 			Object boundO = expr.get("time-bounds");
@@ -455,9 +461,9 @@ public class JaniModel
 				}
 				timeBound = instant.evaluate(constants).doubleValue();
 			}
-			return new Property(propType, timeBound, reachTarget, name, cumulativeRew, transientRew);
+			return new Property(propType, timeBound, reachTarget, avoidTarget, name, cumulativeRew, transientRew);
 		}
-		return new Property(propType, timeBound, reachTarget, name);
+		return new Property(propType, timeBound, reachTarget, avoidTarget, name);
 	}
 
 	private Composition getComposition()

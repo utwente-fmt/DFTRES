@@ -341,7 +341,7 @@ public class SearchAlgorithm {
 				}
 				if (dZ < dReach && prop.isRed(model, z))
 					dReach = dZ;
-				if (done.contains(z) && dZ == dCur) {
+				if (done.contains(z) && dZ == dCur && !prop.isBlue(model, z)) {
 					/* Possible HPC */
 					if (removeHpc(z)) {
 						x = model.find(x);
