@@ -224,12 +224,12 @@ public abstract class StateSpace {
 		}
 	}
 
-	public void addHPC(State orig, State[] newNeighbours,
+	public HPCState addHPC(State orig, State[] newNeighbours,
 	                   short[] newOrders, double[] newProbs,
 			   double[] meanTimes)
 	{
 		if (orig instanceof HPCState)
-			return;
+			return (HPCState) orig;
 		try {
 			writeLock.lock();
 			HPCState n = new HPCState(orig, newNeighbours,
@@ -239,6 +239,7 @@ public abstract class StateSpace {
 			knownStates.put(n, n);
 			if (orig == initialState)
 				initialState = n;
+			return n;
 		} finally {
 			writeLock.unlock();
 		}

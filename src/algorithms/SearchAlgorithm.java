@@ -2,15 +2,7 @@ package algorithms;
 import models.StateSpace;
 import models.StateSpace.State;
 import models.StateSpace.Neighbours;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.BitSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.PrimitiveIterator;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.LinkedBlockingDeque;
 import nl.utwente.ewi.fmt.EXPRES.Property;
 
@@ -23,6 +15,7 @@ public class SearchAlgorithm {
 	private final StateSpace model;
 	private final Property prop;
 	private static final boolean VERBOSE = false;
+	private static final Double zero = 0.0;
 
 	private HashMap<State, Integer> dp;
 	public HashMap<State, Integer> d;
@@ -98,23 +91,22 @@ public class SearchAlgorithm {
 				if (nb.orders[i] > 0)
 					continue;
 				State z = nb.neighbours[i];
-				if (prop.isBlue(model, z))
+				if (prop.isBlue(model, z) || prop.isRed(model, z))
 					continue;
 				if (A.add(z))
 					pot_A.add(z);
 			}
 		}
 
-		ArrayList<State> preds;
 		while (!pot_B.isEmpty()) {
 			State z = pot_B.poll();
 			if (Simulator.showProgress && (B.size() % 32768) == 0)
 				System.err.format("\rRemoving HPC, A: %d, B %d", A.size(), B.size());
-			preds = predecessors.get(z);
+			ArrayList<State> preds = predecessors.get(z);
 			for (State x : preds) {
 				if (x.getOrderTo(z) != 0)
 					continue;
-				if (!A.contains(x) || prop.isBlue(model, x))
+				if (!A.contains(x) || prop.isBlue(model, x) || prop.isRed(model, x))
 					continue;
 				if (B.add(x))
 					pot_B.add(x);
@@ -254,6 +246,7 @@ public class SearchAlgorithm {
 		if (trace)
 			System.err.println("Minimal order: " + minOrder);
 
+		Set<State> inHpc = Set.of(L);
 		for (i = 0; i < L.length; i++) {
 			State l = L[i];
 			double[] prbs = new double[D.length];
@@ -262,7 +255,15 @@ public class SearchAlgorithm {
 				mt = meanTimes[i];
 			for(int j=0;j<D.length;j++)
 				prbs[j] = T[i][L.length + j];
-			model.addHPC(l, D, orders, prbs, mt);
+			State h = model.addHPC(l, D, orders, prbs, mt);
+			for (State nb : l.getNeighbours().neighbours) {
+				ArrayList<State> preds = predecessors.get(nb);
+				int idx = preds.indexOf(l);
+				if (inHpc.contains(nb))
+					preds.remove(idx);
+				else
+					preds.set(idx, h);
+			}
 		}
 		return true;
 	}
@@ -407,199 +408,124 @@ public class SearchAlgorithm {
 		}
 	}
 
+	private void dumpStates(Collection<State> states) {
+		for (State state : states) {
+			System.err.println("Zero-order transition From " + state);
+			Neighbours nbs = state.getNeighbours();
+			for (int i = 0; i < nbs.neighbours.length; i++) {
+				if (nbs.orders[i] != 0)
+					continue;
+				System.err.format("\tto %s: %d\n", nbs.neighbours[i], nbs.orders[i]);
+			}
+		}
+	}
+
+
+	private void backwardStep(Map<State, Double> v, Set<State> frontier) {
+		ArrayDeque<State> frontierEdge = new ArrayDeque<>(frontier);
+		HashSet<State> toUpdate = new HashSet<>();
+		int dCur = 0;
+
+		while(!frontierEdge.isEmpty()) {
+			State x = frontierEdge.poll();
+			frontier.remove(x);
+			toUpdate.add(x);
+
+			for (State z : predecessors.get(x)) {
+				if (prop.isBlue(model, z))
+					continue;
+				if (z.getOrderTo(x) == Short.MAX_VALUE)
+					throw new IllegalStateException("Invalid predecessor: " + z + " does not transition to " + x);
+				int dZ = d.get(x) + z.getOrderTo(x);
+				if (dZ < d.get(z)) {
+					d.put(z, dZ);
+					v.put(z, zero);
+					frontier.add(z);
+					if (dZ < dCur)
+						throw new IllegalStateException("Missed minimum-distance transition to " + dZ + ", current " + dCur);
+					if (dZ == dCur)
+						frontierEdge.add(z);
+				}
+			}
+
+			if (frontierEdge.isEmpty()) {
+				Iterator<State> it = toUpdate.iterator();
+				while (it.hasNext()) {
+					x = it.next();
+					boolean head = true;
+					Neighbours es = x.getNeighbours();
+					for (int i = prop.isRed(model, x) ? es.orders.length : 0; i < es.orders.length; i++) {
+						if (es.orders[i] != 0) {
+							continue;
+						}
+						State xx = es.neighbours[i];
+						if (toUpdate.contains(xx)) {
+							head = false;
+							if (!it.hasNext()) {
+								dumpStates(toUpdate);
+								throw new IllegalStateException("Cycle detected");
+							}
+							break;
+						}
+					}
+					if (head) {
+						it.remove();
+						for (State z : predecessors.get(x)) {
+							if (prop.isBlue(model, z))
+								continue;
+							int dZ = d.get(x) + z.getOrderTo(x);
+							if (d.get(z) == dZ && !prop.isRed(model, z)) {
+								double vZ = v.get(z);
+								double vX = v.get(x);
+								double pZX = z.getProbTo(x);
+								vZ = Math.fma(vX, pZX, vZ);
+								v.put(z, vZ);
+							}
+						}
+						it = toUpdate.iterator();
+					}
+				}
+
+				dCur = Integer.MAX_VALUE;
+				for (State s : frontier) {
+					int dS = d.get(s);
+					if (dS < dCur) {
+						dCur = dS;
+						frontierEdge.clear();
+					}
+					if (dS == dCur)
+						frontierEdge.add(s);
+				}
+			}
+		}
+	}
+
 	private HashMap<State, Double> backwardPhase() {
 		d = new HashMap<State, Integer>();
 		HashMap<State, Double> v = new HashMap<>();
 		if(trace) System.out.println("-----"+Lambda.size()+", "+Gamma.size());
-		HashSet<State> lambdaP = new HashSet<>();
-		HashSet<State> potentials = new HashSet<>();
-		HashSet<State> redsAndGamma = new HashSet<>();
-		
+		HashSet<State> frontier = new HashSet<>();
+
 		Double one = 1.0;
-		Double zero = 0.0;
 		for (State st : Lambda) {
 			if(prop.isRed(model, st)) {
 				v.put(st, one);
 				d.put(st, 0);
-				redsAndGamma.add(st);
+				frontier.add(st);
 			} else {
 				v.put(st, zero);
 				d.put(st, Integer.MAX_VALUE);
-				if (!prop.isBlue(model, st))
-					potentials.add(st);
 			}
 		}
 
 		for (State st : Gamma) {
-			d.put(st, 0);
 			v.put(st, one);
-			redsAndGamma.add(st);
-		}
-		one = null;
-		if(trace) System.out.println("Reds and Gamma size: "+redsAndGamma.size());
-
-		int counter = 0;
-
-		// first: reds and Gamma
-
-		for (State x : redsAndGamma) {
-			if (trace) {
-				System.out.println("*  state "+x);
-				if(counter % 100 == 0)
-					System.out.println("count: "+counter+": "+x);
-				counter++;
-			}
-
-			for (State z : predecessors.get(x)) {
-				int dZ = d.get(x) + z.getOrderTo(x);
-				if (dZ < d.get(z)) {
-					v.put(z, zero);
-					d.put(z, dZ);
-				}
-				if(d.get(z) == dZ && !prop.isRed(model, z)) {
-					double vZ = v.get(z);
-					double vX = v.get(x);
-					double pZX = z.getProbTo(x);
-					vZ = Math.fma(vX, pZX, vZ);
-					v.put(z, vZ);
-				}
-			}
+			d.put(st, 0);
+			frontier.add(st);
 		}
 
-		ArrayDeque<State> currentSuitables = new ArrayDeque<>();
-		HashSet<State> suitables = new HashSet<>();
-		int dCur = Integer.MAX_VALUE;
+		backwardStep(v, frontier);
 
-		for (State z : potentials) {
-			if (d.get(z) == Integer.MAX_VALUE)
-				continue;
-			boolean suitable = true;
-			Neighbours es = findNeighbours(z);
-			for (State x : es.neighbours) {
-				if (!Lambda.contains(x))
-					continue;
-				if (redsAndGamma.contains(x))
-					continue;
-				if (prop.isBlue(model, x))
-					continue;
-				int dXZ = x.getOrderTo(z);
-				if (dXZ > 0)
-					continue;
-				suitable = false;
-				break;
-			}
-			if (suitable) {
-				suitables.add(z);
-				int dZ = d.get(z);
-				if (dZ < dCur) {
-					dCur = dZ;
-					currentSuitables.clear();
-				}
-				if (dZ == dCur)
-					currentSuitables.add(z);
-			}
-		}
-
-		// then: Lambda
-
-		while(true) {
-			if (currentSuitables.isEmpty()) {
-				dCur = Integer.MAX_VALUE;
-				if (suitables.isEmpty())
-					break;
-				for (State s : suitables) {
-					int dS = d.get(s);
-					if (dS < dCur) {
-						dCur = dS;
-						currentSuitables.clear();
-					}
-					if (dS == dCur)
-						currentSuitables.add(s);
-				}
-			}
-			State x = currentSuitables.poll();
-
-			if (trace) {
-				System.out.println("** state "+x+": d="+d.get(x));
-				counter++;
-				//System.out.println("count: "+counter+": "+x);
-			}
-			lambdaP.add(x);
-			suitables.remove(x);
-
-			for (State z : predecessors.get(x)) {
-				//System.out.println(x+", "+z+": "+X.size());
-				int dZ = d.get(x) + z.getOrderTo(x);
-				if (dZ < d.get(z)) {
-					suitables.add(z);
-					v.put(z, zero);
-					d.put(z, dZ);
-					if (dZ < dCur) {
-						currentSuitables.clear();
-						dCur = dZ;
-					}
-					if (dZ == dCur)
-						currentSuitables.add(z);
-				}
-				if (d.get(z) == dZ && !prop.isRed(model, z)) {
-					double vZ = v.get(z);
-					double vX = v.get(x);
-					double pZX = z.getProbTo(x);
-					vZ = Math.fma(vX, pZX, vZ);
-					v.put(z, vZ);
-				}
-
-				if (suitables.contains(z)
-				    || lambdaP.contains(z)
-				    || !potentials.contains(z))
-					continue;
-				boolean suitable = true;
-				for (State xx : z.getNeighbours().neighbours) {
-					if (!suitables.contains(xx))
-						continue;
-					int rzxx = z.getOrderTo(xx);
-					if (!(prop.isBlue(model, xx) || lambdaP.contains(xx) || redsAndGamma.contains(xx) || rzxx > 0)) {
-						suitable = false;
-						break;
-					}
-				}
-				if (suitable) {
-					suitables.add(z);
-					int md = d.get(z);
-					if (md < dCur) {
-						dCur = md;
-						currentSuitables.clear();
-					}
-					if (md == dCur)
-						currentSuitables.add(z);
-				}
-			}
-		}
-
-		// finallY: reset blue states
-		for(State z : Lambda) {
-			if(prop.isBlue(model, z))
-				v.put(z, zero);
-		}
 		return v;
 	}
-	
-	/*
-	public StateSpace determineXUnderQ(Scheme scheme) {
-		StateSpace XUnderQ = model.clone();
-		
-		for(int k=0; k<model.probs.size();k++) {
-			double[] probs = generator.X.probs.get(k);
-			if(probs != null) {
-				double[] probsQ = new double[probs.length];
-				scheme.computeNewProbs(k);
-				for(int i=0;i<probs.length;i++) {
-					probsQ[i] = scheme.stateWeightsIS[i] / scheme.totalStateWeightIS;
-				}
-				XUnderQ.probs.set(k, probsQ);
-			}
-		}
-		return XUnderQ;
-	}
-	*/
 }
