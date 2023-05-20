@@ -1,0 +1,148 @@
+{
+	"jani-version": 1,
+	"type": "ctmc",
+	"actions": [
+		{
+			"name": "P"
+		}
+	],
+	"automata": [
+		{
+			"initial-locations": [
+				"location"
+			],
+			"locations": [
+				{
+					"name": "location"
+				}
+			],
+			"name": "A1",
+			"variables": [],
+			"edges": [
+				{
+					"action": "P",
+					"destinations": [
+						{
+							"assignments": [
+								{
+									"ref": "count",
+									"value": {
+										"left": "count",
+										"op": "+",
+										"right": 1
+									}
+								}
+							],
+							"location": "location"
+						}
+					],
+					"guard": {
+						"exp": {
+							"left": "count",
+							"op": "<",
+							"right": 5
+						}
+					},
+					"location": "location",
+					"rate": {
+						"exp": 1
+					}
+				}
+			]
+		},
+		{
+			"edges": [
+				{
+					"action": "P",
+					"destinations": [
+						{
+							"location": "location"
+						}
+					],
+					"guard": {
+						"exp": {
+							"left": "count",
+							"op": "<",
+							"right": 2
+						}
+					},
+					"location": "location",
+					"rate": {
+						"exp": 1
+					}
+				}
+			],
+			"initial-locations": [
+				"location"
+			],
+			"locations": [
+				{
+					"name": "location"
+				}
+			],
+			"name": "A2"
+		}
+	],
+	"variables": [
+		{
+			"initial-value": 1,
+			"name": "count",
+			"type": {
+				"base": "int",
+				"kind": "bounded",
+				"lower-bound": 0,
+				"upper-bound": 8
+			}
+		}
+	],
+	"properties": [
+		{
+			"expression": {
+				"fun": "max",
+				"op": "filter",
+				"states": {
+					"op": "initial"
+				},
+				"values": {
+					"exp": {
+						"left": true,
+						"op": "U",
+						"right": {
+							"left": "count",
+							"op": ">",
+							"right": 3
+						},
+						"time-bounds": {
+							"upper": 1,
+							"upper-exclusive": true
+						}
+					},
+					"op": "Pmax"
+				}
+			},
+			"name": "TBR"
+		}
+	],
+	"system": {
+		"elements": [
+			{
+				"automaton": "A1"
+			},
+			{
+				"automaton": "A2",
+				"input-enable": [
+					"P"
+				]
+			}
+		],
+		"syncs": [
+			{
+				"result": "P",
+				"synchronise": [
+					"P",
+					"P"
+				]
+			}
+		]
+	}
+}
