@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
 
 import algorithms.Simulator;
+import nl.utwente.ewi.fmt.EXPRES.expression.ConstantExpression;
 
 public class MakeTraLab {
 	private final static Comparator<BigDecimal> bdComparator
@@ -90,7 +91,7 @@ public class MakeTraLab {
 						continue;
 					eval = prop.avoidTarget.evaluate(vals);
 					if (eval.doubleValue() != 0)
-						markings.add("p_" + prop.name + "_stay");
+						markings.add("p_" + prop.name + "_avoid");
 				}
 
 				if (markings.isEmpty())
@@ -241,7 +242,40 @@ public class MakeTraLab {
 		printStates(traWriter, labWriter);
 		labWriter.close();
 		traWriter.close();
+		if (props != null && !props.isEmpty()) {
+			try (FileOutputStream queryFile = new FileOutputStream(out + ".query");
+				PrintWriter queryWriter = new PrintWriter(queryFile))
+			{
+				queryWriter.format("set print off\n");
+				for (Property prop : props)
+					writeProperty(queryWriter, prop);
+				queryWriter.format("quit\n");
+			}
+		}
 		//checkErgodic();
+	}
+
+	private void writeProperty(PrintWriter writer, Property prop)
+	{
+		switch (prop.type) {
+		case STEADY_STATE:
+			writer.format("S{>0.5}[ p_%s_target ]\n$RESULT[1]\n", prop.name);
+			break;
+		case REACHABILITY:
+			writer.write("P{>0.5}[ ");
+			if (prop.avoidTarget == null || prop.avoidTarget.equals(ConstantExpression.FALSE))
+				writer.write("tt");
+			else
+				writer.format("!p_%s_avoid", prop.name);
+			writer.write(" U");
+			if (prop.timeBound != Double.POSITIVE_INFINITY) {
+				writer.format("[0,%s]", Double.toString(prop.timeBound));
+			}
+			writer.format(" p_%s_target ]\n$RESULT[1]\n", prop.name);
+			break;
+		default:
+			break;
+		}
 	}
 
 	private void exploreStates() throws NondeterminismException
