@@ -10,6 +10,7 @@ import java.io.Reader;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.math.BigDecimal;
+import java.net.URI;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
@@ -300,9 +301,9 @@ public class JSONParser {
 		return JSONParser.parse(data);
 	}
 
-	public static Object readJsonFromUrl(String url) throws IOException {
+	public static Object readJsonFromUri(URI uri) throws IOException {
 		byte data[];
-		try (InputStream inStr = new URL(url).openStream();
+		try (InputStream inStr = uri.toURL().openStream();
 			ByteArrayOutputStream str = new ByteArrayOutputStream())
 		{
 			byte buf[] = new byte[4096];

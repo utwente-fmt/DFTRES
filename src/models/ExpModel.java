@@ -1,5 +1,6 @@
 package models;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import nl.utwente.ewi.fmt.EXPRES.Composition;
@@ -83,14 +84,22 @@ public class ExpModel extends StateSpace
 			if (order > Short.MAX_VALUE)
 				throw new IllegalArgumentException("Order does not fit in 16 bits.");
 			State z = findOrCreate(t.target.clone());
+			if (z.equals(s))
+				continue;
 			neighbours[i] = z;
 			orders[i] = (short)order;
 			probs[i] = rateOrProb;
 			i++;
 		}
 
+		if (i != probs.length) {
+			neighbours = Arrays.copyOf(neighbours, i);
+			probs = Arrays.copyOf(probs, i);
+			orders = Arrays.copyOf(orders, i);
+		}
+
 		double totProb = 0;
-		int n = probs.length;
+		int n = i;
 
 		for(i = 0; i < n; i++)
 			totProb += probs[i];

@@ -532,7 +532,7 @@ class Main {
 			else
 				showResults(time, goodResults);
 			if (currentSimulator != null) {
-				SimulationResult res = currentSimulator.getCurrentEstimate(confidence);
+				SimulationResult res = currentSimulator.getCurrentEstimate(1-confidence);
 				System.err.println("***Unexpected interruption***");
 				System.err.println("Best estimate for property " + res.property.name + ":");
 				System.err.println(res.toString());
@@ -671,20 +671,20 @@ class Main {
 		String failedVar = useStorm ? "failed" : "marked";
 		for (int i = 0; i < args.length - 1; i++) {
 			if (args[i].equals("-a")) {
-				Property av = new Property(Property.Type.STEADY_STATE, new VariableExpression(failedVar), "Unavailability");
+				Property av = new Property(Property.Type.STEADY_STATE, new VariableExpression(failedVar), null, "Unavailability");
 				properties.add(av);
 				onlyProperties.add(av.name);
 			} else if (args[i].equals("-u")) {
-				Property rel = new Property(Property.Type.REACHABILITY, new VariableExpression(failedVar), "Unreliability");
+				Property rel = new Property(Property.Type.REACHABILITY, new VariableExpression(failedVar), null, "Unreliability");
 				properties.add(rel);
 				onlyProperties.add(rel.name);
 			} else if (args[i].equals("-r")) {
 				double time = Double.parseDouble(args[++i]);
-				Property rel = new Property(Property.Type.REACHABILITY, time, new VariableExpression(failedVar), "Unreliability");
+				Property rel = new Property(Property.Type.REACHABILITY, time, new VariableExpression(failedVar), null, "Unreliability");
 				properties.add(rel);
 				onlyProperties.add(rel.name);
 			} else if (args[i].equals("--mttf")) {
-				Property mttf = new Property(Property.Type.EXPECTED_VALUE, Double.POSITIVE_INFINITY, new VariableExpression(failedVar), "MTTF", new ConstantExpression(1), null);
+				Property mttf = new Property(Property.Type.EXPECTED_VALUE, Double.POSITIVE_INFINITY, new VariableExpression(failedVar), null, "MTTF", new ConstantExpression(1), null);
 				properties.add(mttf);
 				onlyProperties.add(mttf.name);
 			}
@@ -703,12 +703,12 @@ class Main {
 			MakeJani.makeJani(model, janiOutputFile, jsonOutput ? filename : null, args, properties);
 		if (traLabOutputFile != null) {
 			try {
-				MakeTraLab mtl = new MakeTraLab(model, unsafeComposition);
+				MakeTraLab mtl = new MakeTraLab(model, unsafeComposition, properties);
 				mtl.convert(traLabOutputFile);
 			} catch (NondeterminismException e) {
 				e.printStackTrace();
 				LTS tmpModel = loadModel(filename, constants, onlyProperties, false, useStorm, compositionStateLimit);
-				MakeTraLab mtl = new MakeTraLab(tmpModel, unsafeComposition);
+				MakeTraLab mtl = new MakeTraLab(tmpModel, unsafeComposition, properties);
 				mtl.convert(traLabOutputFile);
 			}
 		}

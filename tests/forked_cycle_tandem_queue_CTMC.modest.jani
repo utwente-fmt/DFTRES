@@ -1,0 +1,812 @@
+{
+	"actions" : 
+	[
+		{
+			"name" : "P1"
+		},
+		{
+			"name" : "P2"
+		},
+		{
+			"name" : "P3"
+		},
+		{
+			"name" : "init_clocks"
+		}
+	],
+	"automata" : 
+	[
+		{
+			"edges" : 
+			[
+				{
+					"action" : "P1",
+					"destinations" : 
+					[
+						{
+							"assignments" : [],
+							"location" : "location"
+						}
+					],
+					"guard" : 
+					{
+						"exp" : true
+					},
+					"location" : "location",
+					"rate" : 
+					{
+						"exp" : "lambda"
+					}
+				},
+				{
+					"action" : "init_clocks",
+					"destinations" : 
+					[
+						{
+							"assignments" : [],
+							"location" : "location"
+						}
+					],
+					"location" : "initial-location",
+					"rate" : 
+					{
+						"exp" : 1.0
+					}
+				}
+			],
+			"initial-locations" : 
+			[
+				"initial-location"
+			],
+			"locations" : 
+			[
+				{
+					"name" : "initial-location"
+				},
+				{
+					"name" : "location"
+				}
+			],
+			"name" : "Arrivals",
+			"variables" : []
+		},
+		{
+			"edges" : 
+			[
+				{
+					"action" : "P1",
+					"destinations" : 
+					[
+						{
+							"assignments" : 
+							[
+								{
+									"ref" : "q1",
+									"value" : 
+									{
+										"left" : "q1",
+										"op" : "+",
+										"right" : 1
+									}
+								}
+							],
+							"location" : "location"
+						}
+					],
+					"guard" : 
+					{
+						"exp" : 
+						{
+							"left" : "q1",
+							"op" : "<",
+							"right" : "c"
+						}
+					},
+					"location" : "location",
+					"rate" : 
+					{
+						"exp" : 1
+					}
+				},
+				{
+					"destinations" : 
+					[
+						{
+							"assignments" : 
+							[
+								{
+									"ref" : "dest",
+									"value" : 1
+								}
+							],
+							"location" : "location",
+							"probability" : 
+							{
+								"exp" : "p1"
+							}
+						},
+						{
+							"assignments" : 
+							[
+								{
+									"ref" : "dest",
+									"value" : 2
+								}
+							],
+							"location" : "location",
+							"probability" : 
+							{
+								"exp" : "p2"
+							}
+						},
+						{
+							"assignments" : 
+							[
+								{
+									"ref" : "dest",
+									"value" : 3
+								}
+							],
+							"location" : "location",
+							"probability" : 
+							{
+								"exp" : "p3"
+							}
+						}
+					],
+					"guard" : 
+					{
+						"exp" : 
+						{
+							"left" : 
+							{
+								"left" : "dest",
+								"op" : "=",
+								"right" : 0
+							},
+							"op" : "\u2227",
+							"right" : 
+							{
+								"left" : "q1",
+								"op" : ">",
+								"right" : 0
+							}
+						}
+					},
+					"location" : "location",
+					"rate" : 
+					{
+						"exp" : 
+						{
+							"left" : "mu1",
+							"op" : "/",
+							"right" : 2
+						}
+					}
+				},
+				{
+					"destinations" : 
+					[
+						{
+							"assignments" : 
+							[
+								{
+									"ref" : "dest",
+									"value" : 0
+								}
+							],
+							"location" : "location"
+						}
+					],
+					"guard" : 
+					{
+						"exp" : 
+						{
+							"left" : "dest",
+							"op" : "=",
+							"right" : 1
+						}
+					},
+					"location" : "location",
+					"rate" : 
+					{
+						"exp" : 
+						{
+							"left" : "mu1",
+							"op" : "/",
+							"right" : 2
+						}
+					}
+				},
+				{
+					"action" : "P2",
+					"destinations" : 
+					[
+						{
+							"assignments" : 
+							[
+								{
+									"ref" : "dest",
+									"value" : 0
+								},
+								{
+									"ref" : "q1",
+									"value" : 
+									{
+										"left" : "q1",
+										"op" : "-",
+										"right" : 1
+									}
+								}
+							],
+							"location" : "location"
+						}
+					],
+					"guard" : 
+					{
+						"exp" : 
+						{
+							"left" : "dest",
+							"op" : "=",
+							"right" : 2
+						}
+					},
+					"location" : "location",
+					"rate" : 
+					{
+						"exp" : 
+						{
+							"left" : "mu1",
+							"op" : "/",
+							"right" : 2
+						}
+					}
+				},
+				{
+					"action" : "P3",
+					"destinations" : 
+					[
+						{
+							"assignments" : 
+							[
+								{
+									"ref" : "dest",
+									"value" : 0
+								},
+								{
+									"ref" : "q1",
+									"value" : 
+									{
+										"left" : "q1",
+										"op" : "-",
+										"right" : 1
+									}
+								}
+							],
+							"location" : "location"
+						}
+					],
+					"guard" : 
+					{
+						"exp" : 
+						{
+							"left" : "dest",
+							"op" : "=",
+							"right" : 3
+						}
+					},
+					"location" : "location",
+					"rate" : 
+					{
+						"exp" : 
+						{
+							"left" : "mu1",
+							"op" : "/",
+							"right" : 2
+						}
+					}
+				},
+				{
+					"action" : "init_clocks",
+					"destinations" : 
+					[
+						{
+							"assignments" : [],
+							"location" : "location"
+						}
+					],
+					"location" : "initial-location",
+					"rate" : 
+					{
+						"exp" : 1.0
+					}
+				}
+			],
+			"initial-locations" : 
+			[
+				"initial-location"
+			],
+			"locations" : 
+			[
+				{
+					"name" : "initial-location"
+				},
+				{
+					"name" : "location"
+				}
+			],
+			"name" : "Queue1",
+			"variables" : 
+			[
+				{
+					"initial-value" : 1,
+					"name" : "q1",
+					"type" : 
+					{
+						"base" : "int",
+						"kind" : "bounded",
+						"lower-bound" : 0,
+						"upper-bound" : "c"
+					}
+				},
+				{
+					"initial-value" : 0,
+					"name" : "dest",
+					"type" : 
+					{
+						"base" : "int",
+						"kind" : "bounded",
+						"lower-bound" : 0,
+						"upper-bound" : 3
+					}
+				}
+			]
+		},
+		{
+			"edges" : 
+			[
+				{
+					"action" : "P2",
+					"destinations" : 
+					[
+						{
+							"assignments" : 
+							[
+								{
+									"ref" : "q2",
+									"value" : 
+									{
+										"left" : "q2",
+										"op" : "+",
+										"right" : 1
+									}
+								}
+							],
+							"location" : "location"
+						}
+					],
+					"guard" : 
+					{
+						"exp" : 
+						{
+							"left" : "q2",
+							"op" : "<",
+							"right" : "c"
+						}
+					},
+					"location" : "location",
+					"rate" : 
+					{
+						"exp" : 1
+					}
+				},
+				{
+					"destinations" : 
+					[
+						{
+							"assignments" : 
+							[
+								{
+									"ref" : "q2",
+									"value" : 
+									{
+										"left" : "q2",
+										"op" : "-",
+										"right" : 1
+									}
+								}
+							],
+							"location" : "location"
+						}
+					],
+					"guard" : 
+					{
+						"exp" : 
+						{
+							"left" : "q2",
+							"op" : ">",
+							"right" : 0
+						}
+					},
+					"location" : "location",
+					"rate" : 
+					{
+						"exp" : "mu2"
+					}
+				},
+				{
+					"action" : "init_clocks",
+					"destinations" : 
+					[
+						{
+							"assignments" : [],
+							"location" : "location"
+						}
+					],
+					"location" : "initial-location",
+					"rate" : 
+					{
+						"exp" : 1.0
+					}
+				}
+			],
+			"initial-locations" : 
+			[
+				"initial-location"
+			],
+			"locations" : 
+			[
+				{
+					"name" : "initial-location"
+				},
+				{
+					"name" : "location"
+				}
+			],
+			"name" : "Queue2",
+			"variables" : []
+		},
+		{
+			"edges" : 
+			[
+				{
+					"action" : "P3",
+					"destinations" : 
+					[
+						{
+							"assignments" : 
+							[
+								{
+									"ref" : "q3",
+									"value" : 
+									{
+										"left" : "q3",
+										"op" : "+",
+										"right" : 1
+									}
+								}
+							],
+							"location" : "location"
+						}
+					],
+					"guard" : 
+					{
+						"exp" : 
+						{
+							"left" : "q3",
+							"op" : "<",
+							"right" : "c"
+						}
+					},
+					"location" : "location",
+					"rate" : 
+					{
+						"exp" : 1
+					}
+				},
+				{
+					"destinations" : 
+					[
+						{
+							"assignments" : 
+							[
+								{
+									"ref" : "q3",
+									"value" : 
+									{
+										"left" : "q3",
+										"op" : "-",
+										"right" : 1
+									}
+								}
+							],
+							"location" : "location"
+						}
+					],
+					"guard" : 
+					{
+						"exp" : 
+						{
+							"left" : "q3",
+							"op" : ">",
+							"right" : 0
+						}
+					},
+					"location" : "location",
+					"rate" : 
+					{
+						"exp" : "mu3"
+					}
+				},
+				{
+					"action" : "init_clocks",
+					"destinations" : 
+					[
+						{
+							"assignments" : [],
+							"location" : "location"
+						}
+					],
+					"location" : "initial-location",
+					"rate" : 
+					{
+						"exp" : 1.0
+					}
+				}
+			],
+			"initial-locations" : 
+			[
+				"initial-location"
+			],
+			"locations" : 
+			[
+				{
+					"name" : "initial-location"
+				},
+				{
+					"name" : "location"
+				}
+			],
+			"name" : "Queue3",
+			"variables" : 
+			[
+				{
+					"initial-value" : 0,
+					"name" : "q3",
+					"type" : 
+					{
+						"base" : "int",
+						"kind" : "bounded",
+						"lower-bound" : 0,
+						"upper-bound" : "c"
+					}
+				}
+			]
+		}
+	],
+	"constants" : 
+	[
+		{
+			"name" : "L",
+			"type" : "int",
+			"value" : 6
+		},
+		{
+			"name" : "c",
+			"type" : "int",
+			"value" : 9
+		},
+		{
+			"name" : "p3",
+			"type" : "real",
+			"value" : 0.45
+		},
+		{
+			"name" : "p2",
+			"type" : "real",
+			"value" : 0.25
+		},
+		{
+			"name" : "p1",
+			"type" : "real",
+			"value" : 0.3
+		},
+		{
+			"name" : "lambda",
+			"type" : "real",
+			"value" : 3.0
+		},
+		{
+			"name" : "mu1",
+			"type" : "real",
+			"value" : 2.0
+		},
+		{
+			"name" : "mu2",
+			"type" : "real",
+			"value" : 3.0
+		},
+		{
+			"name" : "mu3",
+			"type" : "real",
+			"value" : 5.0
+		},
+		{
+			"name" : "TLIMIT",
+			"type" : "real",
+			"value" : 5
+		}
+	],
+	"features" : 
+	[
+		"derived-operators"
+	],
+	"jani-version" : 1,
+	"metadata" : 
+	{
+		"author" : "FIG translator",
+		"description" : "JANI file generated from IOSA model",
+		"version" : "Thu May 11 22:52:07 2023\n"
+	},
+	"name" : "forked_cycle_tandem_queue_CTMC.sa",
+	"properties" : 
+	[
+		{
+			"expression" : 
+			{
+				"fun" : "max",
+				"op" : "filter",
+				"states" : 
+				{
+					"op" : "initial"
+				},
+				"values" : 
+				{
+					"exp" : 
+					{
+						"left" : 
+						{
+							"left" : "q2",
+							"op" : ">",
+							"right" : 0
+						},
+						"op" : "U",
+						"right" : 
+						{
+							"left" : "q2",
+							"op" : "\u2265",
+							"right" : "L"
+						}
+					},
+					"op" : "Pmax"
+				}
+			},
+			"name" : "Until_0"
+		},
+		{
+			"expression" : 
+			{
+				"fun" : "max",
+				"op" : "filter",
+				"states" : 
+				{
+					"op" : "initial"
+				},
+				"values" : 
+				{
+					"exp" : 
+					{
+						"left" : 
+						{
+							"left" : "q2",
+							"op" : ">",
+							"right" : 0
+						},
+						"op" : "U",
+						"right" : 
+						{
+							"left" : "q2",
+							"op" : "\u2265",
+							"right" : "L"
+						},
+						"time-bounds" : 
+						{
+							"upper" : "TLIMIT",
+							"upper-exclusive" : true
+						}
+					},
+					"op" : "Pmax"
+				}
+			},
+			"name" : "TimeBoundedUntil_0"
+		}
+	],
+	"system" : 
+	{
+		"elements" : 
+		[
+			{
+				"automaton" : "Arrivals"
+			},
+			{
+				"automaton" : "Queue1",
+				"input-enable" : 
+				[
+					"P1"
+				]
+			},
+			{
+				"automaton" : "Queue2",
+				"input-enable" : 
+				[
+					"P2"
+				]
+			},
+			{
+				"automaton" : "Queue3",
+				"input-enable" : 
+				[
+					"P3"
+				]
+			}
+		],
+		"syncs" : 
+		[
+			{
+				"result" : "P1",
+				"synchronise" : 
+				[
+					"P1",
+					"P1",
+					null,
+					null
+				]
+			},
+			{
+				"result" : "P2",
+				"synchronise" : 
+				[
+					null,
+					"P2",
+					"P2",
+					null
+				]
+			},
+			{
+				"result" : "P3",
+				"synchronise" : 
+				[
+					null,
+					"P3",
+					null,
+					"P3"
+				]
+			},
+			{
+				"result" : "init_clocks",
+				"synchronise" : 
+				[
+					"init_clocks",
+					"init_clocks",
+					"init_clocks",
+					"init_clocks"
+				]
+			}
+		]
+	},
+	"type" : "ctmc",
+	"variables" : 
+	[
+		{
+			"initial-value" : 1,
+			"name" : "q2",
+			"type" : 
+			{
+				"base" : "int",
+				"kind" : "bounded",
+				"lower-bound" : 0,
+				"upper-bound" : "c"
+			}
+		}
+	]
+}

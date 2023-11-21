@@ -1,12 +1,7 @@
 package nl.utwente.ewi.fmt.EXPRES;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.BitSet;
-import java.util.HashSet;
-import java.util.TreeMap;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class Test {
 	static BitSet visited = new BitSet(32768);
@@ -23,6 +18,9 @@ public class Test {
 			Automaton a = new Automaton(args[0], "aut");
 			printTransitions(a, 0);
 			l = a;
+		} else if (args[0].endsWith(".jani")) {
+			JaniModel model = new JaniModel(args[0], Map.of(), Set.of());
+			l = model.getLTS(Set.of());
 		} else {
 			Composition c;
 			if (args[0].endsWith(".exp")) {

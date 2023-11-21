@@ -64,7 +64,7 @@ clean:
 	@$(RM) -r DFTRES.jar
 	@echo 'RM    DFTRES.jar'
 
-prep_package: FORCE
+prep_package: $(SOURCE_DIR)/nl/utwente/ewi/fmt/EXPRES/Version.java FORCE
 	@echo 'RM       pkgtmp'
 	@$(RM) -rf pkgtmp
 	@echo 'CHECKOUT pkgtmp'

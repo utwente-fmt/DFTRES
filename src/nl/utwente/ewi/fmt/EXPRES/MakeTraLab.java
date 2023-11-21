@@ -4,23 +4,12 @@ import java.io.IOException;
 import java.io.FileOutputStream;
 import java.io.PrintWriter;
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.BitSet;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
 
 import algorithms.Simulator;
+import nl.utwente.ewi.fmt.EXPRES.expression.ConstantExpression;
 
 public class MakeTraLab {
 	private final static Comparator<BigDecimal> bdComparator
@@ -32,20 +21,22 @@ public class MakeTraLab {
 	private final ArrayList<Map<Integer, Set<String>>> transitions = new ArrayList<>();
 	private final TreeMap<BigDecimal, Set<BigDecimal>> transitionTimes
 			= new TreeMap<>(bdComparator);
-	private final ArrayList<String> markings = new ArrayList<>();
+	private final ArrayList<Set<String>> markings = new ArrayList<>();
+	private final Collection<Property> props;
 	private final LTS l;
 	private BitSet notErgodic;
 	private int transitionCount = 0;
 
-	public MakeTraLab(LTS lts)
+	public MakeTraLab(LTS lts, Collection<Property> properties)
 	{
 		if (lts instanceof MarkovReducedLTS)
 			l = (MarkovReducedLTS)lts;
 		else
 			l = new MarkovReducedLTS(lts);
+		this.props = properties;
 	}
 
-	public MakeTraLab(LTS lts, boolean unsafe)
+	public MakeTraLab(LTS lts, boolean unsafe, Collection<Property> properties)
 	{
 		if (lts instanceof MarkovReducedLTS)
 			l = (MarkovReducedLTS)lts;
@@ -53,6 +44,7 @@ public class MakeTraLab {
 			l = new MarkovianComposition((Composition)lts);
 		else
 			l = new MarkovReducedLTS(lts);
+		this.props = properties;
 	}
 
 	private class StateToExplore {
@@ -60,7 +52,7 @@ public class MakeTraLab {
 		public final String label;
 		public Set<LTS.Transition> transitions;
 		public String stateString;
-		public String marking;
+		public Set<String> markings;
 		public NondeterminismException explorationError;
 
 		StateToExplore(int[] s, String l) {
@@ -87,14 +79,23 @@ public class MakeTraLab {
 			while (s.state != null) {
 				int[] state = s.state;
 				String sState = Composition.stateString(state);
-				Map<?, Integer> vals = l.getVarValues(state);
-				String marking = "";
-				for (Map.Entry<?, Integer> v : vals.entrySet()){
-					if (v.getValue() != 0)
-						marking += " " + v.getKey();
+				Map<String, Integer> vals = l.getVarValues(state);
+				Set<String> markings = new TreeSet<>();
+				for (Map.Entry<?, Integer> v : vals.entrySet())
+					markings.add("v_" + v.getKey() + "_" + v.getValue());
+				for (Property prop : props) {
+					Number eval = prop.reachTarget.evaluate(vals);
+					if (eval.doubleValue() != 0)
+						markings.add("p_" + prop.name + "_target");
+					if (prop.avoidTarget == null)
+						continue;
+					eval = prop.avoidTarget.evaluate(vals);
+					if (eval.doubleValue() != 0)
+						markings.add("p_" + prop.name + "_avoid");
 				}
-				if (marking.length() == 0)
-					marking = null;
+
+				if (markings.isEmpty())
+					markings = null;
 				vals = null;
 				try {
 					Set<LTS.Transition> t = l.getTransitions(state);
@@ -113,7 +114,7 @@ public class MakeTraLab {
 					synchronized(s) {
 						s.transitions = t;
 						s.stateString = sState;
-						s.marking = marking;
+						s.markings = markings;
 						s.notifyAll();
 					}
 				} catch (NondeterminismException e) {
@@ -231,7 +232,9 @@ public class MakeTraLab {
 		}
 		Map<String, Integer> initialValues = l.getVarValues(l.getInitialState());
 		labWriter.println("#DECLARATION");
-		for (String v : initialValues.keySet())
+		TreeSet<String> allMarkings = new TreeSet<>();
+		markings.forEach(allMarkings::addAll);
+		for (String v : allMarkings)
 			labWriter.println(v);
 		labWriter.println("#END");
 		for (int i = 0; i < numStates; i++)
@@ -239,7 +242,40 @@ public class MakeTraLab {
 		printStates(traWriter, labWriter);
 		labWriter.close();
 		traWriter.close();
+		if (props != null && !props.isEmpty()) {
+			try (FileOutputStream queryFile = new FileOutputStream(out + ".query");
+				PrintWriter queryWriter = new PrintWriter(queryFile))
+			{
+				queryWriter.format("set print off\n");
+				for (Property prop : props)
+					writeProperty(queryWriter, prop);
+				queryWriter.format("quit\n");
+			}
+		}
 		//checkErgodic();
+	}
+
+	private void writeProperty(PrintWriter writer, Property prop)
+	{
+		switch (prop.type) {
+		case STEADY_STATE:
+			writer.format("S{>0.5}[ p_%s_target ]\n$RESULT[1]\n", prop.name);
+			break;
+		case REACHABILITY:
+			writer.write("P{>0.5}[ ");
+			if (prop.avoidTarget == null || prop.avoidTarget.equals(ConstantExpression.FALSE))
+				writer.write("tt");
+			else
+				writer.format("!p_%s_avoid", prop.name);
+			writer.write(" U");
+			if (prop.timeBound != Double.POSITIVE_INFINITY) {
+				writer.format("[0,%s]", Double.toString(prop.timeBound));
+			}
+			writer.format(" p_%s_target ]\n$RESULT[1]\n", prop.name);
+			break;
+		default:
+			break;
+		}
 	}
 
 	private void exploreStates() throws NondeterminismException
@@ -303,7 +339,7 @@ public class MakeTraLab {
 		}
 		stateNum = stateNums.size();
 		stateNums.put(sState, stateNum);
-		markings.add(state.marking);
+		markings.add(state.markings);
 
 		StateToExplore next[];
 		next = new StateToExplore[state.transitions.size()];
@@ -443,9 +479,9 @@ public class MakeTraLab {
 				traWriter.format("%d %d %s\n",
 				                 i + 1, target + 1, rates);
 			}
-			String marking = markings.get(i);
+			Set<String> marking = markings.get(i);
 			if (marking != null)
-				labWriter.format("%d%s\n", i + 1, marking);
+				labWriter.format("%d %s\n", i + 1, String.join(" ", marking));
 		}
 	}
 
@@ -568,9 +604,9 @@ public class MakeTraLab {
 
 	private boolean bisimulationReduction() {
 		HashSet<Set<Integer>> partitions = new HashSet<>();
-		HashMap<String, Set<Integer>> ip = new HashMap<>();
+		HashMap<Set<String>, Set<Integer>> ip = new HashMap<>();
 		int i = 0;
-		for (String marking : markings) {
+		for (Set<String> marking : markings) {
 			Set<Integer> states = ip.get(marking);
 			if (states == null) {
 				states = new TreeSet<>();
