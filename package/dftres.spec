@@ -34,6 +34,10 @@ install -m 0755 package/DFTRES %{buildroot}/%{_bindir}
 %{_datadir}/dftres/DFTRES.jar
 
 %changelog
+* Tue Nov 21 2023 Enno Ruijters <mail@ennoruijters.nl> - 1.2.0-1
+- Various bugfixes discovered preparing for QComp 2023.
+- Add support for two-sided Until formulae.
+- Support for more Jani features used in the QComp 2023 models.
 * Fri Oct 07 2022 Enno Ruijters <mail@ennoruijters.nl> - 1.1.0-1
 - Performance improvements.
 - Support for Storm as DFT front-end.

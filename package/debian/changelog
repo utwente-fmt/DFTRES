@@ -1,3 +1,11 @@
+dftres (1.2.0) bookworm; urgency=low
+
+  * Various bugfixes discovered preparing for QComp 2023.
+  * Add support for two-sided Until formulae.
+  * Support for more Jani features used in the QComp 2023 models.
+
+ -- Enno Ruijters <mail@ennoruijters.nl>  Tue, 21 Nov 2023 20:07:00 +0200
+
 dftres (1.1.0) bullseye; urgency=low
 
   * Performance improvements.
