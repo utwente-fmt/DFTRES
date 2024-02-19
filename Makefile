@@ -6,7 +6,7 @@ OBJECTS = $(addprefix $(CLASS_DIR), $(addsuffix .class, $(basename $(SOURCES))))
 COMMIT = $(shell git rev-parse HEAD)
 VERSION_MAJOR=1
 VERSION_MINOR=2
-VERSION_PATCH=0
+VERSION_PATCH=1
 BASEVERSION=${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}
 VERSIONSTRING="${BASEVERSION}"
 ifeq ($(shell git status --porcelain),)

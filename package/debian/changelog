@@ -1,3 +1,9 @@
+dftres (1.2.1) bookworm; urgency=low
+
+  * Fix functionality used by DFTCalc
+
+ -- Enno Ruijters <mail@ennoruijters.nl>  Mon, 19 Feb 2024 20:27:52 +0100
+
 dftres (1.2.0) bookworm; urgency=low
 
   * Various bugfixes discovered preparing for QComp 2023.

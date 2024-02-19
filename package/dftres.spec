@@ -34,6 +34,8 @@ install -m 0755 package/DFTRES %{buildroot}/%{_bindir}
 %{_datadir}/dftres/DFTRES.jar
 
 %changelog
+* Mon Feb 19 2024 Enno Ruijters <mail@ennoruijters.nl> - 1.2.1-1
+- Fix functionality used by DFTCalc
 * Tue Nov 21 2023 Enno Ruijters <mail@ennoruijters.nl> - 1.2.0-1
 - Various bugfixes discovered preparing for QComp 2023.
 - Add support for two-sided Until formulae.
