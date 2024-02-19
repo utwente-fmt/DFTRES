@@ -81,12 +81,11 @@ public class MakeTraLab {
 				String sState = Composition.stateString(state);
 				Map<String, Integer> vals = l.getVarValues(state);
 				Set<String> markings = new TreeSet<>();
-				if (l instanceof MarkedAutomaton) {
-					if (vals.get("marked") != 0)
-						markings.add("marked");
-				}
-				for (Map.Entry<?, Integer> v : vals.entrySet())
+				for (Map.Entry<String, Integer> v : vals.entrySet()) {
 					markings.add("v_" + v.getKey() + "_" + v.getValue());
+					if (v.getKey().equals("marked") && v.getValue() != 0)
+						markings.add(v.getKey());
+				}
 				for (Property prop : props) {
 					Number eval = prop.reachTarget.evaluate(vals);
 					if (eval.doubleValue() != 0)
